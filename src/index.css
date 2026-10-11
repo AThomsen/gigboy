@@ -1342,16 +1342,6 @@ input, select, textarea { font: inherit; color: var(--text); }
   border-color: var(--accent);
   color: var(--accent-contrast);
 }
-.song-filter-chip-count { color: var(--muted); font-size: var(--text-xs); }
-.song-filter-artist-input {
-  min-width: 8rem;
-  padding: var(--space-3xs) var(--space-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text);
-  font-size: var(--text-sm);
-}
 @media (max-width: 640px) {
   .song-filter-bar { margin-inline: calc(1rem + var(--safe-left)) calc(1rem + var(--safe-right)); }
   .song-filter-panel { margin-inline: calc(1rem + var(--safe-left)) calc(1rem + var(--safe-right)); }

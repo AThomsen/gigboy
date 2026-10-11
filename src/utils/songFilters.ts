@@ -105,6 +105,8 @@ export interface ArtistOption {
   key: string;
   label: string;
   count: number;
+  /** Timestamp (ms) of the artist's most recently added song; 0 when unknown. */
+  latest: number;
 }
 
 export interface SongFilterOptions {
@@ -124,8 +126,11 @@ export function getFilterOptions(songs: Song[], languageLabel: (code: string) =>
     const key = normalizeArtist(song.artist);
     if (!key) continue;
     const existing = byArtist.get(key);
-    if (existing) existing.count += 1;
-    else byArtist.set(key, { key, label: song.artist!.trim(), count: 1 });
+    const added = Date.parse(song.createdAt ?? '') || 0;
+    if (existing) {
+      existing.count += 1;
+      existing.latest = Math.max(existing.latest, added);
+    } else byArtist.set(key, { key, label: song.artist!.trim(), count: 1, latest: added });
   }
   const artists = [...byArtist.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   return { languages, keys, hasTempo: songs.some((s) => s.tempo), artists };
@@ -148,13 +153,16 @@ export function parseArtistUsage(raw: string | null): ArtistUsage {
 }
 
 /**
- * Artists for the quick-filter row: used artists first (most used), padded with the artists that
- * have the most songs so a list with no history still gets a useful row.
+ * Artists for the quick-filter row: used artists first (most used), then artists with the most
+ * recently added songs, then the rest by song count, so a list with no history still gets a full row.
  */
-export function pickQuickArtists(artists: ArtistOption[], usage: ArtistUsage, limit = 5): ArtistOption[] {
+export function pickQuickArtists(artists: ArtistOption[], usage: ArtistUsage, limit = 12): ArtistOption[] {
   const used = artists
     .filter((a) => (usage[a.key] ?? 0) > 0)
     .sort((a, b) => usage[b.key] - usage[a.key] || b.count - a.count || a.label.localeCompare(b.label));
   const usedKeys = new Set(used.map((a) => a.key));
-  return [...used, ...artists.filter((a) => !usedKeys.has(a.key))].slice(0, limit);
+  const rest = artists
+    .filter((a) => !usedKeys.has(a.key))
+    .sort((a, b) => b.latest - a.latest || b.count - a.count || a.label.localeCompare(b.label));
+  return [...used, ...rest].slice(0, limit);
 }

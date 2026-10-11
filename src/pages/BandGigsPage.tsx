@@ -560,7 +560,7 @@ export default function BandGigsPage() {
                 aria-label="RSS feed"
                 title="RSS feed"
               >
-                <Rss size={14} /> <span className="gigs-view-label">RSS feed</span>
+                <Rss size={14} />
               </button>
               {showFeed && (
                 <div className="share-menu-panel" role="dialog" aria-label="Calendar subscription" ref={feedPanelRef} tabIndex={-1}>

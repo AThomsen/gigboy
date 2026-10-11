@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { languageName } from '../utils/languages';
 import {
   BPM_BUCKETS,
@@ -23,20 +23,6 @@ interface Props {
 export default function SongFilterPanel({ songs, filters, onChange, resultCount, id, className }: Props) {
   const options = useMemo(() => getFilterOptions(songs, languageName), [songs]);
   const activeCount = countActiveFilters(filters);
-  const [artistQuery, setArtistQuery] = useState('');
-  const normalizedArtistQuery = artistQuery.trim().toLowerCase();
-  const artistSuggestions = normalizedArtistQuery
-    ? options.artists
-        .filter((a) => !filters.artists.includes(a.key) && a.key.includes(normalizedArtistQuery))
-        .slice(0, 6)
-    : [];
-  const selectedArtists = filters.artists.map((key) => options.artists.find((a) => a.key === key)?.label ?? key);
-
-  function addArtist(key: string) {
-    onChange({ ...filters, artists: [...filters.artists, key] });
-    setArtistQuery('');
-  }
-
   function toggle(group: keyof SongFilters, value: string) {
     const current = filters[group];
     onChange({
@@ -91,41 +77,6 @@ export default function SongFilterPanel({ songs, filters, onChange, resultCount,
               onClick={() => toggle('bpm', bucket.id)}
             >
               {bucket.label}
-            </button>
-          ))}
-        </div>
-      )}
-      {options.artists.length > 1 && (
-        <div className="song-filter-group">
-          <span className="song-filter-label">Artist</span>
-          {filters.artists.map((key, i) => (
-            <button
-              key={key}
-              type="button"
-              className="song-filter-chip"
-              aria-pressed={true}
-              onClick={() => toggle('artists', key)}
-            >
-              {selectedArtists[i]}
-            </button>
-          ))}
-          <input
-            type="search"
-            className="song-filter-artist-input"
-            placeholder="Find artist…"
-            aria-label="Find artist"
-            value={artistQuery}
-            onChange={(e) => setArtistQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && artistSuggestions.length > 0) {
-                e.preventDefault();
-                addArtist(artistSuggestions[0].key);
-              }
-            }}
-          />
-          {artistSuggestions.map((a) => (
-            <button key={a.key} type="button" className="song-filter-chip" aria-pressed={false} onClick={() => addArtist(a.key)}>
-              {a.label} <span className="song-filter-chip-count">{a.count}</span>
             </button>
           ))}
         </div>
