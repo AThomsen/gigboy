@@ -8,6 +8,14 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 
 ## [Unreleased]
 
+### Added
+- **Quick filters on song lists.** A row under the search box shows your active filters as
+  removable chips, plus one-tap chips for the artists you filter or search for most (padded
+  with the artists that have the most songs until you have a history). Usage is remembered
+  per list on this device.
+- **Filter by artist.** The Filters panel (and the setlist song picker) has an Artist group
+  with search-to-add.
+
 ### Changed
 - The top bar's "Buy me a coffee" button is now icon-only, like the other top bar buttons
   (it keeps its tooltip and screen-reader label).

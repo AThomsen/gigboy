@@ -42,16 +42,24 @@ export function songLanguages(song: Song): string[] {
   return [song.language, ...(song.secondaryLanguages ?? [])].filter(Boolean);
 }
 
+/** Case/whitespace-insensitive artist identity, so "Metallica " and "metallica" are one filter value. */
+export function normalizeArtist(raw?: string): string | undefined {
+  const key = raw?.trim().replace(/\s+/g, ' ').toLowerCase();
+  return key || undefined;
+}
+
 export interface SongFilters {
   languages: string[];
   keys: string[];
   bpm: string[];
+  /** Normalized artist keys (see normalizeArtist). */
+  artists: string[];
 }
 
-export const EMPTY_SONG_FILTERS: SongFilters = { languages: [], keys: [], bpm: [] };
+export const EMPTY_SONG_FILTERS: SongFilters = { languages: [], keys: [], bpm: [], artists: [] };
 
 export function countActiveFilters(filters: SongFilters): number {
-  return filters.languages.length + filters.keys.length + filters.bpm.length;
+  return filters.languages.length + filters.keys.length + filters.bpm.length + filters.artists.length;
 }
 
 /** AND across filter groups, OR within a group. */
@@ -69,6 +77,10 @@ export function matchesSongFilters(song: Song, filters: SongFilters): boolean {
     const inBucket = BPM_BUCKETS.some((b) => filters.bpm.includes(b.id) && tempo >= b.min && tempo < b.max);
     if (!inBucket) return false;
   }
+  if (filters.artists.length > 0) {
+    const artist = normalizeArtist(song.artist);
+    if (!artist || !filters.artists.includes(artist)) return false;
+  }
   return true;
 }
 
@@ -78,21 +90,71 @@ export function parseStoredFilters(raw: string | null): SongFilters {
   try {
     const parsed = JSON.parse(raw) as Partial<SongFilters>;
     const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
-    return { languages: strings(parsed.languages), keys: strings(parsed.keys), bpm: strings(parsed.bpm) };
+    return {
+      languages: strings(parsed.languages),
+      keys: strings(parsed.keys),
+      bpm: strings(parsed.bpm),
+      artists: strings(parsed.artists),
+    };
   } catch {
     return EMPTY_SONG_FILTERS;
   }
+}
+
+export interface ArtistOption {
+  key: string;
+  label: string;
+  count: number;
 }
 
 export interface SongFilterOptions {
   languages: string[];
   keys: string[];
   hasTempo: boolean;
+  /** Most songs first, then A → Z. */
+  artists: ArtistOption[];
 }
 
 /** Options for the filter chips, derived from the songs actually in the list. */
 export function getFilterOptions(songs: Song[], languageLabel: (code: string) => string = (c) => c): SongFilterOptions {
   const languages = [...new Set(songs.flatMap(songLanguages))].sort((a, b) => languageLabel(a).localeCompare(languageLabel(b)));
   const keys = [...new Set(songs.map((s) => normalizeKey(s.key)).filter((k): k is string => Boolean(k)))].sort(compareKeys);
-  return { languages, keys, hasTempo: songs.some((s) => s.tempo) };
+  const byArtist = new Map<string, ArtistOption>();
+  for (const song of songs) {
+    const key = normalizeArtist(song.artist);
+    if (!key) continue;
+    const existing = byArtist.get(key);
+    if (existing) existing.count += 1;
+    else byArtist.set(key, { key, label: song.artist!.trim(), count: 1 });
+  }
+  const artists = [...byArtist.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  return { languages, keys, hasTempo: songs.some((s) => s.tempo), artists };
+}
+
+/** How often each artist key has been filtered/searched for in a list. */
+export type ArtistUsage = Record<string, number>;
+
+export function parseArtistUsage(raw: string | null): ArtistUsage {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0)
+    ) as ArtistUsage;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Artists for the quick-filter row: used artists first (most used), padded with the artists that
+ * have the most songs so a list with no history still gets a useful row.
+ */
+export function pickQuickArtists(artists: ArtistOption[], usage: ArtistUsage, limit = 5): ArtistOption[] {
+  const used = artists
+    .filter((a) => (usage[a.key] ?? 0) > 0)
+    .sort((a, b) => usage[b.key] - usage[a.key] || b.count - a.count || a.label.localeCompare(b.label));
+  const usedKeys = new Set(used.map((a) => a.key));
+  return [...used, ...artists.filter((a) => !usedKeys.has(a.key))].slice(0, limit);
 }

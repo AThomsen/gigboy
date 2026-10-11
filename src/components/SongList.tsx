@@ -21,14 +21,18 @@ import LanguageBadge from './LanguageBadge';
 import SongMetaBadges from './SongMetaBadges';
 import { languageName } from '../utils/languages';
 import SongFilterPanel from './SongFilterPanel';
+import SongFilterBar from './SongFilterBar';
 import {
   EMPTY_SONG_FILTERS,
   countActiveFilters,
   getFilterOptions,
   matchesSongFilters,
+  normalizeArtist,
+  parseArtistUsage,
   parseStoredFilters,
+  pickQuickArtists,
 } from '../utils/songFilters';
-import type { SongFilters } from '../utils/songFilters';
+import type { ArtistUsage, SongFilters } from '../utils/songFilters';
 import { parseChordPro } from '../utils/chordParser';
 import { SONGLIST_ICON_OPTIONS } from '../lib/iconOptions';
 import { useSongListBadges } from '../hooks/useSongListBadges';
@@ -147,6 +151,29 @@ export default function SongList({
   }, [filters, filtersStorageKey]);
   const activeFilterCount = countActiveFilters(filters);
 
+  // Artists you filter or search for often float to the quick-filter row; kept per list, like the filters.
+  const usageStorageKey = `gigboy-artist-usage:${pathname}`;
+  const [artistUsage, setArtistUsage] = useState<ArtistUsage>(() => parseArtistUsage(readStoredString(usageStorageKey)));
+  const usageKeyRef = useRef(usageStorageKey);
+  useEffect(() => {
+    if (usageKeyRef.current === usageStorageKey) return;
+    usageKeyRef.current = usageStorageKey;
+    setArtistUsage(parseArtistUsage(readStoredString(usageStorageKey)));
+  }, [usageStorageKey]);
+  function bumpArtists(keys: string[]) {
+    if (keys.length === 0) return;
+    setArtistUsage((prev) => {
+      const next = { ...prev };
+      for (const key of keys) next[key] = (next[key] ?? 0) + 1;
+      writeStoredString(usageStorageKey, JSON.stringify(next));
+      return next;
+    });
+  }
+  function handleFiltersChange(next: SongFilters) {
+    bumpArtists(next.artists.filter((a) => !filters.artists.includes(a)));
+    setFilters(next);
+  }
+
   const filterOptions = useMemo(() => {
     return getFilterOptions(songs, languageName);
   }, [songs]);
@@ -162,6 +189,19 @@ export default function SongList({
   }
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
+  // A search that settles on exactly one artist's name counts as looking for that artist.
+  useEffect(() => {
+    const key = normalizeArtist(query);
+    if (!key || !filterOptions.artists.some((a) => a.key === key)) return;
+    const timer = window.setTimeout(() => bumpArtists([key]), 1000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+  const quickArtists = useMemo(
+    () => pickQuickArtists(filterOptions.artists, artistUsage),
+    [filterOptions.artists, artistUsage]
+  );
+
   const [pickerFilters, setPickerFilters] = useState<SongFilters>(EMPTY_SONG_FILTERS);
   const [showPickerFilters, setShowPickerFilters] = useState(false);
   const [showListAppearanceEditor, setShowListAppearanceEditor] = useState(false);
@@ -541,7 +581,7 @@ export default function SongList({
             <option value="date-asc">Date added (oldest first)</option>
           </select>
         </div>
-        {(filterOptions.languages.length > 1 || filterOptions.keys.length > 0 || filterOptions.hasTempo) && (
+        {(filterOptions.languages.length > 1 || filterOptions.keys.length > 0 || filterOptions.hasTempo || filterOptions.artists.length > 1) && (
           <button
             type="button"
             className={`song-filter-toggle${activeFilterCount > 0 ? ' active' : ''}`}
@@ -554,12 +594,19 @@ export default function SongList({
           </button>
         )}
       </div>
+      <SongFilterBar
+        filters={filters}
+        onChange={handleFiltersChange}
+        artistOptions={filterOptions.artists}
+        quickArtists={filterOptions.artists.length > 1 ? quickArtists : []}
+        hideActive={showFilters}
+      />
       {showFilters && (
         <SongFilterPanel
           id="song-filter-panel"
           songs={songs}
           filters={filters}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           resultCount={filtered.length}
         />
       )}
