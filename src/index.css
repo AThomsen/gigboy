@@ -12647,3 +12647,34 @@ input.stageplot-legend-number:focus {
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
 }
+
+/* Song lists on narrow screens: the title block scrolls away; only the search row stays pinned. */
+@media (max-width: 900px) {
+  .list-sticky-header--scroll-title {
+    display: contents;
+  }
+  .list-sticky-header--scroll-title > .resource-header {
+    margin: 0 0 var(--space-md);
+  }
+  .list-sticky-header--scroll-title > .song-list-controls {
+    position: sticky;
+    top: calc(var(--topbar-height) + var(--safe-top));
+    z-index: 80;
+    background: var(--bg);
+    margin: 0 calc(-1rem - var(--safe-right)) 0 calc(-1rem - var(--safe-left));
+    padding-block: var(--space-sm);
+  }
+  .list-sticky-header--scroll-title > .song-filter-bar,
+  .list-sticky-header--scroll-title > .song-filter-panel {
+    margin-inline: 0;
+    margin-top: 0;
+    margin-bottom: var(--space-md);
+  }
+  /* Headers with no controls below them (press kit, tech rider, setlists) scroll away with the page. */
+  .list-sticky-header--scroll-away {
+    position: static;
+  }
+  .list-sticky-header--scroll-away::before {
+    display: none;
+  }
+}

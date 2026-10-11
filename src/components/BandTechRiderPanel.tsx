@@ -285,7 +285,7 @@ export default function BandTechRiderPanel({
       />
       <div className="setlist-shell">
 
-        <div className="list-sticky-header">
+        <div className="list-sticky-header list-sticky-header--scroll-away">
           <header className="page-section-header bands-header resource-header">
             <div className="setlist-title-block">
               {isRenaming && canEdit && activeRider ? (

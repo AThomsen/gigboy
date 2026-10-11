@@ -8,22 +8,30 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-11
+
 ### Added
 - **Quick filters on song lists.** A row under the search box shows your active filters as
-  removable chips, plus one-tap chips for the artists you filter or search for most (padded
-  with the artists that have the most songs until you have a history). Usage is remembered
-  per list on this device.
-- **Filter by artist.** The Filters panel (and the setlist song picker) has an Artist group
-  with search-to-add.
+  removable chips, plus one-tap chips for artists. The chips start with the artists you
+  filter or search for most, then the artists of your most recently added songs, then the
+  artists with the most songs. Usage is remembered per list on this device.
 
 ### Changed
+- On phones and portrait tablets, the title card on song lists, setlists, press kits, tech
+  riders and stage plots scrolls away with the page. Only the search row (on song lists) and
+  the top bar stay pinned, leaving more room for songs.
 - The Filters and Sort buttons on song lists are icon-only (Filters shows a count while
   active), and search fields in the library, gigs and "add songs" pickers have a clear (×)
   button.
-- The top bar's "Buy me a coffee" button is now icon-only, like the other top bar buttons
-  (it keeps its tooltip and screen-reader label).
+- The top bar's "Buy me a coffee" button and the gigs page's RSS feed button are now
+  icon-only, like the other top bar buttons (they keep their tooltips and screen-reader
+  labels).
 - The admin shield icon is gone from the top bar. Admins now find **Invites** and **Users**
   in an Administration card on their profile page; other accounts never see it.
+
+### Fixed
+- In the live demo on narrow screens, the top bar no longer scrolls away after about one
+  screen of scrolling.
 
 ## [0.3.1] - 2026-10-07
 

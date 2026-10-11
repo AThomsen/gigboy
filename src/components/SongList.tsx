@@ -396,7 +396,7 @@ export default function SongList({
 
   return (
     <div className="song-list-page">
-      <div className="list-sticky-header">
+      <div className="list-sticky-header list-sticky-header--scroll-title">
       <div className={`${headerVariant === 'bands' ? 'bands-header' : 'page-section-header'} resource-header`}>
         <div className="setlist-title-block">
           {listName && (

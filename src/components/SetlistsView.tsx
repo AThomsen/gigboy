@@ -320,7 +320,7 @@ export default function SetlistsView({
 
   return (
     <div className="setlist-view">
-      <div className="list-sticky-header">
+      <div className="list-sticky-header list-sticky-header--scroll-away">
         <div className={`${headerVariant === 'bands' ? 'bands-header' : 'page-section-header'} resource-header`}>
           <div className="setlist-title-block">
             {isRenaming ? (

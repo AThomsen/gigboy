@@ -187,7 +187,7 @@ export default function InputListEditor({
   return (
     <>
       {showHeader ? (
-        <div className="list-sticky-header">
+        <div className="list-sticky-header list-sticky-header--scroll-away">
           <div className="page-section-header resource-header">
             <div className="setlist-title-block">
               {isRenaming ? (

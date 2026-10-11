@@ -456,7 +456,14 @@ export default function Layout({ children }: Props) {
       <div
         className="app-shell"
         data-library-mode={themedBandId ? 'bands' : 'solo'}
-        style={isDemoMode ? { height: `calc(100dvh - ${DEMO_BANNER_HEIGHT}px)` } : undefined}
+        style={
+          isDemoMode
+            ? isNarrowViewport
+              ? // The page scrolls here; a fixed height would end the sticky topbar's range.
+                { minHeight: `calc(100dvh - ${DEMO_BANNER_HEIGHT}px)` }
+              : { height: `calc(100dvh - ${DEMO_BANNER_HEIGHT}px)` }
+            : undefined
+        }
       >
       <header className="topbar">
         <button
