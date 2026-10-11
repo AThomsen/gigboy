@@ -28,6 +28,7 @@ import { isDemoMode } from '../lib/demo/demoMode';
 import { showConfirmToast } from '../utils/toastDialogs';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import GigsCalendar from '../components/GigsCalendar';
+import SearchClearButton from '../components/SearchClearButton';
 import type { Gig, GigStatus, InputList, PressKit, Setlist } from '../types';
 
 type ViewMode = 'calendar' | 'cards' | 'list';
@@ -663,6 +664,7 @@ export default function BandGigsPage() {
             placeholder="Search gigs by title, venue, contact, notes…"
             aria-label="Search gigs"
           />
+          <SearchClearButton value={query} onClear={() => setQuery('')} />
         </div>
         <div className="view-toggle" role="group" aria-label="Gig view">
           {VIEWS.map(({ mode, label, icon: Icon }) => (

@@ -6,6 +6,7 @@ import { useBands } from '../context/BandsContext';
 import { generateId } from '../lib/uuid';
 import { useAuth } from '../context/AuthContext';
 import SongList from '../components/SongList';
+import SearchClearButton from '../components/SearchClearButton';
 import SetlistsView from '../components/SetlistsView';
 import BandTechRiderPanel from '../components/BandTechRiderPanel';
 import TrashView, { type TrashListItem } from '../components/TrashView';
@@ -766,6 +767,7 @@ export default function BandDetailPage() {
                 placeholder="Search by title, artist, or tag"
                 autoFocus
               />
+              <SearchClearButton value={bandPickerQuery} onClear={() => setBandPickerQuery('')} className="search-clear--picker" />
             </div>
             <div className="song-picker-results" role="list">
               {availableForImport.length === 0 ? (

@@ -6,6 +6,7 @@ import type { Song, SongList } from '../types';
 import { useBands } from '../context/BandsContext';
 import LanguageBadge from './LanguageBadge';
 import SongMetaBadges from './SongMetaBadges';
+import SearchClearButton from './SearchClearButton';
 import toast from '../utils/anchoredToast';
 import { showConfirmToast } from '../utils/toastDialogs';
 import { SETLIST_ICON_OPTIONS } from '../lib/iconOptions';
@@ -657,6 +658,7 @@ export default function SetlistsView({
                 onChange={(event) => setPickerQuery(event.target.value)}
                 placeholder="Search by title, artist, or tag"
               />
+              <SearchClearButton value={pickerQuery} onClear={() => setPickerQuery('')} className="search-clear--picker" />
             </div>
 
             <div className="song-picker-results" role="list">

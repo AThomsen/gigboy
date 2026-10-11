@@ -22,6 +22,7 @@ import SongMetaBadges from './SongMetaBadges';
 import { languageName } from '../utils/languages';
 import SongFilterPanel from './SongFilterPanel';
 import SongFilterBar from './SongFilterBar';
+import SearchClearButton from './SearchClearButton';
 import {
   EMPTY_SONG_FILTERS,
   countActiveFilters,
@@ -563,6 +564,7 @@ export default function SongList({
             onChange={(e) => setQuery(e.target.value)}
             className="search-input"
           />
+          <SearchClearButton value={query} onClear={() => setQuery('')} />
         </div>
         <div className="sort-select-wrapper">
           <ArrowUpDown size={14} className="sort-select-icon" />
@@ -588,9 +590,11 @@ export default function SongList({
             onClick={() => setShowFilters((v) => !v)}
             aria-expanded={showFilters}
             aria-controls="song-filter-panel"
+            aria-label={`Filters${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
+            title="Filters"
           >
             <SlidersHorizontal size={14} />
-            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            {activeFilterCount > 0 && activeFilterCount}
           </button>
         )}
       </div>
@@ -791,6 +795,7 @@ export default function SongList({
                 onChange={(event) => setPickerQuery(event.target.value)}
                 placeholder="Search by title, artist, or tag"
               />
+              <SearchClearButton value={pickerQuery} onClear={() => setPickerQuery('')} className="search-clear--picker" />
               {(pickerFilterOptions.languages.length > 1 || pickerFilterOptions.keys.length > 0 || pickerFilterOptions.hasTempo) && (
                 <button
                   type="button"
