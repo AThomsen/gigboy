@@ -1540,6 +1540,13 @@ input, select, textarea { font: inherit; color: var(--text); }
   background: var(--surface);
 }
 .sort-select-wrapper:focus-within { border-color: var(--accent); }
+/* Same fixed size as the filter toggle at every width; beats the generic `.song-list-controls > *` flex-grow. */
+.song-list-controls > .sort-select-wrapper {
+  flex: none;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  max-width: 2.5rem;
+}
 .sort-select-wrapper .sort-select {
   position: absolute;
   inset: 0;
