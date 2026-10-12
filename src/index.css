@@ -8365,10 +8365,10 @@ input, select, textarea { font: inherit; color: var(--text); }
   .song-view-toolbar { align-items: flex-start; }
   .page-section-header { align-items: stretch; }
   .resource-header-actions {
-    width: 100%;
+    flex-wrap: wrap;
   }
   .resource-header-actions .btn {
-    flex: 1;
+    flex: none;
   }
 
   .concert-mode {
@@ -8500,11 +8500,10 @@ input, select, textarea { font: inherit; color: var(--text); }
     height: 14px;
   }
   .view-toggle {
-    width: 100%;
-    justify-content: space-between;
+    flex: none;
+    width: auto;
   }
   .view-toggle-btn {
-    flex: 1;
     justify-content: center;
   }
   .song-card {
