@@ -136,7 +136,8 @@ export default function SongList({
   // Filters are remembered per list: a key/BPM filter on one band's songs would be confusing on another's.
   const filtersStorageKey = `gigboy-song-filters:${pathname}`;
   const [filters, setFilters] = useState<SongFilters>(() => parseStoredFilters(readStoredString(filtersStorageKey)));
-  const [showFilters, setShowFilters] = useState(() => countActiveFilters(filters) > 0);
+  // Closed on mount: active filters already show as removable chips in the quick-filter bar.
+  const [showFilters, setShowFilters] = useState(false);
   const filtersKeyRef = useRef(filtersStorageKey);
 
   useEffect(() => {
