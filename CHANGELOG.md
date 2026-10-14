@@ -8,6 +8,17 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 
 ## [Unreleased]
 
+### Added
+- **"Has" and "Length" filters on song lists.** Filter by songs that have tabs, recordings,
+  notes or attachments, and by length (short, medium, long).
+
+### Changed
+- The "Add to" button on the song page no longer has a filled background.
+
+### Removed
+- **Hand-drawn notes can no longer be created.** Typed notes replace them. Existing drawings
+  still show on the song and can be removed with "Clear drawings" in the Notes panel.
+
 ## [0.3.2] - 2026-10-11
 
 ### Added

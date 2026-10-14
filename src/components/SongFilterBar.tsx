@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { languageName } from '../utils/languages';
-import { BPM_BUCKETS } from '../utils/songFilters';
+import { BPM_BUCKETS, DURATION_BUCKETS, HAS_OPTIONS } from '../utils/songFilters';
 import type { ArtistOption, SongFilters } from '../utils/songFilters';
 
 interface Props {
@@ -26,7 +26,9 @@ export default function SongFilterBar({ filters, onChange, artistOptions, quickA
         ...filters.languages.map((v) => ({ group: 'languages' as const, value: v, label: languageName(v) })),
         ...filters.keys.map((v) => ({ group: 'keys' as const, value: v, label: v })),
         ...filters.bpm.map((v) => ({ group: 'bpm' as const, value: v, label: BPM_BUCKETS.find((b) => b.id === v)?.label ?? v })),
+        ...filters.duration.map((v) => ({ group: 'duration' as const, value: v, label: DURATION_BUCKETS.find((b) => b.id === v)?.label ?? v })),
         ...filters.artists.map((v) => ({ group: 'artists' as const, value: v, label: artistLabel(v) })),
+        ...filters.has.map((v) => ({ group: 'has' as const, value: v, label: `Has ${HAS_OPTIONS.find((o) => o.id === v)?.label.toLowerCase() ?? v}` })),
       ];
   const quick = quickArtists.filter((a) => !filters.artists.includes(a.key));
 

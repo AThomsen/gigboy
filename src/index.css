@@ -2735,6 +2735,10 @@ input, select, textarea { font: inherit; color: var(--text); }
   background: var(--chord-bg);
 }
 
+.song-notes-hint {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
 .song-notes-panel {
   display: flex;
   flex-wrap: wrap;
@@ -4549,6 +4553,29 @@ input, select, textarea { font: inherit; color: var(--text); }
   min-width: 0;
 }
 
+/* Desktop: tool cards sit side by side at roughly a third of the width instead of stretching across it. */
+@media (min-width: 900px) {
+  .song-toolbar-tools-grid:not(.song-toolbar-tools-grid--floating) {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    align-items: start;
+  }
+  /* Recorder and attachments stay full width; the rest drop to a single column. */
+  .song-toolbar-tools-grid:not(.song-toolbar-tools-grid--floating) .song-toolbar-tool-card--media,
+  .song-toolbar-tools-grid:not(.song-toolbar-tools-grid--floating) .song-toolbar-tool-card--history {
+    grid-column: auto;
+  }
+}
+@media (min-width: 900px) {
+  .song-toolbar-tools-grid:not(.song-toolbar-tools-grid--floating) .song-toolbar-tool-card--chord-finder {
+    max-width: 240px;
+  }
+}
+@media (min-width: 1200px) {
+  .song-toolbar-tools-grid:not(.song-toolbar-tools-grid--floating) .song-toolbar-tool-card--media {
+    grid-column: span 2;
+  }
+}
+
 .chord-finder {
   display: flex;
   flex-direction: column;
@@ -4693,6 +4720,9 @@ input, select, textarea { font: inherit; color: var(--text); }
 .rec-btn--reset:hover { color: var(--text); }
 .rec-btn--toggle { background: var(--chord-bg); color: var(--accent); border-color: var(--chord-bg); }
 .rec-btn--toggle:hover { background: var(--accent); color: #fff; }
+/* In the song toolbar the Add to button sits on the page, so it needs no filled pill. */
+.song-actions .rec-btn--toggle { background: transparent; border-color: transparent; }
+.song-actions .rec-btn--toggle:hover { background: var(--chord-bg); color: var(--accent); }
 .rec-btn--upload { background: var(--bg); color: var(--muted); border-color: var(--border); }
 .rec-btn--upload:hover { color: var(--text); border-color: var(--accent); }
 

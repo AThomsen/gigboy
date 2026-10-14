@@ -1,4 +1,6 @@
 import type { Song } from '../types';
+import type { SongBadgeCounts } from '../hooks/useSongListBadges';
+import { extractTabBlocks } from './tabParser';
 
 export interface BpmBucket {
   id: string;
@@ -12,6 +14,20 @@ export const BPM_BUCKETS: BpmBucket[] = [
   { id: 'mid', label: 'Mid · 80–109', min: 80, max: 110 },
   { id: 'upbeat', label: 'Upbeat · 110–139', min: 110, max: 140 },
   { id: 'fast', label: 'Fast · 140+', min: 140, max: Infinity },
+];
+
+export interface DurationBucket {
+  id: string;
+  label: string;
+  /** Seconds, min inclusive, max exclusive. */
+  min: number;
+  max: number;
+}
+
+export const DURATION_BUCKETS: DurationBucket[] = [
+  { id: 'short', label: 'Short · <3 min', min: 0, max: 180 },
+  { id: 'medium', label: 'Medium · 3–5 min', min: 180, max: 300 },
+  { id: 'long', label: 'Long · 5+ min', min: 300, max: Infinity },
 ];
 
 const NOTE_ORDER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -48,22 +64,50 @@ export function normalizeArtist(raw?: string): string | undefined {
   return key || undefined;
 }
 
+export interface HasOption {
+  id: 'tabs' | 'recordings' | 'notes' | 'attachments';
+  label: string;
+}
+
+/** "Has …" content filters. Tabs come from the song itself; the rest from the async badge counts. */
+export const HAS_OPTIONS: HasOption[] = [
+  { id: 'tabs', label: 'Tabs' },
+  { id: 'recordings', label: 'Recordings' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'attachments', label: 'Attachments' },
+];
+
+export type SongBadgeLookup = Record<string, SongBadgeCounts | undefined>;
+
+function songHas(song: Song, id: string, counts?: SongBadgeLookup): boolean {
+  if (id === 'tabs') return extractTabBlocks(song.chordpro ?? '').length > 0;
+  const c = counts?.[song.id];
+  if (!c) return false;
+  if (id === 'recordings') return c.recordings > 0;
+  if (id === 'notes') return c.notes > 0;
+  if (id === 'attachments') return c.attachments > 0;
+  return false;
+}
+
 export interface SongFilters {
   languages: string[];
   keys: string[];
   bpm: string[];
+  duration: string[];
   /** Normalized artist keys (see normalizeArtist). */
   artists: string[];
+  /** Content the song must have (see HAS_OPTIONS); a song must have all selected. */
+  has: string[];
 }
 
-export const EMPTY_SONG_FILTERS: SongFilters = { languages: [], keys: [], bpm: [], artists: [] };
+export const EMPTY_SONG_FILTERS: SongFilters = { languages: [], keys: [], bpm: [], duration: [], artists: [], has: [] };
 
 export function countActiveFilters(filters: SongFilters): number {
-  return filters.languages.length + filters.keys.length + filters.bpm.length + filters.artists.length;
+  return filters.languages.length + filters.keys.length + filters.bpm.length + filters.duration.length + filters.artists.length + filters.has.length;
 }
 
-/** AND across filter groups, OR within a group. */
-export function matchesSongFilters(song: Song, filters: SongFilters): boolean {
+/** AND across filter groups, OR within a group (except "has", where every selection must hold). */
+export function matchesSongFilters(song: Song, filters: SongFilters, counts?: SongBadgeLookup): boolean {
   if (filters.languages.length > 0 && !songLanguages(song).some((l) => filters.languages.includes(l))) {
     return false;
   }
@@ -77,10 +121,17 @@ export function matchesSongFilters(song: Song, filters: SongFilters): boolean {
     const inBucket = BPM_BUCKETS.some((b) => filters.bpm.includes(b.id) && tempo >= b.min && tempo < b.max);
     if (!inBucket) return false;
   }
+  if (filters.duration.length > 0) {
+    const secs = song.durationSeconds;
+    if (!secs) return false;
+    const inBucket = DURATION_BUCKETS.some((b) => filters.duration.includes(b.id) && secs >= b.min && secs < b.max);
+    if (!inBucket) return false;
+  }
   if (filters.artists.length > 0) {
     const artist = normalizeArtist(song.artist);
     if (!artist || !filters.artists.includes(artist)) return false;
   }
+  if (filters.has.length > 0 && !filters.has.every((id) => songHas(song, id, counts))) return false;
   return true;
 }
 
@@ -94,7 +145,9 @@ export function parseStoredFilters(raw: string | null): SongFilters {
       languages: strings(parsed.languages),
       keys: strings(parsed.keys),
       bpm: strings(parsed.bpm),
+      duration: strings(parsed.duration),
       artists: strings(parsed.artists),
+      has: strings(parsed.has).filter((id) => HAS_OPTIONS.some((o) => o.id === id)),
     };
   } catch {
     return EMPTY_SONG_FILTERS;
@@ -113,6 +166,7 @@ export interface SongFilterOptions {
   languages: string[];
   keys: string[];
   hasTempo: boolean;
+  hasDuration: boolean;
   /** Most songs first, then A → Z. */
   artists: ArtistOption[];
 }
@@ -133,7 +187,7 @@ export function getFilterOptions(songs: Song[], languageLabel: (code: string) =>
     } else byArtist.set(key, { key, label: song.artist!.trim(), count: 1, latest: added });
   }
   const artists = [...byArtist.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  return { languages, keys, hasTempo: songs.some((s) => s.tempo), artists };
+  return { languages, keys, hasTempo: songs.some((s) => s.tempo), hasDuration: songs.some((s) => s.durationSeconds), artists };
 }
 
 /** How often each artist key has been filtered/searched for in a list. */

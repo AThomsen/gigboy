@@ -39,3 +39,31 @@ describe('artist filters', () => {
     expect(parseArtistUsage('{"a":2,"b":"x"}')).toEqual({ a: 2 });
   });
 });
+
+describe('has filters', () => {
+  const withTab = { id: 'a', title: 't', chordpro: '{start_of_tab}\ne|--0--|\n{end_of_tab}' } as Song;
+  const plain = { id: 'b', title: 't', chordpro: '[C]hi' } as Song;
+  const counts = { b: { notes: 0, attachments: 2, recordings: 1 } };
+
+  it('detects tabs from the song and the rest from badge counts', () => {
+    expect(matchesSongFilters(withTab, { ...EMPTY_SONG_FILTERS, has: ['tabs'] })).toBe(true);
+    expect(matchesSongFilters(plain, { ...EMPTY_SONG_FILTERS, has: ['tabs'] })).toBe(false);
+    expect(matchesSongFilters(plain, { ...EMPTY_SONG_FILTERS, has: ['recordings', 'attachments'] }, counts)).toBe(true);
+    expect(matchesSongFilters(plain, { ...EMPTY_SONG_FILTERS, has: ['notes'] }, counts)).toBe(false);
+    expect(matchesSongFilters(plain, { ...EMPTY_SONG_FILTERS, has: ['notes'] })).toBe(false);
+  });
+
+  it('drops unknown stored has values', () => {
+    expect(parseStoredFilters('{"has":["tabs","bogus"]}').has).toEqual(['tabs']);
+  });
+});
+
+describe('duration filters', () => {
+  const d = (durationSeconds?: number) => ({ id: 'x', title: 't', durationSeconds }) as Song;
+  const f = { ...EMPTY_SONG_FILTERS, duration: ['medium'] };
+  it('buckets by length and hides songs without one', () => {
+    expect(matchesSongFilters(d(240), f)).toBe(true);
+    expect(matchesSongFilters(d(300), f)).toBe(false);
+    expect(matchesSongFilters(d(undefined), f)).toBe(false);
+  });
+});

@@ -7,6 +7,8 @@ export interface SongBadgeCounts {
   recordings: number;
 }
 
+const BATCH_SIZE = 100;
+
 interface SongBadgesResponse {
   badges: Record<string, SongBadgeCounts>;
 }
@@ -32,19 +34,23 @@ export function useSongListBadges(songs: Song[], bandId: string | undefined, cur
     if (pendingSongIds.length === 0) return;
     pendingSongIds.forEach((id) => fetchedRef.current.add(id));
 
-    const params = new URLSearchParams({ songIds: pendingSongIds.join(',') });
-    fetch(`/api/song-badges?${params.toString()}`, { credentials: 'include' })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
-        return response.json() as Promise<SongBadgesResponse>;
-      })
-      .then((data) => {
-        setCounts((prev) => ({ ...prev, ...(data.badges ?? {}) }));
-      })
-      .catch(() => {
-        // Badges are best-effort — leave these songs without counts on failure, but allow retry.
-        pendingSongIds.forEach((id) => fetchedRef.current.delete(id));
-      });
+    // Chunked so a large library doesn't overflow the query-string length limit.
+    for (let i = 0; i < pendingSongIds.length; i += BATCH_SIZE) {
+      const chunk = pendingSongIds.slice(i, i + BATCH_SIZE);
+      const params = new URLSearchParams({ songIds: chunk.join(',') });
+      fetch(`/api/song-badges?${params.toString()}`, { credentials: 'include' })
+        .then((response) => {
+          if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+          return response.json() as Promise<SongBadgesResponse>;
+        })
+        .then((data) => {
+          setCounts((prev) => ({ ...prev, ...(data.badges ?? {}) }));
+        })
+        .catch(() => {
+          // Badges are best-effort — leave these songs without counts on failure, but allow retry.
+          chunk.forEach((id) => fetchedRef.current.delete(id));
+        });
+    }
   }, [songs, bandId, currentUserId]);
 
   return counts;

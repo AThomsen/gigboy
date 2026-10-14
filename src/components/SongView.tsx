@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { flushSync } from 'react-dom';
 import type { CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -22,11 +21,9 @@ import {
   Search,
   History,
   X,
-  Undo2,
-  Redo2,
 } from 'lucide-react';
 import toast from '../utils/anchoredToast';
-import type { LyricNoteStroke, Song, LyricTextNote } from '../types';
+import type { Song, LyricTextNote } from '../types';
 import ChordDisplay, { type ChordOccurrence } from './ChordDisplay';
 import ChordDiagram, { type DiagramInstrument } from './ChordDiagram';
 import LanguageBadge from './LanguageBadge';
@@ -83,6 +80,9 @@ function notationStorageKey(songId: string): string {
   return `gigboy-song-notation-${songId}`;
 }
 
+// Drawing is gone; existing strokes render read-only, so nothing ever changes them.
+const NOOP = () => {};
+
 export default function SongView({ song, accentColor, bandId }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -133,8 +133,6 @@ export default function SongView({ song, accentColor, bandId }: Props) {
 
   // Hand notes state
   const [showNotes, setShowNotes] = useState(false);
-  const [drawEnabled, setDrawEnabled] = useState(false);
-  const [typeEnabled, setTypeEnabled] = useState(false);
   const [showMetronome, setShowMetronome] = useState(false);
   const [showTuner, setShowTuner] = useState(false);
   const [showMediaPlayer, setShowMediaPlayer] = useState(false);
@@ -160,21 +158,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
     isOwner: isBandOwner,
   });
 
-  // Line currently being drawn on, pinned to single-row layout for the duration of the
-  // gesture so the anchor is captured against the same geometry it'll be replayed against
-  // (mobile-narrow screens otherwise wrap the line while it's still unpinned — see
-  // anchorFromClientPoint's doc comment in lib/lineAnchor.ts).
-  const [drawingLineId, setDrawingLineId] = useState<number | null>(null);
-
-  const pinnedLineIds = useMemo(() => {
-    const ids = extractPinnedLineIds(handNotes.visibleNotes);
-    if (drawingLineId != null) ids.add(drawingLineId);
-    return ids;
-  }, [handNotes.visibleNotes, drawingLineId]);
-
-  const handleActiveLineChange = useCallback((lineId: number | null) => {
-    flushSync(() => setDrawingLineId(lineId));
-  }, []);
+  const pinnedLineIds = useMemo(() => extractPinnedLineIds(handNotes.visibleNotes), [handNotes.visibleNotes]);
 
   const hasNotes = handNotes.notes.some((note) => note.strokes.length > 0 || (note.textNotes?.length ?? 0) > 0);
 
@@ -195,16 +179,12 @@ export default function SongView({ song, accentColor, bandId }: Props) {
     recordings: recordings.length,
   }), [handNotes.notes, attachments.length, recordings.length]);
 
-  const handleStrokesChange = useCallback((strokes: LyricNoteStroke[]) => {
-    handNotes.saveMyNotes(strokes);
-  }, [handNotes]);
-
   const handleClearNotes = useCallback(async () => {
     await handNotes.clearMyNotes();
   }, [handNotes]);
 
   const handleDeleteNotesForAuthor = useCallback(async (authorUid: string, authorName: string) => {
-    const confirmed = await showConfirmToast(`Delete ${authorName}'s handwritten notes on this song?`, {
+    const confirmed = await showConfirmToast(`Delete ${authorName}'s notes on this song?`, {
       confirmLabel: 'Delete',
     });
     if (!confirmed) return;
@@ -213,24 +193,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
 
   const handleToggleNotes = useCallback((next: boolean) => {
     setShowNotes(next);
-    if (!next) {
-      setDrawEnabled(false);
-      setTypeEnabled(false);
-    }
   }, []);
-
-  const handleToggleDraw = useCallback((next: boolean) => {
-    setDrawEnabled(next);
-    if (next) setTypeEnabled(false);
-    if (next && !showNotes) setShowNotes(true);
-    if (next) toast('Use two fingers to scroll while drawing', { icon: '✌️' });
-  }, [showNotes]);
-
-  const handleToggleType = useCallback((next: boolean) => {
-    setTypeEnabled(next);
-    if (next) setDrawEnabled(false);
-    if (next && !showNotes) setShowNotes(true);
-  }, [showNotes]);
 
   const handleTextNotesChange = useCallback((textNotes: LyricTextNote[]) => {
     void handNotes.saveMyTextNotes(textNotes);
@@ -257,8 +220,6 @@ export default function SongView({ song, accentColor, bandId }: Props) {
     setShowRecorder(false);
     setAutoPlayMediaOnOpen(false);
     setShowNotes(false);
-    setDrawEnabled(false);
-    setTypeEnabled(false);
     setShowChordFinder(false);
     setShowHistory(false);
     setChordNotationState((readStoredString(notationStorageKey(song.id)) as ChordNotation | null) ?? 'anglo');
@@ -664,8 +625,8 @@ export default function SongView({ song, accentColor, bandId }: Props) {
                   type="button"
                   className={`song-toolbar-tool-btn${showNotes ? ' song-toolbar-tool-btn--active' : ''}${hasNotes ? ' song-toolbar-tool-btn--has-content' : ''}`}
                   onClick={() => handleToggleNotes(!showNotes)}
-                  title={showNotes ? 'Hide handwritten notes' : 'Show handwritten notes'}
-                  aria-label={showNotes ? 'Hide handwritten notes' : 'Show handwritten notes'}
+                  title={showNotes ? 'Hide notes' : 'Show notes'}
+                  aria-label={showNotes ? 'Hide notes' : 'Show notes'}
                 >
                   <PenLine size={14} />
                   Notes
@@ -771,59 +732,16 @@ export default function SongView({ song, accentColor, bandId }: Props) {
                       <button className="floating-tool-close" onClick={() => handleToggleNotes(false)} aria-label="Close notes"><X size={14} /></button>
                     </div>
                     <div className="song-notes-panel">
-                      <label
-                        className={`toggle-label toggle-label--draw song-notes-draw-toggle${drawEnabled ? ' toggle-label--draw-active' : ''}`}
-                        title="Enable touch drawing"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={drawEnabled}
-                          onChange={(e) => handleToggleDraw(e.target.checked)}
-                        />
-                        Draw
-                      </label>
+                      <span className="song-notes-hint">Tap the song to add a note</span>
 
-                      <label
-                        className={`toggle-label toggle-label--draw song-notes-draw-toggle${typeEnabled ? ' toggle-label--draw-active' : ''}`}
-                        title="Enable keyboard typing on the song"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={typeEnabled}
-                          onChange={(e) => handleToggleType(e.target.checked)}
-                        />
-                        Type
-                      </label>
-
-                      {drawEnabled && (
-                        <>
-                          <button
-                            className="notes-toolbar-btn"
-                            onClick={handNotes.undoStroke}
-                            disabled={!handNotes.canUndo}
-                            title="Undo"
-                            aria-label="Undo"
-                          >
-                            <Undo2 size={12} />
-                          </button>
-                          <button
-                            className="notes-toolbar-btn"
-                            onClick={handNotes.redoStroke}
-                            disabled={!handNotes.canRedo}
-                            title="Redo"
-                            aria-label="Redo"
-                          >
-                            <Redo2 size={12} />
-                          </button>
-                          <button
-                            className="notes-toolbar-btn notes-toolbar-btn--danger"
-                            onClick={handleClearNotes}
-                            disabled={handNotes.myStrokes.length === 0}
-                            title="Clear my notes"
-                          >
-                            Clear
-                          </button>
-                        </>
+                      {handNotes.myStrokes.length > 0 && (
+                        <button
+                          className="notes-toolbar-btn notes-toolbar-btn--danger"
+                          onClick={handleClearNotes}
+                          title="Remove my old hand-drawn notes from this song"
+                        >
+                          Clear drawings
+                        </button>
                       )}
 
                       {handNotes.authors.length > 0 && (
@@ -1051,22 +969,20 @@ export default function SongView({ song, accentColor, bandId }: Props) {
             notation={chordNotation}
             timeSignature={song.timeSignature}
             instrument={chordInstrument}
-            onChordClick={!drawEnabled && !typeEnabled ? handleChordClick : undefined}
+            onChordClick={!showNotes ? handleChordClick : undefined}
             pinnedLineIds={pinnedLineIds}
           />
           <LyricHandNotesOverlay
             visible={showNotes}
-            drawEnabled={drawEnabled}
+            drawEnabled={false}
             notes={handNotes.visibleNotes}
             myStrokes={handNotes.myStrokes}
-            strokeColor={getUserNoteColor(user?.id ?? null)}
-            onMyStrokesChange={handleStrokesChange}
-            onActiveLineChange={handleActiveLineChange}
+            onMyStrokesChange={NOOP}
           />
           {user && (
             <SongTextNotesOverlay
               visible={showNotes}
-              typeEnabled={typeEnabled}
+              typeEnabled={showNotes}
               notes={handNotes.visibleNotes}
               myTextNotes={handNotes.myTextNotes}
               myAuthorUid={user.id}

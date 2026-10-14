@@ -250,6 +250,9 @@ export default function SongList({
   const pickerFilterOptions = useMemo(() => getFilterOptions(availableSongs, languageName), [availableSongs]);
   const pickerActiveFilterCount = countActiveFilters(pickerFilters);
 
+  // Badge counts for every song (not just the filtered ones) so the "Has" filters can narrow the list.
+  const songBadgeCounts = useSongListBadges(songs, bandId, user?.id);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = songs.filter((s) => {
@@ -259,7 +262,7 @@ export default function SongList({
         (s.artist ?? '').toLowerCase().includes(q) ||
         (s.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
         languageName(s.language).toLowerCase().includes(q);
-      return matchesQuery && matchesSongFilters(s, filters);
+      return matchesQuery && matchesSongFilters(s, filters, songBadgeCounts);
     });
 
     const sorted = [...base];
@@ -287,14 +290,12 @@ export default function SongList({
       sorted.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '') || a.title.localeCompare(b.title));
     }
     return sorted;
-  }, [songs, query, sortBy, filters]);
+  }, [songs, query, sortBy, filters, songBadgeCounts]);
 
   const songPreviews = useMemo(
     () => Object.fromEntries(filtered.map((song) => [song.id, getSongPreview(song)])),
     [filtered]
   );
-
-  const songBadgeCounts = useSongListBadges(filtered, bandId, user?.id);
 
   useEffect(() => {
     setListIconDraft(listIcon ?? '');
@@ -613,6 +614,7 @@ export default function SongList({
           filters={filters}
           onChange={handleFiltersChange}
           resultCount={filtered.length}
+          showHas
         />
       )}
       </div>{/* end song-list-sticky */}
@@ -797,7 +799,7 @@ export default function SongList({
                 placeholder="Search by title, artist, or tag"
               />
               <SearchClearButton value={pickerQuery} onClear={() => setPickerQuery('')} className="search-clear--picker" />
-              {(pickerFilterOptions.languages.length > 1 || pickerFilterOptions.keys.length > 0 || pickerFilterOptions.hasTempo) && (
+              {(pickerFilterOptions.languages.length > 1 || pickerFilterOptions.keys.length > 0 || pickerFilterOptions.hasTempo || pickerFilterOptions.hasDuration) && (
                 <button
                   type="button"
                   className={`song-filter-toggle song-filter-toggle--compact${pickerActiveFilterCount > 0 ? ' active' : ''}`}

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { languageName } from '../utils/languages';
 import {
   BPM_BUCKETS,
+  DURATION_BUCKETS,
+  HAS_OPTIONS,
   EMPTY_SONG_FILTERS,
   countActiveFilters,
   getFilterOptions,
@@ -16,11 +18,13 @@ interface Props {
   onChange: (filters: SongFilters) => void;
   /** Number of songs currently matching, shown in the footer while filters are active. */
   resultCount: number;
+  /** Offer the "Has" group (tabs/recordings/notes/attachments). Omit where badge counts aren't loaded. */
+  showHas?: boolean;
   id?: string;
   className?: string;
 }
 
-export default function SongFilterPanel({ songs, filters, onChange, resultCount, id, className }: Props) {
+export default function SongFilterPanel({ songs, filters, onChange, resultCount, showHas, id, className }: Props) {
   const options = useMemo(() => getFilterOptions(songs, languageName), [songs]);
   const activeCount = countActiveFilters(filters);
   function toggle(group: keyof SongFilters, value: string) {
@@ -81,11 +85,43 @@ export default function SongFilterPanel({ songs, filters, onChange, resultCount,
           ))}
         </div>
       )}
+      {options.hasDuration && (
+        <div className="song-filter-group">
+          <span className="song-filter-label">Length</span>
+          {DURATION_BUCKETS.map((bucket) => (
+            <button
+              key={bucket.id}
+              type="button"
+              className="song-filter-chip"
+              aria-pressed={filters.duration.includes(bucket.id)}
+              onClick={() => toggle('duration', bucket.id)}
+            >
+              {bucket.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {showHas && (
+        <div className="song-filter-group">
+          <span className="song-filter-label">Has</span>
+          {HAS_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              className="song-filter-chip"
+              aria-pressed={filters.has.includes(opt.id)}
+              onClick={() => toggle('has', opt.id)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
       {activeCount > 0 && (
         <div className="song-filter-footer">
           <span>
             {resultCount} of {songs.length} songs
-            {filters.keys.length > 0 || filters.bpm.length > 0 ? ' · songs without key/BPM are hidden' : ''}
+            {filters.keys.length > 0 || filters.bpm.length > 0 || filters.duration.length > 0 ? ' · songs without key/BPM/length are hidden' : ''}
           </span>
           <button type="button" className="song-filter-clear" onClick={() => onChange(EMPTY_SONG_FILTERS)}>
             Clear all

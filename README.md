@@ -40,7 +40,7 @@ No subscriptions, no per-seat pricing, no feature paywalls — every account get
 **[blindpassasjer.github.io/gigboy](https://blindpassasjer.github.io/gigboy/)** — a static build
 that runs entirely in your browser with seeded sample data, no backend involved. It's how the app
 behaves once you're logged in, minus real accounts: click around, add/edit songs, try transpose,
-the metronome and tuner, hand-drawn notes, and audio recording. Nothing you do there leaves your
+the metronome and tuner, typed notes, and audio recording. Nothing you do there leaves your
 browser or touches a real database — logging out (or deleting the demo account) just resets the
 sample data. Deployed automatically from this repo by
 [.github/workflows/deploy-demo.yml](.github/workflows/deploy-demo.yml); the real product is
@@ -108,7 +108,7 @@ via `VITE_DEV_ORIGIN` in [package.json](package.json), or the port with `PORT=�
 - **Browser-based audio recorder** — capture a take straight from the song page, no separate app;
   leave timestamped comments on a take ("fix the turnaround at 1:12") that jump the player to that spot
 - **Visual metronome & tuner** — no more digging for a physical tuner mid-rehearsal
-- **Hand-drawn notes** — sketch directly on the song sheet for reminders that a text note can't capture
+- **Typed notes** — drop text notes right on the song sheet, anchored where you put them; each band member keeps their own, and you can show or hide whose you see
 - **Custom chord voicings** — pin the fingering your band actually plays for a chord; it replaces
   the built-in diagram everywhere, including Concert Mode
 

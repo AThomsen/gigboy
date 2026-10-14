@@ -1,6 +1,6 @@
 ---
 title: Practice and rehearsal tools
-summary: Tuner, metronome, recorder, handwritten notes, attachments and the chord finder.
+summary: Tuner, metronome, recorder, notes, attachments and the chord finder.
 ---
 
 The **Tools** row on every song page puts the things you reach for in rehearsal one tap away. Each tool opens in a panel right on the song; press its **×** to close it.
@@ -29,11 +29,11 @@ Record a take straight from the song page, or **Upload file** to add one you alr
 - Leave a **comment at a moment in the take** ("fix the turnaround at 1:12"). Clicking the comment later jumps the player to that spot.
 - Recordings count toward your band's storage, shown in the sidebar.
 
-## Handwritten and typed notes
+## Notes
 
 ![The notes panel.](tool-notes)
 
-Tick **Draw** to sketch directly on the song sheet with your finger or a stylus — circle a tricky bar, mark a breath. Tick **Type** to write on the sheet with the keyboard. Your notes are yours; you can also show your bandmates' notes and switch them on and off one author at a time.
+Open **Notes**, then tap anywhere on the sheet and type. While the Notes panel is open, tapping a chord adds a note instead of showing its diagram; close the panel to get the diagrams back. Your notes are yours; the same panel lists everyone who has left notes on the song, so you can show your bandmates' notes and switch them on and off one author at a time. Notes that were hand-drawn in earlier versions still show, and **Clear drawings** removes your own.
 
 ## Attachments
 
