@@ -12,7 +12,12 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 - **"Has" and "Length" filters on song lists.** Filter by songs that have tabs, recordings,
   notes or attachments, and by length (short, medium, long).
 
+- **Typed notes can be moved and resized.** Drag a note, or its grip while typing, to move it, and
+  use the corner handle to set its width and height. Both work while typing and afterwards, and
+  the size is saved with the note.
+
 ### Changed
+- Inactive filter chips have a white background.
 - The "Add to" button on the song page no longer has a filled background.
 
 ### Removed

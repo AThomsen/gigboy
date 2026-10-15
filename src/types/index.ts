@@ -288,6 +288,10 @@ export interface LyricNoteStroke {
 export interface LyricTextNote extends LineAnchor {
   id: string;
   text: string;
+  /** Bubble width in CSS pixels, set by the resize handle. Auto-sized when unset. */
+  width?: number;
+  /** Bubble height in CSS pixels, set by the resize handle. Fits the text when unset. */
+  height?: number;
   createdAt: string;
 }
 

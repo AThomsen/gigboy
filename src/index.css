@@ -1301,8 +1301,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   padding: var(--space-3xs) var(--space-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text);
+  background: #fff;
+  color: #1a1a1a;
   font-size: var(--text-sm);
   cursor: pointer;
 }
@@ -3902,7 +3902,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   position: absolute;
   transform: translateX(-50%);
   max-width: 220px;
-  min-width: 80px;
+  min-width: 48px;
   border: 1.5px solid var(--bubble-color, var(--accent));
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bubble-color, var(--accent)) 10%, var(--surface));
@@ -3919,10 +3919,42 @@ input, select, textarea { font: inherit; color: var(--text); }
 .song-text-notes-overlay--active .song-text-bubble--mine {
   pointer-events: all;
   cursor: grab;
+  touch-action: none;
+}
+
+.song-text-notes-overlay--active .song-text-bubble--mine:not(.song-text-bubble--editing) .song-text-bubble--sized {
+  display: flex;
+  flex-direction: column;
+}
+
+.song-text-bubble--sized .song-text-bubble-grip {
+  height: 10px;
+  flex: none;
+  cursor: grab;
+  touch-action: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--bubble-color, var(--accent)) 55%, transparent) 1px, transparent 1.5px) center / 6px 6px repeat-x;
+}
+
+.song-text-bubble-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.song-text-bubble--sized .song-text-bubble-input {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+.song-text-bubble-content {
+  cursor: inherit;
 }
 
 .song-text-notes-overlay--active .song-text-bubble--mine.song-text-bubble--editing {
   cursor: default;
+  touch-action: none;
 }
 
 .song-text-bubble--editing {
@@ -3947,8 +3979,8 @@ input, select, textarea { font: inherit; color: var(--text); }
 .song-text-bubble-input {
   display: block;
   width: 100%;
-  min-width: 130px;
-  min-height: 3.2rem;
+  min-width: 0;
+  min-height: 2rem;
   padding: var(--space-xs) var(--space-sm);
   border: none;
   background: transparent;
@@ -3956,7 +3988,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   font-size: var(--text-xs);
   font-family: inherit;
   line-height: 1.5;
-  resize: both;
+  resize: none;
+  overflow: hidden;
   outline: none;
 }
 
@@ -3964,6 +3997,22 @@ input, select, textarea { font: inherit; color: var(--text); }
   color: var(--bubble-color, var(--accent));
   opacity: .5;
 }
+
+.song-text-bubble-resize {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--bubble-color, var(--accent));
+  background: var(--surface);
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: .7;
+}
+
+.song-text-bubble-resize:hover { opacity: 1; }
 
 .song-text-bubble-delete {
   position: absolute;

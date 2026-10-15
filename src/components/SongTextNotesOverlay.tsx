@@ -20,15 +20,65 @@ interface Props {
 interface PendingNew {
   id: string;
   anchor: LineAnchor;
+  width?: number;
+  height?: number;
 }
 
-interface DragPosition {
-  id: string;
-  anchor: LineAnchor;
-}
+/**
+ * In-flight pointer gesture. Kept in a ref and applied straight to the bubble's DOM node, so a
+ * drag/resize costs no React render and no line re-measuring per pointer move; the final position
+ * is resolved once on release.
+ */
+type Gesture =
+  | {
+      kind: 'drag';
+      id: string;
+      el: HTMLElement;
+      startX: number;
+      startY: number;
+      /** Viewport point of the bubble's anchor (top-centre) at grab time, so the grab offset is kept. */
+      originX: number;
+      originY: number;
+      dx: number;
+      dy: number;
+      moved: boolean;
+    }
+  | {
+      kind: 'resize';
+      id: string;
+      el: HTMLElement;
+      startX: number;
+      startY: number;
+      startWidth: number;
+      startHeight: number;
+      width: number;
+      height: number;
+      inlineWidth: string;
+      inlineMaxWidth: string;
+      inlineHeight: string;
+    };
 
 // Minimum screen-pixel distance before a pointerdown is treated as a drag instead of a tap-to-edit.
 const DRAG_THRESHOLD_PX = 6;
+const MIN_BUBBLE_WIDTH = 48;
+const MAX_BUBBLE_WIDTH = 600;
+const MIN_BUBBLE_HEIGHT = 28;
+const MAX_BUBBLE_HEIGHT = 600;
+
+const clampWidth = (w: number) => Math.min(MAX_BUBBLE_WIDTH, Math.max(MIN_BUBBLE_WIDTH, Math.round(w)));
+const clampHeight = (h: number) => Math.min(MAX_BUBBLE_HEIGHT, Math.max(MIN_BUBBLE_HEIGHT, Math.round(h)));
+
+/** Inline size for a bubble; a set size also lifts the default max-width cap. */
+const sizeStyle = (n: { width?: number; height?: number }): CSSProperties => ({
+  ...(n.width ? { width: n.width, maxWidth: 'none' } : {}),
+  ...(n.height ? { height: n.height } : {}),
+});
+
+const autosize = (el: HTMLTextAreaElement | null) => {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
 
 export default function SongTextNotesOverlay({
   visible,
@@ -53,11 +103,7 @@ export default function SongTextNotesOverlay({
   // opening a new bubble (blur fires before click in the same event sequence).
   const suppressNextClickRef = useRef(false);
 
-  // Drag state
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragPosition, setDragPosition] = useState<DragPosition | null>(null);
-  const dragStartRef = useRef<{ clientX: number; clientY: number } | null>(null);
-  const hasDraggedRef = useRef(false);
+  const gestureRef = useRef<Gesture | null>(null);
 
   // Reset all transient state when type mode is turned off
   useEffect(() => {
@@ -66,10 +112,7 @@ export default function SongTextNotesOverlay({
       setPendingNewText('');
       setEditingId(null);
       setPendingEditText('');
-      setDraggingId(null);
-      setDragPosition(null);
-      dragStartRef.current = null;
-      hasDraggedRef.current = false;
+      gestureRef.current = null;
     }
   }, [typeEnabled]);
 
@@ -145,6 +188,8 @@ export default function SongTextNotesOverlay({
       onMyTextNotesChange([...myTextNotes, {
         id: pendingNew.id,
         ...pendingNew.anchor,
+        ...(pendingNew.width ? { width: pendingNew.width } : {}),
+        ...(pendingNew.height ? { height: pendingNew.height } : {}),
         text,
         createdAt: new Date().toISOString(),
       }]);
@@ -174,62 +219,149 @@ export default function SongTextNotesOverlay({
     if (editingId === id) { setEditingId(null); setPendingEditText(''); }
   }, [myTextNotes, onMyTextNotesChange, editingId]);
 
-  // ── Drag handlers (on the bubble element itself) ──────────────────────────
+  /** Applies a move/resize to a saved note, or to the new bubble that is still being typed. */
+  const applyPatch = useCallback((id: string, patch: Partial<LyricTextNote>) => {
+    if (pendingNew?.id === id) {
+      const { lineId, fx, fy, width, height } = patch;
+      setPendingNew({
+        ...pendingNew,
+        ...(lineId !== undefined && fx !== undefined && fy !== undefined ? { anchor: { lineId, fx, fy } } : {}),
+        ...(width !== undefined ? { width } : {}),
+        ...(height !== undefined ? { height } : {}),
+      });
+      return;
+    }
+    onMyTextNotesChange(myTextNotes.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  }, [pendingNew, myTextNotes, onMyTextNotesChange]);
+
+  // ── Drag (on the bubble itself)  ───────────────────────────────────────────
   const handleBubblePointerDown = useCallback((
     e: React.PointerEvent<HTMLDivElement>,
-    note: LyricTextNote,
+    note: Pick<LyricTextNote, 'id' | 'text'>,
   ) => {
-    if (!typeEnabled || editingId === note.id) return;
+    if (!typeEnabled || e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
-    setDraggingId(note.id);
-    hasDraggedRef.current = false;
-    dragStartRef.current = { clientX: e.clientX, clientY: e.clientY };
-    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-  }, [typeEnabled, editingId]);
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    gestureRef.current = {
+      kind: 'drag',
+      id: note.id,
+      el,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: rect.left + rect.width / 2,
+      originY: rect.top,
+      dx: 0,
+      dy: 0,
+      moved: false,
+    };
+    el.setPointerCapture(e.pointerId);
+  }, [typeEnabled]);
 
-  const handleBubblePointerMove = useCallback((
-    e: React.PointerEvent<HTMLDivElement>,
-    note: LyricTextNote,
-  ) => {
-    if (draggingId !== note.id || !dragStartRef.current) return;
-    const contentStage = getContentStage();
-    if (!contentStage) return;
-
-    const dx = e.clientX - dragStartRef.current.clientX;
-    const dy = e.clientY - dragStartRef.current.clientY;
-    if (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX) {
-      hasDraggedRef.current = true;
+  const handleBubblePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>, note: Pick<LyricTextNote, 'id'>) => {
+    const g = gestureRef.current;
+    if (g?.kind !== 'drag' || g.id !== note.id) return;
+    g.dx = e.clientX - g.startX;
+    g.dy = e.clientY - g.startY;
+    if (!g.moved) {
+      if (Math.abs(g.dx) <= DRAG_THRESHOLD_PX && Math.abs(g.dy) <= DRAG_THRESHOLD_PX) return;
+      g.moved = true;
+      g.el.classList.add('song-text-bubble--dragging');
     }
-    if (hasDraggedRef.current) {
-      const anchor = anchorFromClientPoint(contentStage, e.clientX, e.clientY);
-      if (anchor) setDragPosition({ id: note.id, anchor });
-    }
-  }, [draggingId, getContentStage]);
+    g.el.style.transform = `translate(calc(-50% + ${g.dx}px), ${g.dy}px)`;
+  }, []);
 
-  const handleBubblePointerUp = useCallback((
-    e: React.PointerEvent<HTMLDivElement>,
-    note: LyricTextNote,
-  ) => {
-    if (draggingId !== note.id) return;
+  const endDrag = useCallback((g: Extract<Gesture, { kind: 'drag' }>) => {
+    g.el.style.transform = '';
+    g.el.classList.remove('song-text-bubble--dragging');
+    gestureRef.current = null;
+  }, []);
+
+  const handleBubblePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>, note: Pick<LyricTextNote, 'id' | 'text'>) => {
+    const g = gestureRef.current;
+    if (g?.kind !== 'drag' || g.id !== note.id) return;
     e.stopPropagation();
+    endDrag(g);
 
-    if (hasDraggedRef.current && dragPosition) {
-      // Commit moved position
-      onMyTextNotesChange(myTextNotes.map((n) =>
-        n.id === note.id ? { ...n, ...dragPosition.anchor } : n,
-      ));
-    } else {
+    if (g.moved) {
+      const contentStage = getContentStage();
+      const anchor = contentStage
+        ? anchorFromClientPoint(contentStage, g.originX + g.dx, g.originY + g.dy)
+        : null;
+      if (anchor) {
+        applyPatch(note.id, anchor);
+      }
+    } else if (editingId !== note.id && pendingNew?.id !== note.id) {
       // Tap: open for editing
       setEditingId(note.id);
       setPendingEditText(note.text);
     }
+  }, [endDrag, getContentStage, applyPatch, editingId, pendingNew?.id]);
 
-    setDraggingId(null);
-    setDragPosition(null);
-    dragStartRef.current = null;
-    hasDraggedRef.current = false;
-  }, [draggingId, dragPosition, myTextNotes, onMyTextNotesChange]);
+  const handleBubblePointerCancel = useCallback(() => {
+    const g = gestureRef.current;
+    if (g?.kind === 'drag') endDrag(g);
+  }, [endDrag]);
+
+  // ── Resize (corner handle) ────────────────────────────────────────────────
+  // The bubble is centred on its anchor, so width changes by twice the pointer delta to keep the
+  // right edge (where the handle sits) under the pointer.
+  const handleResizePointerDown = useCallback((
+    e: React.PointerEvent<HTMLDivElement>,
+    note: Pick<LyricTextNote, 'id'>,
+  ) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = e.currentTarget.parentElement;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    gestureRef.current = {
+      kind: 'resize',
+      id: note.id,
+      el,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+      width: rect.width,
+      height: rect.height,
+      inlineWidth: el.style.width,
+      inlineMaxWidth: el.style.maxWidth,
+      inlineHeight: el.style.height,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const handleResizePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>, note: Pick<LyricTextNote, 'id'>) => {
+    const g = gestureRef.current;
+    if (g?.kind !== 'resize' || g.id !== note.id) return;
+    g.width = clampWidth(g.startWidth + (e.clientX - g.startX) * 2);
+    g.height = clampHeight(g.startHeight + (e.clientY - g.startY));
+    g.el.style.width = `${g.width}px`;
+    g.el.style.maxWidth = 'none';
+    g.el.style.height = `${g.height}px`;
+    g.el.classList.add('song-text-bubble--sized');
+  }, []);
+
+  const handleResizePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>, note: Pick<LyricTextNote, 'id'>) => {
+    const g = gestureRef.current;
+    if (g?.kind !== 'resize' || g.id !== note.id) return;
+    e.stopPropagation();
+    gestureRef.current = null;
+    applyPatch(note.id, { width: g.width, height: g.height });
+  }, [applyPatch]);
+
+  const handleResizePointerCancel = useCallback(() => {
+    const g = gestureRef.current;
+    if (g?.kind !== 'resize') return;
+    g.el.style.width = g.inlineWidth;
+    g.el.style.maxWidth = g.inlineMaxWidth;
+    g.el.style.height = g.inlineHeight;
+    g.el.classList.toggle('song-text-bubble--sized', !!g.el.style.height);
+    gestureRef.current = null;
+  }, []);
 
   const otherTextNotes = useMemo(() => notes
     .filter((n) => n.authorUid !== myAuthorUid)
@@ -255,9 +387,10 @@ export default function SongTextNotesOverlay({
         return (
           <div
             key={`${tn.authorUid}-${tn.id}`}
-            className="song-text-bubble song-text-bubble--readonly"
+            className={`song-text-bubble song-text-bubble--readonly${tn.height ? ' song-text-bubble--sized' : ''}`}
             style={{
               ...styleForAnchor(tn),
+              ...sizeStyle(tn),
               '--bubble-color': color,
             } as CSSProperties}
           >
@@ -269,8 +402,6 @@ export default function SongTextNotesOverlay({
       {/* Current user's committed text notes */}
       {myNotesVisible && myTextNotes.map((note) => {
         const isEditing = editingId === note.id;
-        const isDragging = draggingId === note.id;
-        const displayAnchor = isDragging && dragPosition ? dragPosition.anchor : note;
         return (
           <div
             key={note.id}
@@ -278,29 +409,47 @@ export default function SongTextNotesOverlay({
               'song-text-bubble',
               'song-text-bubble--mine',
               isEditing ? 'song-text-bubble--editing' : '',
-              isDragging ? 'song-text-bubble--dragging' : '',
+              note.height ? 'song-text-bubble--sized' : '',
             ].filter(Boolean).join(' ')}
             style={{
-              ...styleForAnchor(displayAnchor),
+              ...styleForAnchor(note),
+              ...sizeStyle(note),
               '--bubble-color': noteColor,
             } as CSSProperties}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => handleBubblePointerDown(e, note)}
             onPointerMove={(e) => handleBubblePointerMove(e, note)}
             onPointerUp={(e) => handleBubblePointerUp(e, note)}
+            onPointerCancel={handleBubblePointerCancel}
           >
+            {isEditing && <div className="song-text-bubble-grip" title="Drag to move" />}
             {isEditing ? (
               <textarea
                 className="song-text-bubble-input"
                 autoFocus
+                ref={note.height ? undefined : autosize}
                 value={pendingEditText}
-                onChange={(e) => setPendingEditText(e.target.value)}
+                onChange={(e) => {
+                  setPendingEditText(e.target.value);
+                  if (!note.height) autosize(e.target);
+                }}
                 onBlur={commitEdit}
                 onKeyDown={(e) => { if (e.key === 'Escape') commitEdit(); }}
                 onPointerDown={(e) => e.stopPropagation()}
               />
             ) : (
               <div className="song-text-bubble-content">{note.text}</div>
+            )}
+            {typeEnabled && (
+              <div
+                className="song-text-bubble-resize"
+                onPointerDown={(e) => handleResizePointerDown(e, note)}
+                onPointerMove={(e) => handleResizePointerMove(e, note)}
+                onPointerUp={(e) => handleResizePointerUp(e, note)}
+                onPointerCancel={handleResizePointerCancel}
+                aria-label="Resize note"
+                title="Resize note"
+              />
             )}
             {typeEnabled && !isEditing && (
               <button
@@ -320,13 +469,19 @@ export default function SongTextNotesOverlay({
       {/* New bubble being typed */}
       {pendingNew && (
         <div
-          className="song-text-bubble song-text-bubble--mine song-text-bubble--editing"
+          className={`song-text-bubble song-text-bubble--mine song-text-bubble--editing${pendingNew.height ? ' song-text-bubble--sized' : ''}`}
           style={{
             ...styleForAnchor(pendingNew.anchor),
+            ...sizeStyle(pendingNew),
             '--bubble-color': noteColor,
           } as CSSProperties}
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => handleBubblePointerDown(e, { id: pendingNew.id, text: pendingNewText })}
+          onPointerMove={(e) => handleBubblePointerMove(e, pendingNew)}
+          onPointerUp={(e) => handleBubblePointerUp(e, { id: pendingNew.id, text: pendingNewText })}
+          onPointerCancel={handleBubblePointerCancel}
         >
+          <div className="song-text-bubble-grip" title="Drag to move" />
           <textarea
             className="song-text-bubble-input"
             autoFocus
@@ -338,6 +493,15 @@ export default function SongTextNotesOverlay({
               if (e.key === 'Escape') { setPendingNew(null); setPendingNewText(''); }
             }}
             onPointerDown={(e) => e.stopPropagation()}
+          />
+          <div
+            className="song-text-bubble-resize"
+            onPointerDown={(e) => handleResizePointerDown(e, pendingNew)}
+            onPointerMove={(e) => handleResizePointerMove(e, pendingNew)}
+            onPointerUp={(e) => handleResizePointerUp(e, pendingNew)}
+            onPointerCancel={handleResizePointerCancel}
+            aria-label="Resize note"
+            title="Resize note"
           />
         </div>
       )}
