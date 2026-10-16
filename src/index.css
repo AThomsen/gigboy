@@ -1301,8 +1301,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   padding: var(--space-3xs) var(--space-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--text);
   font-size: var(--text-sm);
   cursor: pointer;
 }
