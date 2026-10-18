@@ -3,6 +3,8 @@
  * Supports ChordPro, plain text with chords, and other common formats
  */
 
+import { CHORD_SOURCE, CHORD_TOKEN_RE, CHORD_SCAN_RE, normalizeChordSymbols } from './chordGrammar';
+
 export interface ParsedSong {
   title?: string;
   artist?: string;
@@ -18,10 +20,8 @@ export interface ParsedImportResult extends ParsedSong {
   detectedSource?: string;
 }
 
-const CHORD_TOKEN_RE = /^[A-G](?:#|b)?(?:m|maj|min|sus|dim|aug|add)?\d*(?:\/[A-G](?:#|b)?)?$/;
-const CHORD_SCAN_RE = /[A-G](?:#|b)?(?:m|maj|min|sus|dim|aug|add)?\d*(?:\/[A-G](?:#|b)?)?/g;
 // Matches a properly formed inline chord marker [G], [Am7], [C#m/G], etc. (not section labels)
-const INLINE_CHORD_MARKER_RE = /\[[A-G](?:#|b)?(?:m|maj|min|sus|dim|aug|add)?\d*(?:\/[A-G](?:#|b)?)?\]/;
+const INLINE_CHORD_MARKER_RE = new RegExp(`\\[${CHORD_SOURCE}\\]`);
 const CHORD_ROW_SEPARATOR_RE = /^(?:\||\/)+$/;
 const TAB_LINE_RE = /^(?:[A-Ga-gEeBb]|[Dd])\|[-0-9hHpPbBrRsSxX~vV/\\()[\]{}*|:.\s]+$/;
 const SOURCE_BOILERPLATE_RE = /^(?:ultimate\s+guitar|chordify|songsterr|songselect|guitartuna|la\s*cuerda|lacuerda(?:\.net)?|cifra\s*club|cifraclub)\b/i;
@@ -257,8 +257,8 @@ function looksLikeTabLine(line: string): boolean {
 }
 
 function extractChordValue(input: string): string | undefined {
-  const match = input.match(/[A-G](?:#|b)?(?:m|maj|min|sus|dim|aug|add)?\d*(?:\/[A-G](?:#|b)?)?/);
-  return match?.[0];
+  const match = input.match(new RegExp(CHORD_SOURCE));
+  return match ? normalizeChordSymbols(match[0]) : undefined;
 }
 
 function extractFirstInteger(input: string): number | undefined {
@@ -312,6 +312,8 @@ function isMetadataNoise(line: string): boolean {
     // OnSong metadata directives we don't model (Flow = section order, Time = time signature).
     || /^(?:flow|time|duration|number|book|midi|topic|ccli|copyright|restrictions)\s*:/i.test(trimmed);
 }
+
+const PAREN_CHORD_RE = new RegExp(`\\((${CHORD_SOURCE})\\)`, 'g');
 
 function lineStartsContent(line: string): boolean {
   const trimmed = line.trim();
@@ -471,11 +473,14 @@ export function parsePastedSong(text: string): ParsedImportResult {
         const chordsOnly = mergeChordRowWithLyrics(current, '');
         if (chordsOnly.trim()) out.push(chordsOnly);
       } else {
-        const merged = mergeChordRowWithLyrics(current, next);
+        // Only pair with the next line when it is actually lyrics — not another chord row,
+        // a section label, a labeled row, tab, or a directive.
+        const nextIsLyrics = next.trim() !== '' && !lineStartsContent(next);
+        const merged = mergeChordRowWithLyrics(current, nextIsLyrics ? next : '');
         if (merged.trim()) {
           out.push(merged);
         }
-        if (next.trim()) {
+        if (nextIsLyrics) {
           i += 1;
         }
       }
@@ -483,10 +488,7 @@ export function parsePastedSong(text: string): ParsedImportResult {
     }
 
     // Convert inline (G)Lyrics → [G]Lyrics (cuerdas.net and similar sites).
-    const convertedInline = current.replace(
-      /\(([A-G](?:#|b)?(?:m|maj|min|sus|dim|aug|add)?\d*(?:\/[A-G](?:#|b)?)?)\)/g,
-      '[$1]',
-    );
+    const convertedInline = current.replace(PAREN_CHORD_RE, (_, chord: string) => `[${normalizeChordSymbols(chord)}]`);
     out.push(convertedInline);
   }
 
@@ -582,9 +584,7 @@ function parseChordPro(text: string): ParsedSong {
  */
 function normalizeChord(chord: string): string {
   // Convert common variations
-  const normalized = chord
-    .replace(/♯/g, '#')
-    .replace(/♭/g, 'b')
+  const normalized = normalizeChordSymbols(chord)
     .replace(/flat/gi, 'b')
     .replace(/sharp/gi, '#');
 

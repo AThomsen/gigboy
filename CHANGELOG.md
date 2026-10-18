@@ -16,6 +16,11 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   use the corner handle to set its width and height. Both work while typing and afterwards, and
   the size is saved with the note.
 
+### Fixed
+- **Pasted songs recognize many more chords.** Extended and altered chords (`G7sus4`, `Gm7b5`, `C7#9`,
+  `A7(b9)`, `C6/9`), Unicode symbols (`F♯m`, `B♭`, `C°`) and `N.C.` are now picked up, and a chord row
+  no longer swallows a following chord row or section label as its lyrics.
+
 ### Changed
 - Inactive filter chips have a white background.
 - The "Add to" button on the song page no longer has a filled background.

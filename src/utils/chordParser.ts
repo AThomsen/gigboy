@@ -1,4 +1,5 @@
 import type { ParsedLine, ChordSegment } from '../types';
+import { CHORD_TOKEN_RE } from './chordGrammar';
 
 const DIRECTIVE_RE = /^\{([^:}]+)(?::([^}]*))?\}$/;
 
@@ -14,7 +15,6 @@ const KNOWN_VALUELESS_DIRECTIVES = new Set([
 // "Bm", "A/F#", "Cmaj7". Bracketed text that doesn't look like this (e.g. a performance
 // note like "[repeat from the top]") is left as literal lyric text instead of being
 // swallowed as a chord.
-const CHORD_TOKEN_RE = /^[A-G][#b]?[a-zA-Z0-9()+-]{0,10}(?:\/[A-G][#b]?)?$/;
 
 function isChordLike(text: string): boolean {
   return CHORD_TOKEN_RE.test(text);
