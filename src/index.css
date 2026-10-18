@@ -7055,6 +7055,15 @@ input, select, textarea { font: inherit; color: var(--text); }
   min-width: 0;
 }
 
+/* Underline on hover only the title block, not the badges beneath it. */
+.setlist-song-link:hover {
+  text-decoration: none;
+}
+
+.setlist-song-link:hover .setlist-song-info {
+  text-decoration: underline;
+}
+
 .setlist-song-info {
   display: flex;
   flex-direction: column;
@@ -7091,6 +7100,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   gap: var(--space-sm);
   font-size: var(--text-2xs);
   flex-wrap: wrap;
+  /* Badges are purely informational: clicks fall through to the song link. */
+  pointer-events: none;
 }
 
 .setlist-song-meta .lang-badge,
