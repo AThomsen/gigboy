@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PanelLeft, Sun, Moon, Lightbulb, Maximize2, Minimize2, Coffee, Music, Folder, ListMusic, ClipboardList, Newspaper, ArrowUpRight, CircleHelp } from 'lucide-react';
+import { Menu, Sun, Moon, Lightbulb, Maximize2, Minimize2, Coffee, Music, Folder, ListMusic, ClipboardList, Newspaper, ArrowUpRight, CircleHelp } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useBands } from '../context/BandsContext';
@@ -9,6 +9,7 @@ import BrandMark from './BrandMark';
 import { useDarkModeContext } from '../context/DarkModeContext';
 import toast from '../utils/anchoredToast';
 import UserAvatar from './UserAvatar';
+import BrandLogo from './BrandLogo';
 import { isDemoMode } from '../lib/demo/demoMode';
 
 const DEMO_BANNER_HEIGHT = 36;
@@ -475,10 +476,11 @@ export default function Layout({ children }: Props) {
           aria-pressed={sidebarOpen}
           aria-controls="app-sidebar"
         >
-          <PanelLeft size={20} />
+          <Menu size={20} />
         </button>
         <Link to={themedBandId ? `/bands/${themedBandId}/library` : '/'} className="topbar-brand">
-          <BrandMark size={35} scale={1} />
+          <BrandLogo size={30} className="topbar-logo" />
+          <BrandMark size={29} scale={1} />
         </Link>
         <nav className="topbar-nav">
           <div className="topbar-coffee" ref={coffeePopoverRef}>
@@ -634,7 +636,7 @@ export default function Layout({ children }: Props) {
         >
           {children}
           <footer className="footer">
-            From Norway {'<3'} with chords
+            <BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords
             <a
               className="footer-version"
               href="https://github.com/blindpassasjer/gigboy/blob/main/CHANGELOG.md"

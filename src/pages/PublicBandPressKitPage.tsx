@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Download, ArrowDownToLine, Copy } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import BrandMark from '../components/BrandMark';
+import BrandLogo from '../components/BrandLogo';
 import { dataClient } from '../lib/dataClient';
 import type { PublicTourDate } from '../lib/dataClient/types';
 import { generatePressKitZip } from '../lib/pressKitZip';
@@ -273,7 +274,7 @@ export default function PublicBandPressKitPage() {
   return (
     <main className="public-setlist-page public-presskit-page">
       <header className="public-setlist-header public-share-header">
-        <Link to="/" className="public-page-nav-brand public-page-nav-brand--large"><BrandMark size={22} /></Link>
+        <Link to="/" className="public-page-nav-brand public-page-nav-brand--large"><BrandLogo size={26} /><BrandMark size={22} /></Link>
         <div className="public-share-branding-row public-share-branding-row--header">
           {(payload.bandName || payload.bandLogo) ? (
             <div className="public-share-band-stack public-share-band-stack--header">
@@ -493,7 +494,7 @@ export default function PublicBandPressKitPage() {
         )}
       </div>
 
-      <footer className="footer">From Norway {'<3'} with chords</footer>
+      <footer className="footer"><BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords</footer>
     </main>
   );
 }

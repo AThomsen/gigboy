@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
 import { helpArticles, resolveHelpImage } from '../help/articles';
 import Markdown from '../help/markdown';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -10,7 +11,7 @@ function HelpIndex() {
   return (
     <div className="help-page">
       <header className="help-hero">
-        <BookOpen size={28} aria-hidden="true" />
+        <BrandLogo size={44} />
         <div>
           <h1>User guide</h1>
           <p>How to do things in Gigboy, from your first song to walking on stage.</p>

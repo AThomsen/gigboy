@@ -351,8 +351,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   transition: background .15s, color .15s;
   flex-shrink: 0;
 }
-.topbar-sidebar-toggle:hover,
-.topbar-sidebar-toggle[aria-pressed="true"] { background: var(--chord-bg); color: var(--accent); }
+.topbar-sidebar-toggle:hover { background: var(--chord-bg); color: var(--accent); }
+.topbar-sidebar-toggle[aria-pressed="true"] { color: var(--text); }
 
 .topbar-brand {
   display: flex;
@@ -390,11 +390,9 @@ input, select, textarea { font: inherit; color: var(--text); }
   opacity: 0.75;
 }
 
-.brand-name-mirror-g {
-  font-weight: 900;
-  color: var(--accent);
-  transform: scaleX(-1);
-  display: inline-block;
+/* On narrow phones the icon alone carries the brand so the toggle and nav keep their room. */
+@media (max-width: 420px) {
+  .topbar-brand .brand-name { display: none; }
 }
 
 
@@ -937,6 +935,27 @@ input, select, textarea { font: inherit; color: var(--text); }
   padding: var(--space-xl) var(--space-xl);
   text-align: center;
   color: var(--muted);
+}
+
+.brand-logo {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 22%;
+}
+
+.app-status .brand-logo {
+  margin: 0 auto var(--space-lg);
+}
+
+.footer .footer-logo {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: var(--space-xs);
+  opacity: .85;
+}
+
+.public-page-nav-brand--large {
+  gap: var(--space-sm);
 }
 
 .footer {
@@ -8369,7 +8388,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   }
 
   .topbar-brand {
-    gap: 0;
+    gap: var(--space-xs);
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;

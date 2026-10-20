@@ -4,6 +4,7 @@ import type { Location } from 'react-router-dom';
 import { Music2, ListMusic, Users, MonitorSpeaker, Newspaper, Activity, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BrandMark from '../components/BrandMark';
+import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/Button';
 import { isDemoMode } from '../lib/demo/demoMode';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -73,6 +74,7 @@ function LoginHero() {
   return (
     <aside className="login-hero" aria-label="GIGBOY features">
       <div className="login-brand login-brand--hero">
+        <BrandLogo size={72} />
         <BrandMark size={90} />
       </div>
       <h1 className="login-hero-title">A workspace for working bands.</h1>
@@ -291,7 +293,7 @@ export default function LoginPage() {
           </form>
 
           <footer className="footer">
-            From Norway {'<3'} with chords
+            <BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords
           </footer>
         </div>
       </div>

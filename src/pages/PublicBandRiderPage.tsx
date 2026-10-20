@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import BrandMark from '../components/BrandMark';
+import BrandLogo from '../components/BrandLogo';
 import { dataClient } from '../lib/dataClient';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { InputList, SongHandNoteDocument, StageplotItem } from '../types';
@@ -185,7 +186,7 @@ export default function PublicBandRiderPage() {
   return (
     <main className="public-setlist-page public-setlist-page--wide technical-rider-public-page">
       <header className="public-setlist-header public-share-header">
-        <Link to="/" className="public-page-nav-brand public-page-nav-brand--large"><BrandMark size={22} /></Link>
+        <Link to="/" className="public-page-nav-brand public-page-nav-brand--large"><BrandLogo size={26} /><BrandMark size={22} /></Link>
         <div className="public-share-branding-row public-share-branding-row--header">
           {(rider.bandName || bandLogo) ? (
             <div className="public-share-band-stack public-share-band-stack--header">
@@ -311,7 +312,7 @@ export default function PublicBandRiderPage() {
         ) : null}
       </div>
 
-      <footer className="footer">From Norway {'<3'} with chords</footer>
+      <footer className="footer"><BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords</footer>
     </main>
   );
 }

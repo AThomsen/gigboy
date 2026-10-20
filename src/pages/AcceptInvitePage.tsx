@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import BrandMark from '../components/BrandMark';
+import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { dataClient } from '../lib/dataClient';
@@ -100,6 +101,7 @@ export default function AcceptInvitePage() {
       <div className="login-screen">
         <div className="login-card">
           <div className="login-brand">
+            <BrandLogo size={36} />
             <BrandMark size={28} />
           </div>
           <p>Checking your invite&hellip;</p>
@@ -113,6 +115,7 @@ export default function AcceptInvitePage() {
       <div className="login-screen">
         <div className="login-card">
           <div className="login-brand">
+            <BrandLogo size={36} />
             <BrandMark size={28} />
           </div>
           <h1 className="login-title">Invite unavailable</h1>
@@ -133,7 +136,8 @@ export default function AcceptInvitePage() {
     <div className="login-screen">
       <div className="login-card">
         <div className="login-brand">
-          <BrandMark size={28} />
+          <BrandLogo size={36} />
+            <BrandMark size={28} />
         </div>
         <h1 className="login-title">Join GIGBOY</h1>
         <p className="login-description">
@@ -209,7 +213,7 @@ export default function AcceptInvitePage() {
           Already have an account? <Link to="/">Sign in</Link>
         </p>
 
-        <footer className="footer">From Norway {'<3'} with chords</footer>
+        <footer className="footer"><BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords</footer>
       </div>
     </div>
   );

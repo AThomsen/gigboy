@@ -109,6 +109,9 @@ export default defineConfig(({ command }) => ({
       registerType: 'autoUpdate',
       includeAssets: [
         'icon.png',
+        'favicon.svg',
+        'logo.svg',
+        'apple-touch-icon.png',
       ],
       manifest: {
         name: 'GIGBOY',
@@ -122,12 +125,9 @@ export default defineConfig(({ command }) => ({
         start_url: './',
         orientation: 'portrait',
         icons: [
-          {
-            src: 'icon.png',
-            sizes: '372x372',
-            type: 'image/png',
-            purpose: 'any',
-          },
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

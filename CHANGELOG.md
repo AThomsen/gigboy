@@ -8,7 +8,13 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-20
+
 ### Added
+- **New logo: a setlist sheet headed GIG.** It is the favicon, app icon and PWA icons, and appears
+  on the login page, the invite and username-setup cards, the 404 and offline pages, the help
+  header, the public press-kit and rider pages, and next to the footer tagline. A 1280×640
+  `docs/social-preview.png` is included for GitHub's social preview setting.
 - **"Has" and "Length" filters on song lists.** Filter by songs that have tabs, recordings,
   notes or attachments, and by length (short, medium, long).
 
@@ -17,11 +23,20 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   the size is saved with the note.
 
 ### Fixed
+- **Double-clicking the sidebar edge now fits the band name too.** It previously only measured the
+  song, setlist and press-kit names, so a cut-off band name in the band picker was ignored.
+- The offline page said "Folio" instead of GIGBOY.
 - **Pasted songs recognize many more chords.** Extended and altered chords (`G7sus4`, `Gm7b5`, `C7#9`,
   `A7(b9)`, `C6/9`), Unicode symbols (`F♯m`, `B♭`, `C°`) and `N.C.` are now picked up, and a chord row
   no longer swallows a following chord row or section label as its lyrics.
 
 ### Changed
+- **Topbar:** the logo icon sits next to a smaller GIGBOY wordmark, and on phones up to 420px wide
+  only the icon shows. The sidebar toggle is now a hamburger, and when the sidebar is open it uses
+  the text colour instead of a tinted box, so it stays bright in the dark themes.
+- The second G in the GIGBOY wordmark now faces the normal direction instead of being mirrored.
+- PWA icons are rendered from the logo SVGs (no font needed), so link previews use the real logo
+  instead of a fallback-font render. `scripts/generate-pwa-icons.mjs` does this.
 - Inactive filter chips have a white background.
 - The "Add to" button on the song page no longer has a filled background.
 

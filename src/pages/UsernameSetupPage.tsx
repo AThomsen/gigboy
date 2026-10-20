@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import BrandMark from '../components/BrandMark';
+import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { normalizeUsername, validateUsername } from '../lib/userProfiles';
@@ -37,7 +38,8 @@ export default function UsernameSetupPage() {
     <div className="login-screen">
       <div className="login-card">
         <div className="login-brand">
-          <BrandMark size={28} />
+          <BrandLogo size={36} />
+            <BrandMark size={28} />
         </div>
         <h1 className="login-title">Choose your username</h1>
         <p className="login-subtitle">
@@ -65,7 +67,7 @@ export default function UsernameSetupPage() {
             Sign out
           </Button>
         </form>
-        <footer className="footer">From Norway {'<3'} with chords</footer>
+        <footer className="footer"><BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords</footer>
       </div>
     </div>
   );

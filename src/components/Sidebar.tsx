@@ -176,9 +176,10 @@ export default function Sidebar({ open, mobile = false, onNavigate }: Props) {
     handle.addEventListener('pointercancel', onUp);
   };
 
-  /** Double-click: grow just enough to show the longest truncated name (capped), or reset if nothing is cut off. */
+  /** Double-click: grow just enough to show the longest truncated name (capped), or reset if nothing is cut off.
+   *  Covers the band name in the band picker as well as the list names. */
   const fitWidthToNames = () => {
-    const names = animRef.current?.querySelectorAll<HTMLElement>('.sidebar-list-name') ?? [];
+    const names = animRef.current?.querySelectorAll<HTMLElement>('.sidebar-list-name, .sidebar-band-switcher-name') ?? [];
     let overflow = 0;
     names.forEach((el) => { overflow = Math.max(overflow, el.scrollWidth - el.clientWidth); });
     applyWidth(overflow > 0 ? clampSidebarWidth(Math.ceil(currentWidth() + overflow + 8)) : null);
