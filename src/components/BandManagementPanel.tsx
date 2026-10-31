@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { copyText } from '../utils/copyText';
-import { Copy, Share2, UserPlus } from 'lucide-react';
+import { Copy, QrCode, Share2, UserPlus } from 'lucide-react';
 import toast from '../utils/anchoredToast';
 import { useAuth } from '../context/AuthContext';
 import { useBands } from '../context/BandsContext';
 import UserAvatar from './UserAvatar';
+import InviteQrModal from './InviteQrModal';
 import { dataClient } from '../lib/dataClient';
 import type { Band } from '../types';
 
@@ -34,6 +35,7 @@ export default function BandManagementPanel({
   const [busyInviteLink, setBusyInviteLink] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [lastInviteLinkExpiresAt, setLastInviteLinkExpiresAt] = useState<string | null>(null);
+  const [showInviteQr, setShowInviteQr] = useState(false);
 
   const handleRemoveMember = async (memberId: string) => {
     setBusyMemberId(memberId);
@@ -133,6 +135,15 @@ export default function BandManagementPanel({
             >
               <Copy size={15} />
             </button>
+            <button
+              type="button"
+              className="share-menu-input-action"
+              onClick={() => setShowInviteQr(true)}
+              title="Show QR code"
+              aria-label="Show invite link as QR code"
+            >
+              <QrCode size={15} />
+            </button>
             {canNativeShare ? (
               <button
                 type="button"
@@ -151,6 +162,9 @@ export default function BandManagementPanel({
             </span>
           ) : null}
         </label>
+      ) : null}
+      {showInviteQr && lastInviteLink ? (
+        <InviteQrModal url={lastInviteLink} title={`Join ${band.name}`} onClose={() => setShowInviteQr(false)} />
       ) : null}
 
       <h3 style={{ marginTop: '1rem' }}>Members</h3>
