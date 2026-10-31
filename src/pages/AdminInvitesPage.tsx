@@ -1,9 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Copy, UserPlus } from 'lucide-react';
+import { Copy, QrCode, UserPlus } from 'lucide-react';
 import toast from '../utils/anchoredToast';
 import { dataClient } from '../lib/dataClient';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import InviteQrModal from '../components/InviteQrModal';
 import type { UserInvite } from '../lib/dataClient/types';
 
 /**
@@ -20,6 +21,7 @@ export default function AdminInvitesPage() {
   const [busyCreate, setBusyCreate] = useState(false);
   const [busyRevokeId, setBusyRevokeId] = useState<string | null>(null);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [qrLink, setQrLink] = useState<string | null>(null);
 
   const refreshInvites = useCallback(async () => {
     setLoading(true);
@@ -130,6 +132,15 @@ export default function AdminInvitesPage() {
               >
                 <Copy size={15} />
               </button>
+              <button
+                type="button"
+                className="share-menu-input-action"
+                onClick={() => setQrLink(lastInviteLink)}
+                title="Show QR code"
+                aria-label="Show invite link as QR code"
+              >
+                <QrCode size={15} />
+              </button>
             </div>
           </label>
         ) : null}
@@ -166,6 +177,14 @@ export default function AdminInvitesPage() {
                     <button
                       type="button"
                       className="btn btn--secondary"
+                      onClick={() => setQrLink(inviteLinkFor(invite))}
+                      title="Show invite link as QR code"
+                    >
+                      <QrCode size={15} /> QR code
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--secondary"
                       disabled={busy}
                       onClick={() => void handleRevoke(invite)}
                     >
@@ -178,6 +197,8 @@ export default function AdminInvitesPage() {
           </ul>
         )}
       </section>
+
+      {qrLink ? <InviteQrModal url={qrLink} onClose={() => setQrLink(null)} /> : null}
     </section>
   );
 }
