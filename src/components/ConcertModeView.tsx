@@ -881,7 +881,8 @@ export default function ConcertModeView({
                   : 0;
                 return {
                   transform: `translateY(${-offsetY}px)`,
-                  clipPath: bottomClip > 0 ? `inset(0 0 ${bottomClip}px 0)` : undefined,
+                  // Always an inset() (0 on the last page) so clip-path can transition.
+                  clipPath: `inset(0 0 ${bottomClip}px 0)`,
                 };
               })()}
             >
