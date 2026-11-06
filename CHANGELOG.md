@@ -14,6 +14,8 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   added as a song note; and PDF songs are created with the PDF attached.
 - **Concert-mode quick actions.** Tap the chart with two fingers for a menu to start/pause
   autoscroll, change song, open the song list and change the text size. On a computer, press M.
+- **Up next in concert mode.** Playing a setlist, the end of each song shows the next one;
+  tap it to jump there.
 
 ### Changed
 - Your own notes now show on a song without opening the Notes panel, and in concert mode

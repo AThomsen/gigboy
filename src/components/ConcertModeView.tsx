@@ -85,6 +85,10 @@ function computePageOffsets(contentEl: HTMLElement, viewportHeight: number): num
     }
   }
 
+  // The "Up next" card after the song, kept whole on a page.
+  const upNext = contentEl.querySelector('.concert-next-song');
+  if (upNext) processAtom(upNext);
+
   return offsets;
 }
 
@@ -777,6 +781,7 @@ export default function ConcertModeView({
     ? !scrollEdge.bottom || currentIndex < songs.length - 1
     : currentPageInSong < currentPageCount - 1 || currentIndex < songs.length - 1;
   const currentSongNote = songNotes?.[currentSong.id]?.trim() ?? '';
+  const nextSong = songs[currentIndex + 1] ?? null;
 
   return (
     <section
@@ -1030,6 +1035,23 @@ export default function ConcertModeView({
                   />
                 )}
               </div>
+              {/* Part of the running text, so it lands on the last page / end of the scroll. */}
+              {nextSong && (
+                <button
+                  type="button"
+                  className="concert-next-song"
+                  onClick={() => goToSong(currentIndex + 1)}
+                  aria-label={`Next song: ${nextSong.title}`}
+                >
+                  <span className="concert-next-song-label">Up next</span>
+                  <span className="concert-next-song-position">{currentIndex + 2}/{songs.length}</span>
+                  <span className="concert-next-song-title">
+                    <strong>{nextSong.title}</strong>
+                    {nextSong.artist && <span className="concert-next-song-artist"> · {nextSong.artist}</span>}
+                  </span>
+                  <ChevronRight size={16} />
+                </button>
+              )}
             </div>
           </div>
 
