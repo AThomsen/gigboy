@@ -966,6 +966,11 @@ input, select, textarea { font: inherit; color: var(--text); }
   border-top: 1px solid var(--border);
 }
 
+/* Concert mode is a full-screen stage view: no footer. */
+.main-content--concert .footer {
+  display: none;
+}
+
 .footer-links {
   display: inline-flex;
   gap: var(--space-md);
