@@ -7686,6 +7686,74 @@ input, select, textarea { font: inherit; color: var(--text); }
   box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
 }
 
+/* Two-finger-tap quick actions. Positioned at the touch point, clamped on screen in JS. */
+.concert-quick-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  touch-action: manipulation;
+}
+
+.concert-quick-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 2.75rem;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.concert-quick-menu-item:hover:not(:disabled) {
+  background: var(--chord-bg);
+  color: var(--accent);
+}
+
+.concert-quick-menu-item:disabled {
+  opacity: .4;
+}
+
+.concert-quick-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 2.75rem;
+  padding: 0 var(--space-xs) 0 var(--space-md);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2xs);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.concert-quick-menu-row span {
+  flex: 1;
+}
+
+.concert-quick-menu-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.concert-quick-menu-row button:disabled {
+  opacity: .4;
+}
+
 .concert-settings-slider {
   display: flex;
   align-items: center;

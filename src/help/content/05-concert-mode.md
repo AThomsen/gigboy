@@ -33,6 +33,12 @@ Going past the last page of a song takes you to the start of the next song.
 
 **− A** and **+ A** make the text smaller or larger. Your size is remembered on this device.
 
+## Quick actions
+
+Tap the chart with **two fingers** to open a small menu where you tapped. From there you can start or pause autoscroll, jump to the previous or next song, open the song list, and change the text size. Tap outside the menu to close it.
+
+On a computer, press **M** to open the menu in the middle of the screen, and **M** or **Esc** to close it.
+
 ## Settings
 
 Press the cog in the top right.
