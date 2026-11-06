@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff } from 'lucide-react';
 import { getMicrophoneUnavailableReason } from '../lib/mediaAccess';
-import { createResumedAudioContext } from '../lib/webAudio';
+import { createResumedAudioContext, setAudioSessionType } from '../lib/webAudio';
 
 interface Props {
   className?: string;
@@ -112,6 +112,7 @@ export default function VisualTuner({ className = '' }: Props) {
           return;
         }
 
+        setAudioSessionType('play-and-record');
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: false,

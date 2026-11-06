@@ -4,6 +4,7 @@
  */
 import { parseTabLines } from '../utils/tabParser';
 import { strumNotes, type StrumBar } from '../utils/strumParser';
+import { setAudioSessionType } from './webAudio';
 
 type ToneModule = typeof import('tone');
 
@@ -84,6 +85,7 @@ export async function playTab(
   // Must resume/create the AudioContext before building the Sampler, so the Sampler's
   // toDestination() call attaches to an already-running context on Safari/iOS instead
   // of lazily creating a new suspended one.
+  setAudioSessionType('playback');
   await Tone.start();
 
   const sampler = await getSampler(Tone);

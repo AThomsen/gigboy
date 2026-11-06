@@ -9,7 +9,7 @@ import type { SongRecording } from '../lib/songRecordings';
 import { showConfirmToast } from '../utils/toastDialogs';
 import { markReloadUnsafe } from '../lib/reloadGuard';
 import { getMicrophoneUnavailableReason } from '../lib/mediaAccess';
-import { createResumedAudioContext, pickRecordingMimeType } from '../lib/webAudio';
+import { createResumedAudioContext, pickRecordingMimeType, setAudioSessionType } from '../lib/webAudio';
 
 const WAVEFORM_SAMPLES = 100;
 
@@ -621,6 +621,7 @@ export default function SongRecorder({ song, user, bandId }: Props) {
       return;
     }
     try {
+      setAudioSessionType('play-and-record');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
