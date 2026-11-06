@@ -33,7 +33,7 @@ Record a take straight from the song page, or **Upload file** to add one you alr
 
 ![The notes panel.](tool-notes)
 
-Open **Notes**, then tap anywhere on the sheet and type. While the Notes panel is open, tapping a chord adds a note instead of showing its diagram; close the panel to get the diagrams back. Your notes are yours; the same panel lists everyone who has left notes on the song, so you can show your bandmates' notes and switch them on and off one author at a time. Notes that were hand-drawn in earlier versions still show, and **Clear drawings** removes your own.
+Your own notes always show on the sheet. To add or change them, open **Notes**, then tap anywhere on the sheet and type. While the Notes panel is open, tapping a chord adds a note instead of showing its diagram; close the panel to get the diagrams back. Your notes are yours; the same panel lists everyone who has left notes on the song, so you can show your bandmates' notes and switch them on and off one author at a time. Notes that were hand-drawn in earlier versions still show, and **Clear drawings** removes your own.
 
 ## Attachments
 
