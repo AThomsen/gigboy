@@ -16,6 +16,8 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 ### Changed
 - In concert mode with pagination on, tapping the upper half of the chart goes back a page;
   tapping the lower half still goes forward.
+- In autoscroll mode, dragging the chart (finger or mouse) sets the scroll speed: let go while
+  moving and autoscroll continues at the drag's speed.
 
 ## [0.4.0] - 2026-10-20
 

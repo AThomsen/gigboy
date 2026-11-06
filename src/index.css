@@ -7797,6 +7797,19 @@ input, select, textarea { font: inherit; color: var(--text); }
   -webkit-overflow-scrolling: touch;
 }
 
+/* Autoscroll: drags are handled in JS (they set the scroll speed), so suppress native
+   panning and text selection while dragging. */
+.concert-page-viewport--drag {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.concert-page-viewport--drag:active {
+  cursor: grabbing;
+}
+
 .concert-page-viewport--scroll .concert-page-content {
   transition: none;
   padding-bottom: 5rem;
