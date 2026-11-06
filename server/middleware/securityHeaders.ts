@@ -29,6 +29,17 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
       "img-src 'self' data: blob:",
       "media-src 'self' blob:",
       "font-src 'self' data:",
+      // Embedded players for song media and press kits (src/utils/songMedia.ts,
+      // src/utils/pressKitMedia.ts). Without frame-src these fall back to default-src
+      // 'self' and the browser shows "This content is blocked".
+      [
+        'frame-src',
+        'https://open.spotify.com',
+        'https://www.youtube.com',
+        'https://www.youtube-nocookie.com',
+        'https://player.vimeo.com',
+        'https://w.soundcloud.com',
+      ].join(' '),
       // 'self' plus https: so an optionally-configured Sentry DSN (VITE_SENTRY_DSN) can report.
       "connect-src 'self' https:",
       "frame-ancestors 'none'",
