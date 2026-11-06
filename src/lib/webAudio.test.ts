@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extensionForRecordingMime, pickRecordingMimeType } from './webAudio';
+import { extensionForRecordingMime, pickRecordingMimeType, setAudioSessionType } from './webAudio';
 
 describe('extensionForRecordingMime', () => {
   it('maps mp4/aac recordings (Safari) to m4a', () => {
@@ -51,5 +51,23 @@ describe('pickRecordingMimeType', () => {
     // @ts-expect-error - simulating an environment without MediaRecorder
     delete globalThis.MediaRecorder;
     expect(pickRecordingMimeType()).toBeUndefined();
+  });
+});
+
+describe('setAudioSessionType', () => {
+  type Nav = { audioSession?: { type: string } };
+  afterEach(() => {
+    delete (navigator as unknown as Nav).audioSession;
+  });
+
+  it('sets the iOS audio session type so Web Audio ignores the silent switch', () => {
+    const session = { type: 'auto' };
+    (navigator as unknown as Nav).audioSession = session;
+    setAudioSessionType('playback');
+    expect(session.type).toBe('playback');
+  });
+
+  it('is a no-op where the Audio Session API is missing', () => {
+    expect(() => setAudioSessionType('playback')).not.toThrow();
   });
 });
