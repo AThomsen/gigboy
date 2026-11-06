@@ -7792,7 +7792,9 @@ input, select, textarea { font: inherit; color: var(--text); }
 
 .concert-page-content {
   width: 100%;
-  transition: transform 0.28s ease;
+  /* The clip animates with the slide: when paging back the new page's clip is tighter,
+     and applying it instantly would blank the screen until the content slid into place. */
+  transition: transform 0.28s ease, clip-path 0.28s ease;
   will-change: transform;
 }
 
