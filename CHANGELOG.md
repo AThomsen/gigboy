@@ -8,6 +8,10 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 
 ## [Unreleased]
 
+### Added
+- **Up next in concert mode.** Playing a setlist, the end of each song shows the next one;
+  tap it to jump there.
+
 ## [0.4.0] - 2026-10-20
 
 ### Added
