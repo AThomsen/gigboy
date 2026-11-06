@@ -966,6 +966,11 @@ input, select, textarea { font: inherit; color: var(--text); }
   border-top: 1px solid var(--border);
 }
 
+/* Concert mode is a full-screen stage view: no footer. */
+.main-content--concert .footer {
+  display: none;
+}
+
 .footer-links {
   display: inline-flex;
   gap: var(--space-md);
@@ -7681,6 +7686,74 @@ input, select, textarea { font: inherit; color: var(--text); }
   box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
 }
 
+/* Two-finger-tap quick actions. Positioned at the touch point, clamped on screen in JS. */
+.concert-quick-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  touch-action: manipulation;
+}
+
+.concert-quick-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 2.75rem;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.concert-quick-menu-item:hover:not(:disabled) {
+  background: var(--chord-bg);
+  color: var(--accent);
+}
+
+.concert-quick-menu-item:disabled {
+  opacity: .4;
+}
+
+.concert-quick-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 2.75rem;
+  padding: 0 var(--space-xs) 0 var(--space-md);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2xs);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.concert-quick-menu-row span {
+  flex: 1;
+}
+
+.concert-quick-menu-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.concert-quick-menu-row button:disabled {
+  opacity: .4;
+}
+
 .concert-settings-slider {
   display: flex;
   align-items: center;
@@ -7787,7 +7860,9 @@ input, select, textarea { font: inherit; color: var(--text); }
 
 .concert-page-content {
   width: 100%;
-  transition: transform 0.28s ease;
+  /* The clip animates with the slide: when paging back the new page's clip is tighter,
+     and applying it instantly would blank the screen until the content slid into place. */
+  transition: transform 0.28s ease, clip-path 0.28s ease;
   will-change: transform;
 }
 
@@ -7795,6 +7870,19 @@ input, select, textarea { font: inherit; color: var(--text); }
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Autoscroll: drags are handled in JS (they set the scroll speed), so suppress native
+   panning and text selection while dragging. */
+.concert-page-viewport--drag {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.concert-page-viewport--drag:active {
+  cursor: grabbing;
 }
 
 .concert-page-viewport--scroll .concert-page-content {

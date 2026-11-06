@@ -22,3 +22,4 @@ RUN chmod +x ./docker-entrypoint.sh
 EXPOSE 6168
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist-server/index.js"]
+

@@ -12,6 +12,14 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 - **Import Songbook Pro backups.** The Library's upload button takes a `.sbpbackup` file. Songs come
   in with their key, transpose and length; sets become setlists, with any per-set transpose
   added as a song note; and PDF songs are created with the PDF attached.
+- **Concert-mode quick actions.** Tap the chart with two fingers for a menu to start/pause
+  autoscroll, change song, open the song list and change the text size. On a computer, press M.
+
+### Changed
+- In concert mode with pagination on, tapping the upper half of the chart goes back a page;
+  tapping the lower half still goes forward.
+- In autoscroll mode, dragging the chart (finger or mouse) sets the scroll speed: let go while
+  moving and autoscroll continues at the drag's speed.
 
 ## [0.4.0] - 2026-10-20
 

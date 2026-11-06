@@ -22,8 +22,9 @@ Concert mode is a clean performance view for the stage. It shows one song at a t
 
 By default long songs are split into **pages**. You can:
 
-- tap the chart, or press **Next**, to go forward;
-- press **Previous**, or swipe, to go back;
+- tap the lower half of the chart, or press **Next**, to go forward;
+- tap the upper half of the chart, or press **Previous**, to go back;
+- swipe left or right;
 - use the left and right arrow keys on a keyboard.
 
 Going past the last page of a song takes you to the start of the next song.
@@ -31,6 +32,12 @@ Going past the last page of a song takes you to the start of the next song.
 ## Text size
 
 **− A** and **+ A** make the text smaller or larger. Your size is remembered on this device.
+
+## Quick actions
+
+Tap the chart with **two fingers** to open a small menu where you tapped. From there you can start or pause autoscroll, jump to the previous or next song, open the song list, and change the text size. Tap outside the menu to close it.
+
+On a computer, press **M** to open the menu in the middle of the screen, and **M** or **Esc** to close it.
 
 ## Settings
 
@@ -47,7 +54,7 @@ Pagination and autoscroll are alternatives: turning one on turns the other off. 
 
 ### Autoscroll
 
-With autoscroll on, a green **down-pointing play** button appears at the top. Press it, or just **tap the chart**, to start and pause the scrolling. If you touch or scroll the chart yourself, autoscroll pauses; tap again to carry on. Adjust the speed from the cog.
+With autoscroll on, a green **down-pointing play** button appears at the top. Press it, or just **tap the chart**, to start and pause the scrolling. You can also set the speed by **dragging the chart** with a finger or the mouse: drag it along at the pace you want and let go, and autoscroll carries on at that speed. Drag backwards, or hold still before letting go, to move the chart without starting it. Scrolling with a mouse wheel pauses autoscroll; tap again to carry on. The speed can also be set from the cog.
 
 ## The song list
 
