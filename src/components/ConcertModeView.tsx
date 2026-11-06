@@ -436,6 +436,83 @@ export default function ConcertModeView({
     storeValue(SCROLL_SPEED_KEY, String(value));
   }, []);
 
+  // Drag-to-set-speed in autoscroll mode. The viewport handles the drag itself (finger
+  // and mouse alike, touch-action: none) so there is no native momentum fighting the
+  // autoscroll loop. On release, the forward speed of the last moments of the drag
+  // becomes the new autoscroll speed; a backward drag or a drag that came to rest
+  // before release just leaves autoscroll paused.
+  const dragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startScroll: number;
+    moved: boolean;
+    samples: { t: number; y: number }[];
+  } | null>(null);
+  const lastDragEndRef = useRef(0);
+  const dragScrollsManually = autoscroll && continuous;
+
+  // iOS Safari doesn't honour touch-action: none on a scroll container: it pans natively
+  // and sends pointercancel instead of pointerup, so the drag never sets a speed. A
+  // non-passive touchmove that calls preventDefault keeps the gesture ours.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!dragScrollsManually || !viewport) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    viewport.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => viewport.removeEventListener('touchmove', onTouchMove);
+  }, [dragScrollsManually]);
+
+  const onViewportPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragScrollsManually || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button, a, input, label, select, [role="button"]')) return;
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      startScroll: e.currentTarget.scrollTop,
+      moved: false,
+      samples: [{ t: e.timeStamp, y: e.clientY }],
+    };
+  }, [dragScrollsManually]);
+
+  const onViewportPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved) {
+      if (Math.abs(dy) < 8) return;
+      drag.moved = true;
+      setScrolling(false);
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    e.currentTarget.scrollTop = drag.startScroll - dy;
+    drag.samples.push({ t: e.timeStamp, y: e.clientY });
+    // Only the recent past matters for the release speed.
+    while (drag.samples.length > 2 && e.timeStamp - drag.samples[0].t > 300) drag.samples.shift();
+  }, []);
+
+  const onViewportPointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    if (!drag.moved) return;
+    lastDragEndRef.current = Date.now();
+    if (e.type === 'pointercancel') return;
+    // Measure over the last ~150ms; holding still before letting go reads as zero.
+    const now = e.timeStamp;
+    const recent = drag.samples.filter((s) => now - s.t <= 150);
+    if (recent.length < 2) return;
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+    const dt = (last.t - first.t) / 1000;
+    if (dt <= 0) return;
+    const forward = (first.y - last.y) / dt; // finger moving up = scrolling forward
+    if (forward < SCROLL_SPEED_MIN) return;
+    changeScrollSpeed(Math.round(Math.min(forward, SCROLL_SPEED_MAX)));
+    setScrolling(true);
+  }, [changeScrollSpeed]);
+
   const goToSong = useCallback((index: number) => {
     targetPageRef.current = 0;
     setCurrentIndex(Math.min(Math.max(index, 0), songs.length - 1));
@@ -504,6 +581,8 @@ export default function ConcertModeView({
   const handleSurfaceTap = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, label, select, [role="button"]')) return;
+    // A drag (which sets the autoscroll speed) is not a tap.
+    if (Date.now() - lastDragEndRef.current < 400) return;
     if (activeChord) {
       setActiveChord(null);
       return;
@@ -769,11 +848,16 @@ export default function ConcertModeView({
           </div>
 
           <div
-            className={`concert-page-viewport${continuous ? ' concert-page-viewport--scroll' : ''}`}
+            className={`concert-page-viewport${continuous ? ' concert-page-viewport--scroll' : ''}${dragScrollsManually ? ' concert-page-viewport--drag' : ''}`}
             ref={viewportRef}
             onScroll={continuous ? updateScrollEdge : undefined}
-            // A manual drag/wheel takes over from autoscroll.
-            onTouchMove={continuous ? () => setScrolling(false) : undefined}
+            // With autoscroll on, a drag sets the speed (see onViewportPointer*). Without
+            // it, native scrolling applies and a wheel/touch just pauses.
+            onPointerDown={onViewportPointerDown}
+            onPointerMove={onViewportPointerMove}
+            onPointerUp={onViewportPointerEnd}
+            onPointerCancel={onViewportPointerEnd}
+            onTouchMove={continuous && !dragScrollsManually ? () => setScrolling(false) : undefined}
             onWheel={continuous ? () => setScrolling(false) : undefined}
           >
             <div
