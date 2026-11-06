@@ -16,6 +16,8 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   autoscroll, change song, open the song list and change the text size. On a computer, press M.
 
 ### Changed
+- Your own notes now show on a song without opening the Notes panel, and in concert mode
+  (read-only there). Open Notes to edit them or to show bandmates' notes.
 - In concert mode with pagination on, tapping the upper half of the chart goes back a page;
   tapping the lower half still goes forward.
 - In autoscroll mode, dragging the chart (finger or mouse) sets the scroll speed: let go while

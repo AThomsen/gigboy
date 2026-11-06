@@ -21,6 +21,7 @@ import ChordDiagram, { type DiagramInstrument } from './ChordDiagram';
 import { useBandChordVoicings } from '../hooks/useBandChordVoicings';
 import type { useSetlistSession } from '../hooks/useSetlistSession';
 import LyricHandNotesOverlay from './LyricHandNotesOverlay';
+import SongTextNotesOverlay from './SongTextNotesOverlay';
 import ConcertMetronomeFlash from './ConcertMetronomeFlash';
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
 import type { ChordNotation } from '../utils/chordParser';
@@ -1014,6 +1015,20 @@ export default function ConcertModeView({
                   strokeColor={getUserNoteColor(user?.id ?? null)}
                   onMyStrokesChange={noop}
                 />
+                {/* Typed notes, read-only on stage. handNotes defaults to the current
+                    user's own notes only. */}
+                {user && (
+                  <SongTextNotesOverlay
+                    visible
+                    typeEnabled={false}
+                    notes={handNotes.visibleNotes}
+                    myTextNotes={handNotes.myTextNotes}
+                    myAuthorUid={user.id}
+                    myNotesVisible={handNotes.visibleNotes.some((n) => n.authorUid === user.id)}
+                    noteColor={getUserNoteColor(user.id)}
+                    onMyTextNotesChange={noop}
+                  />
+                )}
               </div>
             </div>
           </div>
