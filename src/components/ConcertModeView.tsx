@@ -513,8 +513,11 @@ export default function ConcertModeView({
       if (autoscroll) setScrolling((v) => !v);
       return;
     }
-    goToNextPage();
-  }, [activeChord, autoscroll, continuous, goToNextPage]);
+    // Tap the upper half to go back a page, the lower half to go forward.
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) goToPrevPage();
+    else goToNextPage();
+  }, [activeChord, autoscroll, continuous, goToNextPage, goToPrevPage]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
