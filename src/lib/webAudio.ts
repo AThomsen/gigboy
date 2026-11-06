@@ -20,6 +20,29 @@ export async function createResumedAudioContext(options?: AudioContextOptions): 
   return ctx;
 }
 
+type AudioSessionType = 'auto' | 'playback' | 'transient' | 'transient-solo' | 'ambient' | 'play-and-record';
+
+/**
+ * iOS routes Web Audio through the "ambient" audio session by default, which the
+ * hardware ring/silent switch mutes — so the metronome and tab playback go silent when
+ * the phone is on silent, even though <audio>/<video> keep playing. Declaring the
+ * session as `playback` (media) makes Web Audio ignore the switch, like a music app.
+ *
+ * Use `play-and-record` before capturing the microphone (tuner, recorder): a `playback`
+ * session left over from the metronome would otherwise block input on iOS.
+ *
+ * No-op where the Audio Session API is missing (everything except Safari 16.4+).
+ */
+export function setAudioSessionType(type: AudioSessionType): void {
+  const session = (navigator as Navigator & { audioSession?: { type: AudioSessionType } }).audioSession;
+  if (!session) return;
+  try {
+    if (session.type !== type) session.type = type;
+  } catch {
+    // Unsupported value on this WebKit version — leave the session as it is.
+  }
+}
+
 /** Best-effort resume of an existing context, e.g. after returning from the background. */
 export function resumeAudioContext(ctx: AudioContext | null | undefined): void {
   if (ctx && ctx.state === 'suspended') {

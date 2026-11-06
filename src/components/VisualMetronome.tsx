@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Volume2, VolumeX, Plus, Minus } from 'lucide-react';
 import { parseBeatsPerBar } from '../utils/metronome';
-import { createResumedAudioContext, resumeAudioContext } from '../lib/webAudio';
+import { createResumedAudioContext, resumeAudioContext, setAudioSessionType } from '../lib/webAudio';
 
 interface Props {
   tempo?: number;
@@ -32,6 +32,7 @@ export default function VisualMetronome({ tempo, timeSignature, className = '', 
   // Safari would create the AudioContext there in the suspended state and never play.
   // Create (and resume) it from the button press that turns sound on / starts the beat.
   function primeAudio() {
+    setAudioSessionType('playback');
     if (!audioCtxRef.current) {
       void createResumedAudioContext()
         .then((ctx) => { audioCtxRef.current = ctx; })
