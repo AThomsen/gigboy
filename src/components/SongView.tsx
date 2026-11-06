@@ -158,7 +158,17 @@ export default function SongView({ song, accentColor, bandId }: Props) {
     isOwner: isBandOwner,
   });
 
-  const pinnedLineIds = useMemo(() => extractPinnedLineIds(handNotes.visibleNotes), [handNotes.visibleNotes]);
+  // Your own notes always show on the sheet. Opening the Notes panel switches to the
+  // panel's author selection (and makes your notes editable).
+  const displayedNotes = useMemo(
+    () => (showNotes
+      ? handNotes.visibleNotes
+      : handNotes.visibleNotes.filter((note) => note.authorUid === user?.id)),
+    [showNotes, handNotes.visibleNotes, user?.id],
+  );
+  const myNotesDisplayed = Boolean(user && displayedNotes.some((note) => note.authorUid === user.id));
+
+  const pinnedLineIds = useMemo(() => extractPinnedLineIds(displayedNotes), [displayedNotes]);
 
   const hasNotes = handNotes.notes.some((note) => note.strokes.length > 0 || (note.textNotes?.length ?? 0) > 0);
 
@@ -973,20 +983,20 @@ export default function SongView({ song, accentColor, bandId }: Props) {
             pinnedLineIds={pinnedLineIds}
           />
           <LyricHandNotesOverlay
-            visible={showNotes}
+            visible
             drawEnabled={false}
-            notes={handNotes.visibleNotes}
+            notes={displayedNotes}
             myStrokes={handNotes.myStrokes}
             onMyStrokesChange={NOOP}
           />
           {user && (
             <SongTextNotesOverlay
-              visible={showNotes}
+              visible
               typeEnabled={showNotes}
-              notes={handNotes.visibleNotes}
+              notes={displayedNotes}
               myTextNotes={handNotes.myTextNotes}
               myAuthorUid={user.id}
-              myNotesVisible={handNotes.visibleNotes.some((n) => n.authorUid === user.id)}
+              myNotesVisible={myNotesDisplayed}
               noteColor={getUserNoteColor(user.id)}
               onMyTextNotesChange={handleTextNotesChange}
             />
