@@ -13,6 +13,10 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   in with their key, transpose and length; sets become setlists, with any per-set transpose
   added as a song note; and PDF songs are created with the PDF attached.
 
+### Changed
+- In concert mode with pagination on, tapping the upper half of the chart goes back a page;
+  tapping the lower half still goes forward.
+
 ## [0.4.0] - 2026-10-20
 
 ### Added

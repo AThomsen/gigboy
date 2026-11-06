@@ -22,8 +22,9 @@ Concert mode is a clean performance view for the stage. It shows one song at a t
 
 By default long songs are split into **pages**. You can:
 
-- tap the chart, or press **Next**, to go forward;
-- press **Previous**, or swipe, to go back;
+- tap the lower half of the chart, or press **Next**, to go forward;
+- tap the upper half of the chart, or press **Previous**, to go back;
+- swipe left or right;
 - use the left and right arrow keys on a keyboard.
 
 Going past the last page of a song takes you to the start of the next song.
