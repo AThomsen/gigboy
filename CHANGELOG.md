@@ -13,7 +13,10 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   in with their key, transpose and length; sets become setlists, with any per-set transpose
   added as a song note; and PDF songs are created with the PDF attached.
 - **Concert-mode quick actions.** Tap the chart with two fingers for a menu to start/pause
-  autoscroll, change song, open the song list and change the text size. On a computer, press M.
+  autoscroll, change song, open the song list, edit the song, toggle the beat flash and a
+  metronome click, and change the text size. On a computer, press M. The app's top bar is
+  hidden in concert mode and shows while the menu is open. A one-time introduction explains
+  the menu the first time you open concert mode.
 - **Up next in concert mode.** Playing a setlist, the end of each song shows the next one;
   tap it to jump there.
 

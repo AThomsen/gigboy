@@ -37,9 +37,13 @@ Going past the last page of a song takes you to the start of the next song.
 
 ## Quick actions
 
-Tap the chart with **two fingers** to open a small menu where you tapped. From there you can start or pause autoscroll, jump to the previous or next song, open the song list, and change the text size. Tap outside the menu to close it.
+Tap the chart with **two fingers** to open a menu in the middle of the screen. The app's top bar (menu, profile and so on) is hidden in concert mode and appears while this menu is open. From there you can start or pause autoscroll, jump to the previous or next song, open the song list, **edit the song**, turn the **beat flash** and the metronome **click sound** on or off, and change the text size. The flash and click follow the song's BPM, so they only appear on songs that have one. The click is always off when you enter concert mode. Tap outside the menu to close it.
 
-On a computer, press **M** to open the menu in the middle of the screen, and **M** or **Esc** to close it.
+**Edit song** opens the song's edit page. When you save or cancel, you're taken back to concert mode on the same song.
+
+The first time you open concert mode, a short introduction shows how to open the menu.
+
+On a computer, press **M** to open the menu, and **M** or **Esc** to close it.
 
 ## Settings
 

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,9 +12,14 @@ import {
   Settings,
   SkipBack,
   SkipForward,
+  SquarePen,
   Square,
+  Volume2,
+  VolumeX,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useBands } from '../context/BandsContext';
 import type { Song } from '../types';
 import ChordDisplay from './ChordDisplay';
 import ChordDiagram, { type DiagramInstrument } from './ChordDiagram';
@@ -23,6 +28,7 @@ import type { useSetlistSession } from '../hooks/useSetlistSession';
 import LyricHandNotesOverlay from './LyricHandNotesOverlay';
 import SongTextNotesOverlay from './SongTextNotesOverlay';
 import ConcertMetronomeFlash from './ConcertMetronomeFlash';
+import { createResumedAudioContext, resumeAudioContext, setAudioSessionType } from '../lib/webAudio';
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
 import type { ChordNotation } from '../utils/chordParser';
 import { getUserNoteColor } from '../lib/userColors';
@@ -97,6 +103,7 @@ const PAGINATION_KEY = 'gigboy.concert.pagination';
 const PULSE_KEY = 'gigboy.concert.pulse';
 const AUTOSCROLL_KEY = 'gigboy.concert.autoscroll';
 const SCROLL_SPEED_KEY = 'gigboy.concert.scrollSpeed';
+const QUICK_MENU_INTRO_KEY = 'gigboy.concert.quickMenuIntroSeen';
 const SCROLL_SPEED_MIN = 5;
 const SCROLL_SPEED_MAX = 120;
 const SCROLL_SPEED_DEFAULT = 25;
@@ -161,9 +168,18 @@ export default function ConcertModeView({
   session,
 }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const { bands } = useBands();
+  const band = bandId ? (bands ?? []).find((b) => b.id === bandId) ?? null : null;
+  const canEditSongs = Boolean(bandId) && (!user || !band || band.memberRoles?.[user.id] !== 'viewer');
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // Coming back from "Edit song" reopens the song that was being edited.
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const songId = (location.state as { concertSongId?: string } | null)?.concertSongId;
+    const index = songId ? songs.findIndex((s) => s.id === songId) : -1;
+    return index >= 0 ? index : 0;
+  });
   const [currentPageInSong, setCurrentPageInSong] = useState(0);
   const [pageOffsets, setPageOffsets] = useState<number[]>([0]);
   const currentPageCount = pageOffsets.length;
@@ -439,6 +455,33 @@ export default function ConcertModeView({
     storeValue(PULSE_KEY, on ? '1' : '0');
   }, []);
 
+  // Metronome click. Off on every entry (not remembered): audio can only start from a
+  // user gesture, and an unexpected click on stage would be worse than none. The
+  // context is created from the toggle press itself — see createResumedAudioContext.
+  const [clickSound, setClickSound] = useState(false);
+  const [clickAudio, setClickAudio] = useState<AudioContext | null>(null);
+  const clickAudioRef = useRef<AudioContext | null>(null);
+
+  const changeClickSound = useCallback((on: boolean) => {
+    setClickSound(on);
+    if (!on) return;
+    setAudioSessionType('playback'); // play through the iOS silent switch
+    if (clickAudioRef.current) {
+      resumeAudioContext(clickAudioRef.current);
+      return;
+    }
+    void createResumedAudioContext()
+      .then((ctx) => {
+        clickAudioRef.current = ctx;
+        setClickAudio(ctx);
+      })
+      .catch(() => setClickSound(false));
+  }, []);
+
+  useEffect(() => () => {
+    void clickAudioRef.current?.close();
+  }, []);
+
   const changeScrollSpeed = useCallback((value: number) => {
     setScrollSpeed(value);
     storeValue(SCROLL_SPEED_KEY, String(value));
@@ -472,16 +515,58 @@ export default function ConcertModeView({
     return () => viewport.removeEventListener('touchmove', onTouchMove);
   }, [dragScrollsManually]);
 
-  // Two-finger tap opens the quick-actions menu. Tracked in the capture phase on the song
+  // Two-finger tap opens the quick-actions menu (always centred on screen). Tracked in the capture phase on the song
   // surface so a second finger can cancel the one-finger drag/swipe before it acts.
-  const [quickMenu, setQuickMenu] = useState<{ x: number; y: number } | null>(null);
+  const [quickMenu, setQuickMenu] = useState(false);
+  // First visit: a one-off coach mark that introduces the quick-actions menu.
+  const [showIntro, setShowIntro] = useState(() => !readStoredFlag(QUICK_MENU_INTRO_KEY, false));
+  const dismissIntro = useCallback(() => {
+    setShowIntro(false);
+    storeValue(QUICK_MENU_INTRO_KEY, '1');
+  }, []);
+  useEffect(() => {
+    if (quickMenu && showIntro) dismissIntro();
+  }, [quickMenu, showIntro, dismissIntro]);
+  const introTouchesRef = useRef(new Set<number>());
+  const introMaxTouchesRef = useRef(0);
+  const onIntroPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    introTouchesRef.current.add(e.pointerId);
+    introMaxTouchesRef.current = Math.max(introMaxTouchesRef.current, introTouchesRef.current.size);
+  }, []);
+  const onIntroPointerEnd = useCallback((e: React.PointerEvent) => {
+    const touches = introTouchesRef.current;
+    if (!touches.delete(e.pointerId) || touches.size > 0) return;
+    // Trying the gesture on the intro itself opens the menu for real.
+    if (introMaxTouchesRef.current === 2) setQuickMenu(true);
+    introMaxTouchesRef.current = 0;
+  }, []);
+  const isCoarsePointer = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true,
+    [],
+  );
   const quickMenuRef = useRef<HTMLDivElement>(null);
+  // Lifting the fingers that opened the menu makes the browser fire a click right after,
+  // which would land on whichever tile now sits under them. Only accept clicks whose press
+  // started on the menu after it opened (or keyboard clicks, which have detail 0).
+  const quickMenuPressedRef = useRef(false);
+  useLayoutEffect(() => {
+    quickMenuPressedRef.current = false;
+  }, [quickMenu]);
+  const onQuickMenuPointerDown = useCallback(() => {
+    quickMenuPressedRef.current = true;
+  }, []);
+  const onQuickMenuClickCapture = useCallback((e: React.MouseEvent) => {
+    if (!quickMenuPressedRef.current && e.detail !== 0) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, []);
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
   const multiTouchRef = useRef<{
     start: number;
     maxTouches: number;
     moved: boolean;
-    center: { x: number; y: number };
   } | null>(null);
 
   const onSurfacePointerDownCapture = useCallback((e: React.PointerEvent) => {
@@ -489,17 +574,12 @@ export default function ConcertModeView({
     const touches = touchesRef.current;
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size === 1) {
-      multiTouchRef.current = { start: e.timeStamp, maxTouches: 1, moved: false, center: { x: e.clientX, y: e.clientY } };
+      multiTouchRef.current = { start: e.timeStamp, maxTouches: 1, moved: false };
       return;
     }
     const gesture = multiTouchRef.current;
     if (!gesture) return;
     gesture.maxTouches = Math.max(gesture.maxTouches, touches.size);
-    const points = [...touches.values()];
-    gesture.center = {
-      x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
-      y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
-    };
     // More than one finger: not a drag, swipe or tap.
     dragRef.current = null;
     swipeRef.current = null;
@@ -521,33 +601,32 @@ export default function ConcertModeView({
     lastGestureEndRef.current = Date.now();
     if (gesture.maxTouches === 2 && !gesture.moved && e.timeStamp - gesture.start < 500) {
       setActiveChord(null);
-      setQuickMenu(gesture.center);
+      setQuickMenu(true);
     }
   }, []);
 
-  // Keep the menu on screen, and close it on outside press or Escape.
-  useLayoutEffect(() => {
-    const menu = quickMenuRef.current;
-    if (!quickMenu || !menu) return;
-    const margin = 8;
-    const { width, height } = menu.getBoundingClientRect();
-    const left = Math.min(Math.max(quickMenu.x - width / 2, margin), window.innerWidth - width - margin);
-    const top = Math.min(Math.max(quickMenu.y - height / 2, margin), window.innerHeight - height - margin);
-    menu.style.left = `${Math.max(left, margin)}px`;
-    menu.style.top = `${Math.max(top, margin)}px`;
+  // The app's top bar is hidden in concert mode and slides in while the menu is open.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (quickMenu) root.dataset.concertTopbar = 'shown';
+    else delete root.dataset.concertTopbar;
+    return () => { delete root.dataset.concertTopbar; };
   }, [quickMenu]);
 
+  // Close the menu on outside press or Escape. Presses in the (now visible) top bar
+  // don't count, so its buttons can be used.
   useEffect(() => {
     if (!quickMenu) return;
     const onPress = (e: PointerEvent) => {
-      if (!quickMenuRef.current?.contains(e.target as Node)) {
-        setQuickMenu(null);
+      const target = e.target as Element;
+      if (!quickMenuRef.current?.contains(target) && !target.closest?.('.topbar')) {
+        setQuickMenu(false);
         // The press that closes the menu shouldn't also turn a page.
         lastGestureEndRef.current = Date.now();
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setQuickMenu(null);
+      if (e.key === 'Escape') setQuickMenu(false);
     };
     document.addEventListener('pointerdown', onPress, true);
     document.addEventListener('keydown', onKey);
@@ -722,7 +801,7 @@ export default function ConcertModeView({
       // M: the quick-actions menu (the keyboard twin of a two-finger tap), centred.
       if (event.key.toLowerCase() === 'm' && !event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault();
-        setQuickMenu((open) => (open ? null : { x: window.innerWidth / 2, y: window.innerHeight / 2 }));
+        setQuickMenu((open) => !open);
       }
     };
 
@@ -783,6 +862,17 @@ export default function ConcertModeView({
   const currentSongNote = songNotes?.[currentSong.id]?.trim() ?? '';
   const nextSong = songs[currentIndex + 1] ?? null;
 
+  const editCurrentSong = () => {
+    if (!bandId) return;
+    // Remember the song on this history entry so Cancel (history back) lands on it too.
+    const concertState = { ...((location.state as object | null) ?? {}), concertSongId: currentSong.id };
+    const concertPath = `${location.pathname}${location.search}`;
+    navigate(concertPath, { replace: true, state: concertState });
+    navigate(`/songs/${currentSong.id}/edit`, {
+      state: { bandId, backTo: backRoute, returnTo: { path: concertPath, state: concertState } },
+    });
+  };
+
   return (
     <section
       className="concert-mode"
@@ -790,8 +880,13 @@ export default function ConcertModeView({
       style={{ '--concert-font-scale': fontScale } as React.CSSProperties}
     >
       {session?.error && <p className="concert-session-error">{session.error}</p>}
-      {canUseMetronome && pulse && (
-        <ConcertMetronomeFlash tempo={currentSong.tempo} timeSignature={currentSong.timeSignature} />
+      {canUseMetronome && (
+        <ConcertMetronomeFlash
+          tempo={currentSong.tempo}
+          timeSignature={currentSong.timeSignature}
+          flash={pulse}
+          audioContext={clickSound ? clickAudio : null}
+        />
       )}
 
       <div className={`concert-content-wrap${showSongNavigator && isMultiSong ? '' : ' concert-content-wrap--full'}`}>
@@ -1153,75 +1248,149 @@ export default function ConcertModeView({
         />
       )}
 
+      {showIntro && !quickMenu && (
+        <div
+          className="concert-intro"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="concert-intro-title"
+          onPointerDown={onIntroPointerDown}
+          onPointerUp={onIntroPointerEnd}
+          onPointerCancel={onIntroPointerEnd}
+          onKeyDown={(e) => { if (e.key === 'Escape') dismissIntro(); }}
+        >
+          <div className="concert-intro-card">
+            <div className="concert-intro-fingers" aria-hidden="true">
+              <span /><span />
+            </div>
+            <h2 id="concert-intro-title">Quick actions</h2>
+            <p>
+              {isCoarsePointer ? (
+                <>Tap the screen with <strong>two fingers</strong> to open the quick menu.</>
+              ) : (
+                <>Press <kbd>M</kbd> (or tap with two fingers on a touch screen) to open the quick menu.</>
+              )}
+            </p>
+            <p className="concert-intro-detail">
+              Change song, start autoscroll, edit the song, toggle the metronome and change the text size —
+              without leaving the chart.
+            </p>
+            <button type="button" className="btn btn--primary" onClick={dismissIntro} autoFocus>
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
       {quickMenu && (
         <div
           ref={quickMenuRef}
+          onClickCapture={onQuickMenuClickCapture}
+          onPointerDown={onQuickMenuPointerDown}
           className="concert-quick-menu"
           role="menu"
           aria-label="Quick actions"
-          style={{ left: quickMenu.x, top: quickMenu.y }}
         >
-          {autoscroll && continuous && (
-            <button
-              type="button"
-              role="menuitem"
-              className="concert-quick-menu-item"
-              onClick={() => { setScrolling((v) => !v); setQuickMenu(null); }}
-            >
-              {scrolling ? <Pause size={18} /> : <Play size={18} style={{ transform: 'rotate(90deg)' }} />}
-              {scrolling ? 'Pause autoscroll' : 'Start autoscroll'}
-            </button>
-          )}
           {isMultiSong && (
-            <>
+            <div className="concert-quick-menu-row" role="group" aria-label="Songs">
               <button
                 type="button"
                 role="menuitem"
-                className="concert-quick-menu-item"
+                className="concert-quick-tile"
                 disabled={currentIndex === 0}
-                onClick={() => { goToSong(currentIndex - 1); setQuickMenu(null); }}
+                onClick={() => { goToSong(currentIndex - 1); setQuickMenu(false); }}
               >
-                <SkipBack size={18} /> Previous song
+                <SkipBack size={20} /><span>Previous</span>
               </button>
               <button
                 type="button"
                 role="menuitem"
-                className="concert-quick-menu-item"
+                className={`concert-quick-tile${showSongNavigator ? ' is-on' : ''}`}
+                onClick={() => { setShowSongNavigator((v) => !v); setQuickMenu(false); }}
+              >
+                <List size={20} /><span>{currentIndex + 1}/{songs.length}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="concert-quick-tile"
                 disabled={currentIndex >= songs.length - 1}
-                onClick={() => { goToSong(currentIndex + 1); setQuickMenu(null); }}
+                onClick={() => { goToSong(currentIndex + 1); setQuickMenu(false); }}
               >
-                <SkipForward size={18} /> Next song
+                <SkipForward size={20} /><span>Next</span>
+              </button>
+            </div>
+          )}
+          {((autoscroll && continuous) || canEditSongs) && (
+            <div className="concert-quick-menu-row">
+              {autoscroll && continuous && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`concert-quick-tile${scrolling ? ' is-on' : ''}`}
+                  onClick={() => { setScrolling((v) => !v); setQuickMenu(false); }}
+                >
+                  {scrolling ? <Pause size={20} /> : <Play size={20} style={{ transform: 'rotate(90deg)' }} />}
+                  <span>{scrolling ? 'Pause' : 'Autoscroll'}</span>
+                </button>
+              )}
+              {canEditSongs && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="concert-quick-tile"
+                  onClick={editCurrentSong}
+                >
+                  <SquarePen size={20} /><span>Edit song</span>
+                </button>
+              )}
+            </div>
+          )}
+          {/* Metronome toggles stay open so the new state is visible. */}
+          {canUseMetronome && Boolean(currentSong.tempo) && (
+            <div className="concert-quick-menu-row" role="group" aria-label={`Metronome, ${Math.round(currentSong.tempo ?? 0)} BPM`}>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={pulse}
+                className={`concert-quick-tile${pulse ? ' is-on' : ''}`}
+                onClick={() => changePulse(!pulse)}
+              >
+                <Zap size={20} /><span>Flash</span>
               </button>
               <button
                 type="button"
-                role="menuitem"
-                className="concert-quick-menu-item"
-                onClick={() => { setShowSongNavigator((v) => !v); setQuickMenu(null); }}
+                role="menuitemcheckbox"
+                aria-checked={clickSound}
+                className={`concert-quick-tile${clickSound ? ' is-on' : ''}`}
+                onClick={() => changeClickSound(!clickSound)}
               >
-                <List size={18} /> {showSongNavigator ? 'Hide song list' : 'Song list'}
+                {clickSound ? <Volume2 size={20} /> : <VolumeX size={20} />}<span>Click</span>
               </button>
-            </>
+            </div>
           )}
           {/* Text size stays open so it can be stepped several times. */}
-          <div className="concert-quick-menu-row" role="group" aria-label="Text size">
-            <span>Text size</span>
+          <div className="concert-quick-menu-row concert-quick-menu-row--size" role="group" aria-label="Text size">
             <button
               type="button"
               role="menuitem"
+              className="concert-quick-tile"
               onClick={() => changeFontScale(-FONT_SCALE_STEP)}
               disabled={fontScale <= FONT_SCALE_MIN}
               aria-label="Decrease text size"
             >
-              <Minus size={14} />A
+              <span className="concert-quick-tile-glyph"><Minus size={14} />A</span>
             </button>
+            <span className="concert-quick-menu-label">Text size</span>
             <button
               type="button"
               role="menuitem"
+              className="concert-quick-tile"
               onClick={() => changeFontScale(FONT_SCALE_STEP)}
               disabled={fontScale >= FONT_SCALE_MAX}
               aria-label="Increase text size"
             >
-              <Plus size={14} />A
+              <span className="concert-quick-tile-glyph"><Plus size={14} />A</span>
             </button>
           </div>
         </div>
