@@ -9,6 +9,7 @@ type SongPageState = {
   backTo?: string;
   backLabel?: string;
   bandId?: string;
+  returnTo?: { path: string; state?: unknown };
 };
 
 export default function EditSongPage() {
@@ -51,7 +52,11 @@ export default function EditSongPage() {
 
   return (
     <div>
-      <Link to={`/songs/${song.id}`} state={pageState ?? undefined} className="back-link"><ArrowLeft size={16} /> Back to song</Link>
+      {pageState?.returnTo ? (
+        <Link to={pageState.returnTo.path} state={pageState.returnTo.state} replace className="back-link"><ArrowLeft size={16} /> Back to concert</Link>
+      ) : (
+        <Link to={`/songs/${song.id}`} state={pageState ?? undefined} className="back-link"><ArrowLeft size={16} /> Back to song</Link>
+      )}
       <AddSongForm
         mode="edit"
         initialSong={song}

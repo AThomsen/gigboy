@@ -24,6 +24,7 @@ vi.mock('react-router-dom', async () => {
     ),
     useNavigate: () => mocks.navigate,
     useParams: () => ({ bandId: 'band-1', setlistId: 'setlist-1' }),
+    useLocation: () => ({ pathname: '/bands/band-1/setlists/setlist-1/concert', search: '', hash: '', state: null, key: 'default' }),
   };
 });
 

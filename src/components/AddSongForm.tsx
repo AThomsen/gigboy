@@ -31,6 +31,8 @@ interface Props {
     backTo?: string;
     backLabel?: string;
     bandId?: string;
+    /** Where to go after saving instead of the song page (e.g. back into concert mode). */
+    returnTo?: { path: string; state?: unknown };
   };
 }
 
@@ -457,7 +459,11 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     flushSync(() => {
       setAllowNavigation(true);
     });
-    navigate(`/songs/${song.id}`, { state: songPageState });
+    if (songPageState?.returnTo) {
+      navigate(songPageState.returnTo.path, { replace: true, state: songPageState.returnTo.state });
+    } else {
+      navigate(`/songs/${song.id}`, { state: songPageState });
+    }
   }
 
   const handleCancel = useCallback(() => {
@@ -534,7 +540,11 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
         flushSync(() => {
           setAllowNavigation(true);
         });
-        navigate(initialSong?.id ? `/songs/${initialSong.id}` : '/', { state: songPageState });
+        if (songPageState?.returnTo) {
+          navigate(songPageState.returnTo.path, { replace: true, state: songPageState.returnTo.state });
+        } else {
+          navigate(initialSong?.id ? `/songs/${initialSong.id}` : '/', { state: songPageState });
+        }
       };
 
       if (isDirty) {
