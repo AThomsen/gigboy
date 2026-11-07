@@ -1,5 +1,6 @@
 import type { Band, Gig, InputList, PressKit, Setlist, Song, SongList, Tour } from '../../types';
 import type { User } from '../../context/AuthContext';
+import type { UserPreferences } from '../userPreferences';
 import type { SongAttachment } from '../songAttachments';
 import type { TrashListItem } from '../../components/TrashView';
 
@@ -65,6 +66,8 @@ export interface AuthClient {
   updateEmail(email: string): Promise<{ user: User | null; error: string | null }>;
   updateUsername(username: string): Promise<{ user: User | null; error: string | null }>;
   updateFullName(fullName: string): Promise<{ user: User | null; error: string | null }>;
+  /** Partial update, merged with the stored preferences. */
+  updatePreferences(preferences: UserPreferences): Promise<{ user: User | null; error: string | null }>;
   /** Requires the current password (re-auth). */
   updatePassword(currentPassword: string, newPassword: string): Promise<{ error: string | null }>;
   /** Permanently deletes the account. Self-host cascades via FKs; hosted SaaS calls the existing server-side cascade. */
