@@ -14,6 +14,12 @@ Open **Profile** from the top bar.
 - **Log out** from the top of the page.
 - Accept pending **band invites** under **Invites**.
 
+### Preferences
+
+The **Preferences** card holds settings that are saved to your account, so they apply on every device you sign in on.
+
+- **Concert mode → Beat one colour** — the colour of the first beat of each bar in the concert-mode beat flash. Pick **Same as other beats** to turn the highlight off.
+
 ## Storage
 
 The bar under the band name in the sidebar shows how much storage the band has used. Click it for a breakdown of **recordings**, **images** and **attachments**. If you are running low, delete recordings or attachments you no longer need. The limit is set by whoever runs your Gigboy.

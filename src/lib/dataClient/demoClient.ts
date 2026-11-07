@@ -103,6 +103,11 @@ const authClient: AuthClient = {
     const user = { ...store.getDemoUser(), fullName };
     return delay({ user, error: null });
   },
+  updatePreferences: (preferences) => {
+    const current = store.getDemoUser();
+    const user = { ...current, preferences: { ...current.preferences, ...preferences } };
+    return delay({ user, error: null });
+  },
   updatePassword: () => delay({ error: null }),
   deleteAccount: async () => {
     store.resetDemoStore();

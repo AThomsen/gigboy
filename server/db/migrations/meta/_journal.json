@@ -127,6 +127,13 @@
       "when": 1791321041797,
       "tag": "0017_right_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794044948596,
+      "tag": "0018_tense_hawkeye",
+      "breakpoints": true
     }
   ]
 }

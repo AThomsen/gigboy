@@ -390,6 +390,16 @@ const authClient: AuthClient = {
       return { user: null, error: err instanceof Error ? err.message : 'Failed to update full name.' };
     }
   },
+  async updatePreferences(preferences) {
+    try {
+      return await apiFetch<{ user: User | null; error: string | null }>('/auth/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ preferences }),
+      });
+    } catch (err) {
+      return { user: null, error: err instanceof Error ? err.message : 'Failed to save preferences.' };
+    }
+  },
   async updatePassword(currentPassword, newPassword) {
     try {
       return await apiFetch<{ error: string | null }>('/auth/password', {

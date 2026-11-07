@@ -5,6 +5,7 @@ import toast from '../utils/anchoredToast';
 import { useAuth } from '../context/AuthContext';
 import { useBands } from '../context/BandsContext';
 import UserAvatar from '../components/UserAvatar';
+import ProfilePreferences from '../components/ProfilePreferences';
 import { normalizeUsername, validateUsername } from '../lib/userProfiles';
 import { dataClient } from '../lib/dataClient';
 import { loadSongRecordings, type SongRecording } from '../lib/songRecordings';
@@ -375,6 +376,8 @@ export default function ProfilePage() {
             </button>
           </form>
         </section>
+
+        <ProfilePreferences />
 
         {user?.role === 'admin' && (
           <section className="profile-settings-card">

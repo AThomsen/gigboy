@@ -1,5 +1,6 @@
 import type { users } from '../db/schema.js';
 import { resolveStorageQuotaBytes } from './storageQuota.js';
+import { sanitizeUserPreferences, type UserPreferences } from './userPreferences.js';
 
 type UserRow = typeof users.$inferSelect;
 
@@ -11,6 +12,7 @@ export interface PublicUser {
   fullName: string | null;
   role: 'member' | 'admin';
   storageQuotaBytes: number;
+  preferences: UserPreferences;
 }
 
 /** Self-host builds have no billing/plan concept — every user gets full feature access, aside
@@ -24,5 +26,6 @@ export function toPublicUser(row: UserRow): PublicUser {
     fullName: row.fullName,
     role: row.role === 'admin' ? 'admin' : 'member',
     storageQuotaBytes: resolveStorageQuotaBytes(row.storageQuotaBytes),
+    preferences: sanitizeUserPreferences(row.preferences),
   };
 }

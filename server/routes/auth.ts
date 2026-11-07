@@ -13,6 +13,7 @@ import {
   revokeOtherSessions,
 } from '../middleware/session.js';
 import { toPublicUser } from '../lib/user.js';
+import { sanitizeUserPreferences } from '../lib/userPreferences.js';
 
 // A valid-looking bcrypt hash of a random string, compared against on the "no such user" login
 // path so response timing doesn't reveal whether an email is registered.
@@ -96,7 +97,7 @@ authRouter.get('/me', async (req, res) => {
 
 authRouter.patch('/me', requireAuth, async (req, res) => {
   try {
-    const { email, username, avatar, fullName } = (req.body ?? {}) as Record<string, unknown>;
+    const { email, username, avatar, fullName, preferences } = (req.body ?? {}) as Record<string, unknown>;
     const updates: Partial<typeof users.$inferInsert> = {};
 
     if (email !== undefined) {
@@ -135,6 +136,20 @@ authRouter.patch('/me', requireAuth, async (req, res) => {
         return;
       }
       updates.fullName = trimmed;
+    }
+
+    if (preferences !== undefined) {
+      // A partial update: merged into the stored preferences. Every given key must be valid.
+      const given = preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+        ? Object.keys(preferences)
+        : null;
+      const valid = sanitizeUserPreferences(preferences);
+      if (!given || given.length === 0 || given.some((key) => !(key in valid))) {
+        res.json({ user: null, error: 'Invalid preferences.' });
+        return;
+      }
+      const [current] = await db.select({ preferences: users.preferences }).from(users).where(eq(users.id, req.userId!)).limit(1);
+      updates.preferences = { ...sanitizeUserPreferences(current?.preferences), ...valid };
     }
 
     if (Object.keys(updates).length === 0) {

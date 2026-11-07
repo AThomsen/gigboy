@@ -16,16 +16,21 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 - **Import Songbook Pro backups.** The Library's upload button takes a `.sbpbackup` file. Songs come
   in with their key, transpose and length; sets become setlists, with any per-set transpose
   added as a song note; and PDF songs are created with the PDF attached.
-  
+
 - **Concert-mode quick actions.** Tap the chart with two fingers for a menu to start/pause
   autoscroll, change song, open the song list, edit the song, toggle the beat flash and a
   metronome click, and change the text size. On a computer, press M. The app's top bar is
   hidden in concert mode and shows while the menu is open. A one-time introduction explains
   the menu the first time you open concert mode.
+- **Preferences on the profile page.** A new card for per-user settings, saved to your account
+  so they follow you across devices. First option: the beat-one colour of the concert-mode
+  beat flash. Adds a database migration (applied automatically by the Docker image).
 
 ### Changed
 - Your own notes now show on a song without opening the Notes panel, and in concert mode
   (read-only there). Open Notes to edit them or to show bandmates' notes.
+- The concert-mode beat flash shows beat one of each bar in its own colour (amber by default),
+  following the song's time signature, and a newly started beat begins on the one.
 - In concert mode with pagination on, tapping the upper half of the chart goes back a page;
   tapping the lower half still goes forward.
 - In autoscroll mode, dragging the chart (finger or mouse) sets the scroll speed: let go while
