@@ -17,8 +17,13 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   metronome click, and change the text size. On a computer, press M. The app's top bar is
   hidden in concert mode and shows while the menu is open. A one-time introduction explains
   the menu the first time you open concert mode.
+- **Preferences on the profile page.** A new card for per-user settings, saved to your account
+  so they follow you across devices. First option: the beat-one colour of the concert-mode
+  beat flash. Adds a database migration (applied automatically by the Docker image).
 
 ### Changed
+- The concert-mode beat flash shows beat one of each bar in its own colour (amber by default),
+  following the song's time signature, and a newly started beat begins on the one.
 - In concert mode with pagination on, tapping the upper half of the chart goes back a page;
   tapping the lower half still goes forward.
 - In autoscroll mode, dragging the chart (finger or mouse) sets the scroll speed: let go while

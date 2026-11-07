@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { dataClient } from '../lib/dataClient';
+import type { UserPreferences } from '../lib/userPreferences';
 
 export interface User {
   id: string;
@@ -11,6 +12,8 @@ export interface User {
   fullName: string | null;
   role: 'member' | 'admin';
   storageQuotaBytes: number;
+  /** Optional so older payloads / fixtures without it still type-check; treat missing as {}. */
+  preferences?: UserPreferences;
 }
 
 interface AuthContextValue {
@@ -25,6 +28,8 @@ interface AuthContextValue {
   updateUsername: (username: string) => Promise<string | null>;
   updateFullName: (fullName: string) => Promise<string | null>;
   updatePassword: (currentPassword: string, newPassword: string) => Promise<string | null>;
+  /** Saves a partial preferences update (merged with the stored ones). */
+  updatePreferences: (preferences: UserPreferences) => Promise<string | null>;
   deleteAccount: () => Promise<string | null>;
   isDeletingAccount: boolean;
   logout: () => Promise<void>;
@@ -82,6 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error;
   }, []);
 
+  const updatePreferencesValue = useCallback(async (preferences: UserPreferences) => {
+    const { user: updatedUser, error } = await dataClient.auth.updatePreferences(preferences);
+    if (updatedUser) setUser(updatedUser);
+    return error;
+  }, []);
+
   const updatePasswordValue = useCallback(async (currentPassword: string, newPassword: string) => {
     const { error } = await dataClient.auth.updatePassword(currentPassword, newPassword);
     return error;
@@ -121,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUsername: updateUsernameValue,
       updateFullName: updateFullNameValue,
       updatePassword: updatePasswordValue,
+      updatePreferences: updatePreferencesValue,
       deleteAccount: deleteAccountValue,
       isDeletingAccount,
       logout,
@@ -134,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUsernameValue,
       updateFullNameValue,
       updatePasswordValue,
+      updatePreferencesValue,
       deleteAccountValue,
       isDeletingAccount,
       logout,

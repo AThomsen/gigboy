@@ -13,6 +13,8 @@ interface Props {
    * resumed) from a user gesture — see createResumedAudioContext. null = silent.
    */
   audioContext: AudioContext | null;
+  /** CSS colour for beat one of the bar (the user's preference). */
+  downbeatColor?: string;
 }
 
 function playClick(ctx: AudioContext, isDownbeat: boolean) {
@@ -34,46 +36,49 @@ function playClick(ctx: AudioContext, isDownbeat: boolean) {
 
 /**
  * Concert Mode beat: flashes the screen edge on every beat of the current song's tempo
- * (brighter on the downbeat) and/or plays a click. One clock drives both so they stay
+ * (bigger and in its own colour on beat one of the bar, per the time signature) and/or
+ * plays a click (higher on beat one). One clock drives both so they stay
  * in sync. Renders nothing without a tempo.
  */
-export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, audioContext }: Props) {
+export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, audioContext, downbeatColor }: Props) {
   const bpm = typeof tempo === 'number' && Number.isFinite(tempo) && tempo > 0
     ? Math.round(tempo)
     : null;
   const beatsPerBar = useMemo(() => parseBeatsPerBar(timeSignature), [timeSignature]);
   const [activeBeat, setActiveBeat] = useState(0);
   const [tick, setTick] = useState(0);
-  const beatRef = useRef(0);
+  // Index of the last beat played; -1 so the first tick lands on beat one.
+  const beatRef = useRef(-1);
   const audioRef = useRef(audioContext);
   audioRef.current = audioContext;
-
-  useEffect(() => {
-    beatRef.current = 0;
-    setActiveBeat(0);
-  }, [bpm, beatsPerBar]);
 
   const running = Boolean(bpm) && (flash || Boolean(audioContext));
 
   useEffect(() => {
     if (!bpm || !running) return;
     const intervalMs = Math.max(80, Math.round(60000 / bpm));
-    const intervalId = window.setInterval(() => {
+    // (Re)starting — new song tempo/metre, or flash/click switched on — begins a fresh bar.
+    beatRef.current = -1;
+    const playBeat = () => {
       const beat = (beatRef.current + 1) % beatsPerBar;
       beatRef.current = beat;
       if (audioRef.current) playClick(audioRef.current, beat === 0);
       setActiveBeat(beat);
       setTick((t) => t + 1);
-    }, intervalMs);
+    };
+    playBeat(); // Beat one right away, rather than a beat's silence first.
+    const intervalId = window.setInterval(playBeat, intervalMs);
     return () => window.clearInterval(intervalId);
   }, [bpm, beatsPerBar, running]);
 
-  if (!bpm || !flash) return null;
+  // tick 0 = no beat played yet; don't flash before the clock's first beat.
+  if (!bpm || !flash || tick === 0) return null;
 
   return createPortal(
     <span
       key={tick}
       className={`concert-metronome-flash${activeBeat === 0 ? ' is-downbeat' : ''}`}
+      style={downbeatColor ? ({ '--metronome-flash-downbeat-color': downbeatColor } as React.CSSProperties) : undefined}
       aria-hidden="true"
     />,
     document.body

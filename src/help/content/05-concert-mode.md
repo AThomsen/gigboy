@@ -51,7 +51,7 @@ Press the cog in the top right.
 
 - **Pagination** — show the song in pages (the default).
 - **Autoscroll** — instead of pages, the chart scrolls by itself. Turning this on adds a speed slider.
-- **BPM pulse** — a soft, silent flash at the song's tempo, so you can keep time without a click in your ears.
+- **BPM pulse** — a soft, silent flash at the song's tempo, so you can keep time without a click in your ears. The first beat of each bar flashes larger and in its own colour (amber unless you change it under **Profile → Preferences**), following the song's time signature (4/4 if none is set).
 - **Solo / Follow / Lead** — see [Playing together](#playing-together).
 
 Pagination and autoscroll are alternatives: turning one on turns the other off. All settings are remembered per device.

@@ -29,6 +29,7 @@ import LyricHandNotesOverlay from './LyricHandNotesOverlay';
 import ConcertMetronomeFlash from './ConcertMetronomeFlash';
 import { createResumedAudioContext, resumeAudioContext, setAudioSessionType } from '../lib/webAudio';
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
+import { downbeatColorCss } from '../lib/userPreferences';
 import type { ChordNotation } from '../utils/chordParser';
 import { getUserNoteColor } from '../lib/userColors';
 import { extractPinnedLineIds } from '../lib/lineAnchor';
@@ -880,6 +881,7 @@ export default function ConcertModeView({
           timeSignature={currentSong.timeSignature}
           flash={pulse}
           audioContext={clickSound ? clickAudio : null}
+          downbeatColor={downbeatColorCss(user?.preferences?.concertDownbeatColor)}
         />
       )}
 

@@ -16,6 +16,8 @@ export const users = pgTable(
     // (see DEFAULT_STORAGE_QUOTA_BYTES in server/lib/storageQuota.ts). bigint, not integer —
     // quota values in bytes (e.g. 5GB = 5368709120) exceed Postgres's int32 range.
     storageQuotaBytes: bigint('storage_quota_bytes', { mode: 'number' }),
+    // Per-user app preferences (see server/lib/userPreferences.ts). Follows the user across devices.
+    preferences: jsonb('preferences').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check('users_role_check', sql`${table.role} in ('member', 'admin')`)],

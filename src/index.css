@@ -3376,6 +3376,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   --metronome-flash-blur-downbeat: 6rem;
   --metronome-flash-spread-downbeat: .8rem;
   --metronome-flash-opacity-downbeat: 80%;
+  /* Beat one of the bar gets its own colour so the bar line can be felt at a glance. */
+  --metronome-flash-downbeat-color: #f5a524;
 }
 
 /* Stage mode needs the beat to register in peripheral vision under bright/colored
@@ -3416,10 +3418,10 @@ input, select, textarea { font: inherit; color: var(--text); }
 
 @keyframes concert-edge-flash-downbeat {
   0% {
-    box-shadow: inset 0 0 var(--metronome-flash-blur-downbeat) var(--metronome-flash-spread-downbeat) color-mix(in srgb, var(--accent) var(--metronome-flash-opacity-downbeat), transparent);
+    box-shadow: inset 0 0 var(--metronome-flash-blur-downbeat) var(--metronome-flash-spread-downbeat) color-mix(in srgb, var(--metronome-flash-downbeat-color) var(--metronome-flash-opacity-downbeat), transparent);
   }
   100% {
-    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--metronome-flash-downbeat-color) 0%, transparent);
   }
 }
 
@@ -9394,6 +9396,73 @@ input, select, textarea { font: inherit; color: var(--text); }
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+}
+
+/* Preferences card: options grouped by the area of the app they affect. */
+.profile-pref-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.profile-pref-group h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.profile-pref-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.profile-pref-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 500;
+}
+
+.profile-pref-label .profile-settings-muted {
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.profile-pref-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.profile-pref-swatch {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--swatch-color);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+
+.profile-pref-swatch.is-selected {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.profile-pref-current {
+  align-self: center;
+  margin-left: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.profile-pref-swatch:disabled {
+  cursor: default;
 }
 
 .profile-admin-links {
