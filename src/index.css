@@ -8062,7 +8062,9 @@ input, select, textarea { font: inherit; color: var(--text); }
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow);
-  max-height: 72vh;
+  /* Use the full height beside the chart (the grid row); shorter lists shrink to fit. */
+  max-height: 100%;
+  align-self: start;
   position: sticky;
   top: .25rem;
   display: flex;
@@ -8612,10 +8614,17 @@ input, select, textarea { font: inherit; color: var(--text); }
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Too narrow for a side column: the song list floats over the chart instead (concert
+     mode is a fixed-height screen, so stacking it above the song squeezed it out of view). */
   .concert-song-navigator {
-    order: -1;
-    position: static;
-    max-height: 34vh;
+    position: fixed;
+    z-index: 30;
+    top: calc(var(--safe-top) + 4rem);
+    right: calc(var(--safe-right) + var(--space-md));
+    width: min(22rem, calc(100vw - 2rem));
+    /* Down to just above the floating Previous / Next bar; shorter lists shrink to fit. */
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 8rem);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .3);
   }
 
   .song-picker-panel {
