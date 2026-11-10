@@ -33,13 +33,13 @@ export const DURATION_BUCKETS: DurationBucket[] = [
 const NOTE_ORDER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLAT_TO_SHARP: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
 
-/** Normalizes free-text keys ("Bb", "a minor", "F#m") to "A#", "Am", "F#m". Returns undefined if unparseable. */
+/** Normalizes free-text keys ("Bb", "a minor", "F#m", German "H") to "A#", "Am", "F#m", "B". Returns undefined if unparseable. */
 export function normalizeKey(raw?: string): string | undefined {
   if (!raw) return undefined;
-  const match = raw.trim().match(/^([A-Ga-g])\s*([#b♯♭]?)\s*(.*)$/);
+  const match = raw.trim().match(/^([A-Ha-h])\s*([#b♯♭]?)\s*(.*)$/);
   if (!match) return undefined;
   const accidental = match[2] === '♯' ? '#' : match[2] === '♭' ? 'b' : match[2];
-  let root = match[1].toUpperCase() + accidental;
+  let root = match[1].toUpperCase().replace('H', 'B') + accidental;
   root = FLAT_TO_SHARP[root] ?? root;
   if (!NOTE_ORDER.includes(root)) return undefined;
   const quality = match[3].trim().toLowerCase();

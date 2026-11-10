@@ -498,7 +498,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
                   {song.key
                     ? transpose === 0
                       ? `Key of ${song.key}`
-                      : `Key of ${transposeChord(song.key, transpose)}`
+                      : `Key of ${transposeChord(song.key.replace(/^H/i, 'B'), transpose)}`
                     : transpose === 0
                       ? 'Original key'
                       : `${transpose > 0 ? '+' : ''}${transpose} semitones`}

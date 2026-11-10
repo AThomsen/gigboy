@@ -3,6 +3,7 @@ import {
   EMPTY_SONG_FILTERS,
   getFilterOptions,
   matchesSongFilters,
+  normalizeKey,
   parseArtistUsage,
   parseStoredFilters,
   pickQuickArtists,
@@ -65,5 +66,16 @@ describe('duration filters', () => {
     expect(matchesSongFilters(d(240), f)).toBe(true);
     expect(matchesSongFilters(d(300), f)).toBe(false);
     expect(matchesSongFilters(d(undefined), f)).toBe(false);
+  });
+});
+
+describe('normalizeKey', () => {
+  it('reads common spellings and the German H', () => {
+    expect(normalizeKey('Bb')).toBe('A#');
+    expect(normalizeKey('a minor')).toBe('Am');
+    expect(normalizeKey('F#m')).toBe('F#m');
+    expect(normalizeKey('H')).toBe('B');
+    expect(normalizeKey('Hm')).toBe('Bm');
+    expect(normalizeKey('X')).toBeUndefined();
   });
 });
