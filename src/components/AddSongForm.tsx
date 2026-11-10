@@ -274,6 +274,10 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       language: values.language.trim() || 'other',
       tags: values.tags.split(',').map((t) => t.trim()).filter(Boolean),
       key: values.key.trim() || undefined,
+      // Not edited here, but the save replaces the whole song, so carry them over.
+      capo: initialSong?.capo,
+      preferredTranspose: initialSong?.preferredTranspose,
+      secondaryLanguages: initialSong?.secondaryLanguages,
       tempo: values.tempo && !Number.isNaN(parseInt(values.tempo, 10)) ? parseInt(values.tempo, 10) : undefined,
       timeSignature: values.timeSignature.trim() || undefined,
       date: values.date.trim() || undefined,
@@ -282,7 +286,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       createdAt: initialSong?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-  }, [initialSong?.id, initialSong?.createdAt]);
+  }, [initialSong?.id, initialSong?.createdAt, initialSong?.capo, initialSong?.preferredTranspose, initialSong?.secondaryLanguages]);
 
   function applyParsedSong(rawText: string, source: 'manual' | 'paste') {
     const parsed = parsePastedSong(rawText);
