@@ -205,6 +205,7 @@ export default function ConcertModeView({
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [showSongNavigator, setShowSongNavigator] = useState(false);
+  const songNavigatorRef = useRef<HTMLElement>(null);
   const [fontScale, setFontScale] = useState(readStoredFontScale);
   const chordVoicings = useBandChordVoicings(bandId, false);
 
@@ -752,6 +753,26 @@ export default function ConcertModeView({
       document.removeEventListener('keydown', onKey);
     };
   }, [quickMenu]);
+
+  // Pressing anywhere outside the song list closes it, and that's all the press does: it
+  // is kept from the song surface (no tap, swipe or drag) and the click it ends in is eaten.
+  useEffect(() => {
+    if (!showSongNavigator) return;
+    const onPress = (e: PointerEvent) => {
+      const target = e.target as Element;
+      if (songNavigatorRef.current?.contains(target) || quickMenuRef.current?.contains(target)) return;
+      e.stopPropagation();
+      setShowSongNavigator(false);
+      const swallow = (click: MouseEvent) => {
+        click.preventDefault();
+        click.stopPropagation();
+      };
+      window.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', swallow, true), 1000);
+    };
+    window.addEventListener('pointerdown', onPress, true);
+    return () => window.removeEventListener('pointerdown', onPress, true);
+  }, [showSongNavigator]);
 
   const onViewportPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragScrollsManually || e.button !== 0) return;
@@ -1303,7 +1324,7 @@ export default function ConcertModeView({
         </article>
 
         {isMultiSong && showSongNavigator && (
-          <aside className="concert-song-navigator" aria-label="Setlist songs navigator">
+          <aside className="concert-song-navigator" ref={songNavigatorRef} aria-label="Setlist songs navigator">
             <div className="concert-song-navigator-header">
               <h3>Setlist Songs</h3>
               <button

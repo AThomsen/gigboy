@@ -65,7 +65,7 @@ With autoscroll on, a green **down-pointing play** button appears at the top. Pr
 
 ## The song list
 
-Press the list button to open the **Setlist Songs** panel and jump straight to any song in the setlist.
+Press the list button to open the **Setlist Songs** panel and jump straight to any song in the setlist. Tap anywhere outside the panel to close it; that tap does nothing else, so it won't turn a page or start autoscroll.
 
 ![The setlist song list.](concert-navigator)
 
