@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -36,6 +37,8 @@ import { getUserNoteColor } from '../lib/userColors';
 import { extractPinnedLineIds } from '../lib/lineAnchor';
 
 const noop = () => {};
+// Space between the song card and the next/previous song peeking in while swiping (see .concert-song-peek).
+const PEEK_GAP = 16;
 
 interface ActiveChord {
   chord: string;
@@ -207,7 +210,7 @@ export default function ConcertModeView({
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const surfaceRef = useRef<HTMLElement>(null);
   const targetPageRef = useRef(0);
   const contentScrollHeightRef = useRef(0);
 
@@ -285,6 +288,16 @@ export default function ConcertModeView({
     }
     setCurrentPageInSong(targetPageRef.current);
     targetPageRef.current = 0;
+    // Show the new song's page in place rather than sliding from the old song's offset.
+    // The page reset re-renders after this, so restore the transition a frame later.
+    const content = contentRef.current;
+    if (content && !continuous) {
+      content.style.transition = 'none';
+      requestAnimationFrame(() => {
+        void content.offsetHeight;
+        content.style.transition = '';
+      });
+    }
     setScrolling(false);
     setActiveChord(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,6 +576,76 @@ export default function ConcertModeView({
       e.stopPropagation();
     }
   }, []);
+  // Swipe left/right to change song. The card follows the finger with the neighbouring
+  // songs peeking in beside it; past a threshold it slides on to the next song, otherwise it
+  // springs back (and only gives a little where there's no song).
+  const songSwipeRef = useRef<{ pointerId: number; x: number; y: number; dx: number; axis: 'x' | 'y' | null } | null>(null);
+  const [swiping, setSwiping] = useState(false);
+
+  const slideSurface = useCallback((from: number, to: number, onDone: () => void) => {
+    const el = surfaceRef.current;
+    if (!el) return;
+    el.style.transform = '';
+    const anim = el.animate(
+      [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
+      { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' },
+    );
+    anim.onfinish = () => {
+      onDone();
+      anim.cancel();
+    };
+  }, []);
+
+  const cancelSongSwipe = useCallback(() => {
+    const swipe = songSwipeRef.current;
+    songSwipeRef.current = null;
+    if (swipe?.axis === 'x') slideSurface(swipe.dx, 0, () => setSwiping(false));
+  }, [slideSurface]);
+
+  const moveSongSwipe = useCallback((e: React.PointerEvent) => {
+    const swipe = songSwipeRef.current;
+    if (!swipe || swipe.pointerId !== e.pointerId || swipe.axis === 'y') return;
+    const dx = e.clientX - swipe.x;
+    const dy = e.clientY - swipe.y;
+    if (!swipe.axis) {
+      // Decide once which way it goes; vertical gestures (scrolling, autoscroll drags) are left alone.
+      if (dragRef.current?.moved || Math.abs(dy) > Math.max(12, Math.abs(dx))) {
+        swipe.axis = 'y';
+        return;
+      }
+      if (Math.abs(dx) < 12) return;
+      swipe.axis = 'x';
+      dragRef.current = null;
+      setActiveChord(null);
+      setSwiping(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    swipe.dx = songs[currentIndex + (dx < 0 ? 1 : -1)] ? dx : dx * 0.2;
+    if (surfaceRef.current) surfaceRef.current.style.transform = `translateX(${swipe.dx}px)`;
+  }, [currentIndex, songs]);
+
+  const endSongSwipe = useCallback((e: React.PointerEvent) => {
+    const swipe = songSwipeRef.current;
+    if (!swipe || swipe.pointerId !== e.pointerId) return;
+    songSwipeRef.current = null;
+    if (swipe.axis !== 'x') return;
+    // Keep the release from also counting as a tap, or reaching the app's sidebar swipe.
+    lastGestureEndRef.current = Date.now();
+    e.stopPropagation();
+    const dir = swipe.dx < 0 ? 1 : -1;
+    const width = surfaceRef.current?.offsetWidth ?? 0;
+    if (e.type === 'pointercancel' || !songs[currentIndex + dir] || Math.abs(swipe.dx) < Math.min(width / 4, 120)) {
+      slideSurface(swipe.dx, 0, () => setSwiping(false));
+      return;
+    }
+    // Slide on until the peeking song sits where the card was, then make it the current one.
+    slideSurface(swipe.dx, -dir * (width + PEEK_GAP), () => flushSync(() => {
+      targetPageRef.current = 0;
+      setCurrentIndex(currentIndex + dir);
+      setSwiping(false);
+    }));
+  }, [currentIndex, songs, slideSurface]);
+
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
   const multiTouchRef = useRef<{
     start: number;
@@ -576,24 +659,30 @@ export default function ConcertModeView({
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size === 1) {
       multiTouchRef.current = { start: e.timeStamp, maxTouches: 1, moved: false };
+      const busy = !isMultiSong || surfaceRef.current?.getAnimations().length;
+      songSwipeRef.current = busy || (e.target as Element).closest('.concert-settings, input')
+        ? null
+        : { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, axis: null };
       return;
     }
     const gesture = multiTouchRef.current;
-    if (!gesture) return;
-    gesture.maxTouches = Math.max(gesture.maxTouches, touches.size);
     // More than one finger: not a drag, swipe or tap.
     dragRef.current = null;
-    swipeRef.current = null;
-  }, []);
+    cancelSongSwipe();
+    if (!gesture) return;
+    gesture.maxTouches = Math.max(gesture.maxTouches, touches.size);
+  }, [isMultiSong, cancelSongSwipe]);
 
   const onSurfacePointerMoveCapture = useCallback((e: React.PointerEvent) => {
+    moveSongSwipe(e);
     const start = touchesRef.current.get(e.pointerId);
     const gesture = multiTouchRef.current;
     if (!start || !gesture) return;
     if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 15) gesture.moved = true;
-  }, []);
+  }, [moveSongSwipe]);
 
   const onSurfacePointerEndCapture = useCallback((e: React.PointerEvent) => {
+    endSongSwipe(e);
     const touches = touchesRef.current;
     if (!touches.delete(e.pointerId) || touches.size > 0) return;
     const gesture = multiTouchRef.current;
@@ -604,7 +693,7 @@ export default function ConcertModeView({
       setActiveChord(null);
       setQuickMenu(true);
     }
-  }, []);
+  }, [endSongSwipe]);
 
   // The app's top bar is hidden in concert mode and slides in while the menu is open.
   useEffect(() => {
@@ -734,29 +823,12 @@ export default function ConcertModeView({
     }
   }, [continuous, currentPageInSong, currentIndex]);
 
-  const onSwipeStart = useCallback((e: React.PointerEvent) => {
-    swipeRef.current = { x: e.clientX, y: e.clientY };
-  }, []);
-
-  const onSwipeEnd = useCallback((e: React.PointerEvent) => {
-    if (!swipeRef.current) return;
-    if (continuous) {
-      swipeRef.current = null;
-      return;
-    }
-    const dx = e.clientX - swipeRef.current.x;
-    const dy = e.clientY - swipeRef.current.y;
-    swipeRef.current = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0) goToNextPage();
-    else goToPrevPage();
-  }, [continuous, goToNextPage, goToPrevPage]);
-
   const handleSurfaceTap = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, label, select, [role="button"]')) return;
-    // A drag (which sets the autoscroll speed) is not a tap.
+    // A drag (which sets the autoscroll speed), a swipe or a multi-finger gesture is not a tap.
     if (Date.now() - lastGestureEndRef.current < 400) return;
+    if ((multiTouchRef.current?.maxTouches ?? 0) > 1) return;
     if (activeChord) {
       setActiveChord(null);
       return;
@@ -860,8 +932,22 @@ export default function ConcertModeView({
   const canGoNext = continuous
     ? !scrollEdge.bottom || currentIndex < songs.length - 1
     : currentPageInSong < currentPageCount - 1 || currentIndex < songs.length - 1;
-  const currentSongNote = songNotes?.[currentSong.id]?.trim() ?? '';
   const nextSong = songs[currentIndex + 1] ?? null;
+
+  const renderSongTitle = (song: Song, index: number) => {
+    const note = songNotes?.[song.id]?.trim();
+    return (
+      <>
+        <h2>
+          {isMultiSong && <span className="concert-song-position">{index + 1}/{songs.length}</span>}
+          {song.title}
+          {song.artist && <span className="concert-song-artist"> · {song.artist}</span>}
+          {song.capo !== undefined && song.capo > 0 && <span className="capo-badge">Capo {song.capo}</span>}
+        </h2>
+        {note && <p className="concert-song-note">{note}</p>}
+      </>
+    );
+  };
 
   const editCurrentSong = () => {
     if (!bandId) return;
@@ -891,32 +977,19 @@ export default function ConcertModeView({
         />
       )}
 
-      <div className={`concert-content-wrap${showSongNavigator && isMultiSong ? '' : ' concert-content-wrap--full'}`}>
+      <div className={`concert-content-wrap${showSongNavigator && isMultiSong ? '' : ' concert-content-wrap--full'}${swiping ? ' concert-content-wrap--swiping' : ''}`}>
         <article
           className="concert-song-surface"
+          ref={surfaceRef}
           onPointerDownCapture={onSurfacePointerDownCapture}
           onPointerMoveCapture={onSurfacePointerMoveCapture}
           onPointerUpCapture={onSurfacePointerEndCapture}
           onPointerCancelCapture={onSurfacePointerEndCapture}
-          onPointerDown={onSwipeStart}
-          onPointerUp={onSwipeEnd}
           onClick={handleSurfaceTap}
         >
           <div className="concert-song-header concert-song-header--compact">
             <div className="concert-song-header-main">
-              <h2>
-                {isMultiSong && <span className="concert-song-position">{currentIndex + 1}/{songs.length}</span>}
-                {currentSong.title}
-                {currentSong.artist && (
-                  <span className="concert-song-artist"> · {currentSong.artist}</span>
-                )}
-                {currentSong.capo !== undefined && currentSong.capo > 0 && (
-                  <span className="capo-badge">Capo {currentSong.capo}</span>
-                )}
-              </h2>
-              {currentSongNote && (
-                <p className="concert-song-note">{currentSongNote}</p>
-              )}
+              {renderSongTitle(currentSong, currentIndex)}
             </div>
             <div className="concert-header-actions">
               {autoscroll && continuous && (
@@ -1165,6 +1238,32 @@ export default function ConcertModeView({
               ))}
             </div>
           )}
+          {/* The neighbouring songs, parked beside the card while it's swiped. */}
+          {swiping && ([-1, 1] as const).map((dir) => {
+            const song = songs[currentIndex + dir];
+            return song && (
+              <div key={dir} className={`concert-song-peek concert-song-peek--${dir < 0 ? 'prev' : 'next'}`} aria-hidden="true">
+                <div className="concert-song-header concert-song-header--compact">
+                  <div className="concert-song-header-main">{renderSongTitle(song, currentIndex + dir)}</div>
+                  <div className="concert-song-peek-actions" />
+                </div>
+                <div className="concert-page-viewport">
+                  <div className="concert-page-content song-notes-stage">
+                    <ChordDisplay
+                      chordpro={song.chordpro}
+                      transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
+                      showChords={showChords}
+                      notation={chordNotation}
+                      bpm={song.tempo}
+                      timeSignature={song.timeSignature}
+                      instrument={chordInstrument}
+                      hideMetaDirectives
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </article>
 
         {isMultiSong && showSongNavigator && (
