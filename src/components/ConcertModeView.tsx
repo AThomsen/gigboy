@@ -37,8 +37,8 @@ import { getUserNoteColor } from '../lib/userColors';
 import { extractPinnedLineIds } from '../lib/lineAnchor';
 
 const noop = () => {};
-// Space between the song card and the next/previous song peeking in while swiping (see .concert-song-peek).
-const PEEK_GAP = 16;
+// Space between a song and the next/previous one peeking in while swiping (see .concert-swipe-peek).
+const PEEK_GAP = 24;
 
 interface ActiveChord {
   chord: string;
@@ -210,7 +210,9 @@ export default function ConcertModeView({
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<HTMLElement>(null);
+  // While swiping, the chart and the title slide in lanes of their own; the header's buttons stay put.
+  const chartLaneRef = useRef<HTMLDivElement>(null);
+  const titleLaneRef = useRef<HTMLDivElement>(null);
   const targetPageRef = useRef(0);
   const contentScrollHeightRef = useRef(0);
 
@@ -576,17 +578,25 @@ export default function ConcertModeView({
       e.stopPropagation();
     }
   }, []);
-  // Swipe left/right to change song. The card follows the finger with the neighbouring
-  // songs peeking in beside it; past a threshold it slides on to the next song, otherwise it
-  // springs back (and only gives a little where there's no song).
-  const songSwipeRef = useRef<{ pointerId: number; x: number; y: number; dx: number; axis: 'x' | 'y' | null } | null>(null);
+  // Swipe left/right to change song. The chart follows the finger with the neighbouring
+  // song's peeking in beside it; past a threshold it slides on to it, otherwise it springs
+  // back (and only gives a little where there's no song). The title doesn't follow: as soon
+  // as the swipe is clear, it snaps over to that song's, or to "start/end of set".
+  const songSwipeRef = useRef<{
+    pointerId: number; x: number; y: number; dx: number; axis: 'x' | 'y' | null; titleDir: number;
+  } | null>(null);
   const [swiping, setSwiping] = useState(false);
 
-  const slideSurface = useCallback((from: number, to: number, onDone: () => void) => {
-    const el = surfaceRef.current;
-    if (!el) return;
-    el.style.transform = '';
-    const anim = el.animate(
+  const showSwipeTitle = useCallback((dir: number) => {
+    const title = titleLaneRef.current;
+    if (title) title.style.transform = dir ? `translateX(${-dir * (title.offsetWidth + PEEK_GAP)}px)` : '';
+  }, []);
+
+  const slideChart = useCallback((from: number, to: number, onDone: () => void) => {
+    const chart = chartLaneRef.current;
+    if (!chart) return;
+    chart.style.transform = '';
+    const anim = chart.animate(
       [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
       { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' },
     );
@@ -596,11 +606,16 @@ export default function ConcertModeView({
     };
   }, []);
 
+  const springBack = useCallback((dx: number) => {
+    showSwipeTitle(0);
+    slideChart(dx, 0, () => setSwiping(false));
+  }, [showSwipeTitle, slideChart]);
+
   const cancelSongSwipe = useCallback(() => {
     const swipe = songSwipeRef.current;
     songSwipeRef.current = null;
-    if (swipe?.axis === 'x') slideSurface(swipe.dx, 0, () => setSwiping(false));
-  }, [slideSurface]);
+    if (swipe?.axis === 'x') springBack(swipe.dx);
+  }, [springBack]);
 
   const moveSongSwipe = useCallback((e: React.PointerEvent) => {
     const swipe = songSwipeRef.current;
@@ -620,9 +635,16 @@ export default function ConcertModeView({
       setSwiping(true);
       e.currentTarget.setPointerCapture(e.pointerId);
     }
-    swipe.dx = songs[currentIndex + (dx < 0 ? 1 : -1)] ? dx : dx * 0.2;
-    if (surfaceRef.current) surfaceRef.current.style.transform = `translateX(${swipe.dx}px)`;
-  }, [currentIndex, songs]);
+    const dir = dx < 0 ? 1 : -1;
+    const hasSong = Boolean(songs[currentIndex + dir]);
+    swipe.dx = hasSong ? dx : dx * 0.2;
+    if (chartLaneRef.current) chartLaneRef.current.style.transform = `translateX(${swipe.dx}px)`;
+    const titleDir = Math.abs(dx) > 40 ? dir : 0;
+    if (titleDir !== swipe.titleDir) {
+      swipe.titleDir = titleDir;
+      showSwipeTitle(titleDir);
+    }
+  }, [currentIndex, songs, showSwipeTitle]);
 
   const endSongSwipe = useCallback((e: React.PointerEvent) => {
     const swipe = songSwipeRef.current;
@@ -633,18 +655,23 @@ export default function ConcertModeView({
     lastGestureEndRef.current = Date.now();
     e.stopPropagation();
     const dir = swipe.dx < 0 ? 1 : -1;
-    const width = surfaceRef.current?.offsetWidth ?? 0;
+    const width = chartLaneRef.current?.offsetWidth ?? 0;
     if (e.type === 'pointercancel' || !songs[currentIndex + dir] || Math.abs(swipe.dx) < Math.min(width / 4, 120)) {
-      slideSurface(swipe.dx, 0, () => setSwiping(false));
+      springBack(swipe.dx);
       return;
     }
-    // Slide on until the peeking song sits where the card was, then make it the current one.
-    slideSurface(swipe.dx, -dir * (width + PEEK_GAP), () => flushSync(() => {
-      targetPageRef.current = 0;
-      setCurrentIndex(currentIndex + dir);
-      setSwiping(false);
-    }));
-  }, [currentIndex, songs, slideSurface]);
+    // Slide on until the peeking song sits where the chart was, then make it the current one.
+    // Dropping the swiping class in the same commit lets the title reset without animating.
+    showSwipeTitle(dir);
+    slideChart(swipe.dx, -dir * (width + PEEK_GAP), () => {
+      flushSync(() => {
+        targetPageRef.current = 0;
+        setCurrentIndex(currentIndex + dir);
+        setSwiping(false);
+      });
+      showSwipeTitle(0);
+    });
+  }, [currentIndex, songs, slideChart, springBack, showSwipeTitle]);
 
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
   const multiTouchRef = useRef<{
@@ -659,10 +686,10 @@ export default function ConcertModeView({
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size === 1) {
       multiTouchRef.current = { start: e.timeStamp, maxTouches: 1, moved: false };
-      const busy = !isMultiSong || surfaceRef.current?.getAnimations().length;
+      const busy = !isMultiSong || chartLaneRef.current?.getAnimations().length;
       songSwipeRef.current = busy || (e.target as Element).closest('.concert-settings, input')
         ? null
-        : { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, axis: null };
+        : { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, axis: null, titleDir: 0 };
       return;
     }
     const gesture = multiTouchRef.current;
@@ -934,6 +961,21 @@ export default function ConcertModeView({
     : currentPageInSong < currentPageCount - 1 || currentIndex < songs.length - 1;
   const nextSong = songs[currentIndex + 1] ?? null;
 
+  // The previous/next song, parked beside a swipe lane while swiping. The title lane shows
+  // the start/end of the set where there's no song.
+  const renderSwipePeeks = (render: (song: Song, index: number) => React.ReactNode, showSetEdges = false) => swiping
+    && ([-1, 1] as const).map((dir) => {
+      const song = songs[currentIndex + dir];
+      if (!song && !showSetEdges) return null;
+      return (
+        <div key={dir} className={`concert-swipe-peek concert-swipe-peek--${dir < 0 ? 'prev' : 'next'}`} aria-hidden="true">
+          {song ? render(song, currentIndex + dir) : (
+            <h2 className="concert-set-edge">{dir < 0 ? 'Start of set' : 'End of set'}</h2>
+          )}
+        </div>
+      );
+    });
+
   const renderSongTitle = (song: Song, index: number) => {
     const note = songNotes?.[song.id]?.trim();
     return (
@@ -977,10 +1019,9 @@ export default function ConcertModeView({
         />
       )}
 
-      <div className={`concert-content-wrap${showSongNavigator && isMultiSong ? '' : ' concert-content-wrap--full'}${swiping ? ' concert-content-wrap--swiping' : ''}`}>
+      <div className={`concert-content-wrap${showSongNavigator && isMultiSong ? '' : ' concert-content-wrap--full'}`}>
         <article
-          className="concert-song-surface"
-          ref={surfaceRef}
+          className={`concert-song-surface${swiping ? ' concert-song-surface--swiping' : ''}`}
           onPointerDownCapture={onSurfacePointerDownCapture}
           onPointerMoveCapture={onSurfacePointerMoveCapture}
           onPointerUpCapture={onSurfacePointerEndCapture}
@@ -989,7 +1030,10 @@ export default function ConcertModeView({
         >
           <div className="concert-song-header concert-song-header--compact">
             <div className="concert-song-header-main">
-              {renderSongTitle(currentSong, currentIndex)}
+              <div className="concert-swipe-lane concert-title-lane" ref={titleLaneRef}>
+                {renderSongTitle(currentSong, currentIndex)}
+                {renderSwipePeeks(renderSongTitle, true)}
+              </div>
             </div>
             <div className="concert-header-actions">
               {autoscroll && continuous && (
@@ -1122,107 +1166,125 @@ export default function ConcertModeView({
             </div>
           </div>
 
-          <div
-            className={`concert-page-viewport${continuous ? ' concert-page-viewport--scroll' : ''}${dragScrollsManually ? ' concert-page-viewport--drag' : ''}`}
-            ref={viewportRef}
-            onScroll={continuous ? updateScrollEdge : undefined}
-            // With autoscroll on, a drag sets the speed (see onViewportPointer*). Without
-            // it, native scrolling applies and a wheel/touch just pauses.
-            onPointerDown={onViewportPointerDown}
-            onPointerMove={onViewportPointerMove}
-            onPointerUp={onViewportPointerEnd}
-            onPointerCancel={onViewportPointerEnd}
-            onTouchMove={continuous && !dragScrollsManually ? () => setScrolling(false) : undefined}
-            onWheel={continuous ? () => setScrolling(false) : undefined}
-          >
+          <div className="concert-swipe-lane concert-chart-lane" ref={chartLaneRef}>
             <div
-              className="concert-page-content"
-              ref={contentRef}
-              style={continuous ? undefined : (() => {
-                const offsetY = pageOffsets[currentPageInSong] ?? 0;
-                // Read the content's *live* height rather than trusting the cached
-                // snapshot from the last measurement pass. Content can shrink after that
-                // snapshot was taken (e.g. hand-note data arriving and un-pinning lines
-                // that were temporarily forced to single-row layout) without a resize
-                // event ever re-running measure() — clipping against a stale, too-tall
-                // snapshot can clip away an entire page's visible content.
-                const liveScrollHeight = contentRef.current?.scrollHeight ?? contentScrollHeightRef.current;
-                const nextOffsetY = pageOffsets[currentPageInSong + 1] ?? liveScrollHeight;
-                // Guard against a broken/non-monotonic offset pair (e.g. a stale page
-                // index read against a different song's offsets) ever clipping away an
-                // entire page — better to show unclipped content than render nothing.
-                const bottomClip = nextOffsetY > offsetY
-                  ? Math.max(0, liveScrollHeight - nextOffsetY)
-                  : 0;
-                return {
-                  transform: `translateY(${-offsetY}px)`,
-                  // Always an inset() (0 on the last page) so clip-path can transition.
-                  clipPath: `inset(0 0 ${bottomClip}px 0)`,
-                };
-              })()}
+              className={`concert-page-viewport${continuous ? ' concert-page-viewport--scroll' : ''}${dragScrollsManually ? ' concert-page-viewport--drag' : ''}`}
+              ref={viewportRef}
+              onScroll={continuous ? updateScrollEdge : undefined}
+              // With autoscroll on, a drag sets the speed (see onViewportPointer*). Without
+              // it, native scrolling applies and a wheel/touch just pauses.
+              onPointerDown={onViewportPointerDown}
+              onPointerMove={onViewportPointerMove}
+              onPointerUp={onViewportPointerEnd}
+              onPointerCancel={onViewportPointerEnd}
+              onTouchMove={continuous && !dragScrollsManually ? () => setScrolling(false) : undefined}
+              onWheel={continuous ? () => setScrolling(false) : undefined}
             >
-              <div className="song-notes-stage">
-                <ChordDisplay
-                  chordpro={currentSong.chordpro}
-                  transpose={transpose}
-                  showChords={showChords}
-                  notation={chordNotation}
-                  bpm={currentSong.tempo}
-                  timeSignature={currentSong.timeSignature}
-                  instrument={chordInstrument}
-                  hideMetaDirectives
-                  onChordClick={showChords
-                    ? (chord, rect) => {
-                      setActiveChord((previous) =>
-                        previous?.chord === chord && previous.rect.top === rect.top
-                          ? null
-                          : { chord, rect }
-                      );
-                    }
-                    : undefined}
-                  pinnedLineIds={pinnedLineIds}
-                />
-                <LyricHandNotesOverlay
-                  visible
-                  drawEnabled={false}
-                  notes={handNotes.visibleNotes}
-                  myStrokes={handNotes.myStrokes}
-                  strokeColor={getUserNoteColor(user?.id ?? null)}
-                  onMyStrokesChange={noop}
-                />
-                {/* Typed notes, read-only on stage. handNotes defaults to the current
-                    user's own notes only. */}
-                {user && (
-                  <SongTextNotesOverlay
-                    visible
-                    typeEnabled={false}
-                    notes={handNotes.visibleNotes}
-                    myTextNotes={handNotes.myTextNotes}
-                    myAuthorUid={user.id}
-                    myNotesVisible={handNotes.visibleNotes.some((n) => n.authorUid === user.id)}
-                    noteColor={getUserNoteColor(user.id)}
-                    onMyTextNotesChange={noop}
+              <div
+                className="concert-page-content"
+                ref={contentRef}
+                style={continuous ? undefined : (() => {
+                  const offsetY = pageOffsets[currentPageInSong] ?? 0;
+                  // Read the content's *live* height rather than trusting the cached
+                  // snapshot from the last measurement pass. Content can shrink after that
+                  // snapshot was taken (e.g. hand-note data arriving and un-pinning lines
+                  // that were temporarily forced to single-row layout) without a resize
+                  // event ever re-running measure() — clipping against a stale, too-tall
+                  // snapshot can clip away an entire page's visible content.
+                  const liveScrollHeight = contentRef.current?.scrollHeight ?? contentScrollHeightRef.current;
+                  const nextOffsetY = pageOffsets[currentPageInSong + 1] ?? liveScrollHeight;
+                  // Guard against a broken/non-monotonic offset pair (e.g. a stale page
+                  // index read against a different song's offsets) ever clipping away an
+                  // entire page — better to show unclipped content than render nothing.
+                  const bottomClip = nextOffsetY > offsetY
+                    ? Math.max(0, liveScrollHeight - nextOffsetY)
+                    : 0;
+                  return {
+                    transform: `translateY(${-offsetY}px)`,
+                    // Always an inset() (0 on the last page) so clip-path can transition.
+                    clipPath: `inset(0 0 ${bottomClip}px 0)`,
+                  };
+                })()}
+              >
+                <div className="song-notes-stage">
+                  <ChordDisplay
+                    chordpro={currentSong.chordpro}
+                    transpose={transpose}
+                    showChords={showChords}
+                    notation={chordNotation}
+                    bpm={currentSong.tempo}
+                    timeSignature={currentSong.timeSignature}
+                    instrument={chordInstrument}
+                    hideMetaDirectives
+                    onChordClick={showChords
+                      ? (chord, rect) => {
+                        setActiveChord((previous) =>
+                          previous?.chord === chord && previous.rect.top === rect.top
+                            ? null
+                            : { chord, rect }
+                        );
+                      }
+                      : undefined}
+                    pinnedLineIds={pinnedLineIds}
                   />
+                  <LyricHandNotesOverlay
+                    visible
+                    drawEnabled={false}
+                    notes={handNotes.visibleNotes}
+                    myStrokes={handNotes.myStrokes}
+                    strokeColor={getUserNoteColor(user?.id ?? null)}
+                    onMyStrokesChange={noop}
+                  />
+                  {/* Typed notes, read-only on stage. handNotes defaults to the current
+                      user's own notes only. */}
+                  {user && (
+                    <SongTextNotesOverlay
+                      visible
+                      typeEnabled={false}
+                      notes={handNotes.visibleNotes}
+                      myTextNotes={handNotes.myTextNotes}
+                      myAuthorUid={user.id}
+                      myNotesVisible={handNotes.visibleNotes.some((n) => n.authorUid === user.id)}
+                      noteColor={getUserNoteColor(user.id)}
+                      onMyTextNotesChange={noop}
+                    />
+                  )}
+                </div>
+                {/* Part of the running text, so it lands on the last page / end of the scroll. */}
+                {nextSong && (
+                  <button
+                    type="button"
+                    className="concert-next-song"
+                    onClick={() => goToSong(currentIndex + 1)}
+                    aria-label={`Next song: ${nextSong.title}`}
+                  >
+                    <span className="concert-next-song-label">Up next</span>
+                    <span className="concert-next-song-position">{currentIndex + 2}/{songs.length}</span>
+                    <span className="concert-next-song-title">
+                      <strong>{nextSong.title}</strong>
+                      {nextSong.artist && <span className="concert-next-song-artist"> · {nextSong.artist}</span>}
+                    </span>
+                    <ChevronRight size={16} />
+                  </button>
                 )}
               </div>
-              {/* Part of the running text, so it lands on the last page / end of the scroll. */}
-              {nextSong && (
-                <button
-                  type="button"
-                  className="concert-next-song"
-                  onClick={() => goToSong(currentIndex + 1)}
-                  aria-label={`Next song: ${nextSong.title}`}
-                >
-                  <span className="concert-next-song-label">Up next</span>
-                  <span className="concert-next-song-position">{currentIndex + 2}/{songs.length}</span>
-                  <span className="concert-next-song-title">
-                    <strong>{nextSong.title}</strong>
-                    {nextSong.artist && <span className="concert-next-song-artist"> · {nextSong.artist}</span>}
-                  </span>
-                  <ChevronRight size={16} />
-                </button>
-              )}
             </div>
+          {renderSwipePeeks((song) => (
+            <div className="concert-page-viewport">
+              <div className="concert-page-content song-notes-stage">
+                <ChordDisplay
+                  chordpro={song.chordpro}
+                  transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
+                  showChords={showChords}
+                  notation={chordNotation}
+                  bpm={song.tempo}
+                  timeSignature={song.timeSignature}
+                  instrument={chordInstrument}
+                  hideMetaDirectives
+                />
+              </div>
+            </div>
+          ))}
           </div>
 
           {!continuous && currentPageCount > 1 && (
@@ -1238,32 +1300,6 @@ export default function ConcertModeView({
               ))}
             </div>
           )}
-          {/* The neighbouring songs, parked beside the card while it's swiped. */}
-          {swiping && ([-1, 1] as const).map((dir) => {
-            const song = songs[currentIndex + dir];
-            return song && (
-              <div key={dir} className={`concert-song-peek concert-song-peek--${dir < 0 ? 'prev' : 'next'}`} aria-hidden="true">
-                <div className="concert-song-header concert-song-header--compact">
-                  <div className="concert-song-header-main">{renderSongTitle(song, currentIndex + dir)}</div>
-                  <div className="concert-song-peek-actions" />
-                </div>
-                <div className="concert-page-viewport">
-                  <div className="concert-page-content song-notes-stage">
-                    <ChordDisplay
-                      chordpro={song.chordpro}
-                      transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
-                      showChords={showChords}
-                      notation={chordNotation}
-                      bpm={song.tempo}
-                      timeSignature={song.timeSignature}
-                      instrument={chordInstrument}
-                      hideMetaDirectives
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </article>
 
         {isMultiSong && showSongNavigator && (

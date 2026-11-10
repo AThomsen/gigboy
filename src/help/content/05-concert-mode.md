@@ -30,7 +30,7 @@ By default long songs are split into **pages**. You can:
 
 Going past the last page of a song takes you to the start of the next song.
 
-In a setlist, **swipe left** to go to the next song and **swipe right** to go to the previous one. The song follows your finger with the next (or previous) one coming into view beside it; let go before it's far enough and it springs back.
+In a setlist, **swipe left** to go to the next song and **swipe right** to go to the previous one. The song follows your finger with the next (or previous) one coming into view beside it; let go before it's far enough and it springs back. Swiping past the first or last song shows **Start of set** or **End of set**.
 
 ## Text size
 
