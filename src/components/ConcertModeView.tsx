@@ -904,9 +904,32 @@ export default function ConcertModeView({
         return;
       }
 
+      // Esc closes whatever is open (the menus close themselves); with nothing open, it
+      // leaves concert mode.
+      if (event.key === 'Escape') {
+        if (quickMenu || showSettings || activeChord || showIntro) return;
+        if (showSongNavigator) setShowSongNavigator(false);
+        else navigate(backRoute);
+        return;
+      }
+
       if (event.key === 'ArrowRight') {
         event.preventDefault();
         goToNextPage();
+      }
+
+      // Space: start/pause autoscroll when it's on, otherwise the next page. Buttons in the
+      // open menus keep Space for themselves; any other focused button (e.g. one just clicked)
+      // is let go of, so Space doesn't press it again.
+      if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const inMenu = target instanceof Element
+          && (quickMenuRef.current?.contains(target) || settingsRef.current?.contains(target));
+        if (inMenu) return;
+        event.preventDefault();
+        if (target instanceof HTMLElement && target !== document.body) target.blur();
+        if (event.repeat) return;
+        if (autoscroll && continuous) setScrolling((v) => !v);
+        else goToNextPage();
       }
 
       if (event.key === 'ArrowLeft') {
@@ -928,7 +951,10 @@ export default function ConcertModeView({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [goToNextPage, goToPrevPage, isMultiSong]);
+  }, [
+    goToNextPage, goToPrevPage, isMultiSong, autoscroll, continuous,
+    quickMenu, showSettings, activeChord, showIntro, showSongNavigator, navigate, backRoute,
+  ]);
 
   // Close the settings popover on outside press or Escape.
   useEffect(() => {

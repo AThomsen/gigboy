@@ -26,7 +26,7 @@ By default long songs are split into **pages**. You can:
 
 - tap the lower half of the chart, or press **Next**, to go forward;
 - tap the upper half of the chart, or press **Previous**, to go back;
-- use the left and right arrow keys on a keyboard.
+- use the left and right arrow keys on a keyboard, or press **Space** to go forward (with autoscroll on, Space starts and pauses the scrolling instead).
 
 Going past the last page of a song takes you to the start of the next song.
 
@@ -44,7 +44,9 @@ Tap the chart with **two fingers** to open a menu in the middle of the screen. T
 
 The first time you open concert mode, a short introduction shows how to open the menu.
 
-On a computer, press **M** to open the menu, and **M** or **Esc** to close it.
+On a computer, press **M** to open the menu, and **M** or **Esc** to close it. With nothing open, **Esc** leaves concert mode.
+
+With a mouse, push the pointer against the left edge of the screen to bring in the app's sidebar over the song. Move away from it and it slides back.
 
 ## Settings
 

@@ -323,6 +323,27 @@ export default function Layout({ children }: Props) {
     wasConcertRouteRef.current = isConcertRoute;
   }, [pathname, isNarrowViewport, isConcertRoute]);
 
+  // Concert mode with a mouse: pushing the pointer against the left edge brings the sidebar
+  // in over the song (without reflowing it); moving well away from it closes it again.
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+  useEffect(() => {
+    if (!isConcertRoute || isNarrowViewport || sidebarOpen) {
+      setSidebarPeek(false);
+      return;
+    }
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      if (event.clientX <= 2) {
+        setSidebarPeek(true);
+        return;
+      }
+      const right = document.getElementById('app-sidebar')?.getBoundingClientRect().right ?? 0;
+      if (event.clientX > right + 40) setSidebarPeek(false);
+    };
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, [isConcertRoute, isNarrowViewport, sidebarOpen, pathname]);
+
   useEffect(() => {
     if (!sidebarOpen || !isNarrowViewport) return;
 
@@ -594,7 +615,7 @@ export default function Layout({ children }: Props) {
       </header>
 
       <div
-        className={`app-body${isNarrowViewport ? ' app-body--narrow' : ''}`}
+        className={`app-body${isNarrowViewport ? ' app-body--narrow' : ''}${sidebarPeek ? ' app-body--sidebar-peek' : ''}`}
         onPointerDown={(event) => {
           if (!isNarrowViewport || event.pointerType === 'mouse') return;
           swipeRef.current = {
@@ -616,7 +637,7 @@ export default function Layout({ children }: Props) {
         }}
       >
         <Sidebar
-          open={sidebarOpen}
+          open={sidebarOpen || sidebarPeek}
           mobile={isNarrowViewport}
           onNavigate={isNarrowViewport ? () => setSidebarOpen(false) : undefined}
         />

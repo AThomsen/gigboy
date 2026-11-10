@@ -345,6 +345,18 @@ input, select, textarea { font: inherit; color: var(--text); }
   box-sizing: border-box;
 }
 
+/* Concert mode with a mouse at the left edge: the sidebar comes in over the song
+   rather than pushing it aside (which would re-paginate it). */
+.app-body--sidebar-peek .sidebar-anim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  height: auto;
+  z-index: 90;
+  box-shadow: var(--shadow-lg);
+}
+
 /* Narrow viewports (portrait tablet / phone): let the page scroll normally. */
 .app-body--narrow {
   overflow: visible;
