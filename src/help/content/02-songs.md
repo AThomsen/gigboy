@@ -41,7 +41,7 @@ The song page has three parts:
 
 ### Transpose, capo and chord names
 
-- The **Key** arrows move every chord up or down a semitone. The key in the middle shows where you are.
+- The **Key** arrows move every chord up or down a semitone. The key in the middle shows where you are. This is your own setting: it's remembered for you, on every device, and doesn't change what the rest of the band sees.
 - **Capo** shows the chords you play with a capo on that fret.
 - **Guitar / Ukulele / Piano** switches which chord diagrams are shown when you tap a chord.
 - **C D E / Do Re Mi** switches between letter names and solfège.
@@ -53,6 +53,8 @@ Press the pencil next to the title, or **Edit** on the song page.
 ![The song form.](song-edit)
 
 Fill in the title, artist, language, key, BPM, time signature, duration and tags. Add a YouTube or Spotify link to get a small player in the song's toolbar.
+
+The **− / +** buttons next to the key set the band's transpose for the song: everyone sees it in that key unless they've set their own transpose on the song page. The chart itself isn't changed.
 
 ![The ChordPro editor.](song-edit-lyrics)
 
