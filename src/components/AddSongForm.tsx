@@ -745,7 +745,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
                   </div>
                   {keyInvalid && (
                     <p className="form-hint form-hint--error" role="alert">
-                      “{key.trim()}” isn't a key — use a note A–G, with # or b and m for minor, like G, Bb or F#m.
+                      “{key.trim()}” isn't a key — use a note A–G (or H), with # or b and m for minor, like G, Bb or F#m.
                     </p>
                   )}
                   {transpose !== 0 && (
