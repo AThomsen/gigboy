@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeforeUnload, useLocation, useNavigate, useBlocker } from 'react-router-dom';
 import { flushSync } from 'react-dom';
-import { ChevronDown, FileUp, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
+import { ChevronDown, FileUp, Minus, Plus, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
 import toast from '../utils/anchoredToast';
 import { generateId } from '../lib/uuid';
 import type { Song } from '../types';
@@ -12,6 +12,7 @@ import TabDisplay from './TabDisplay';
 import TabSequencerModal from './TabSequencerModal';
 import { LANGUAGE_NAMES } from '../utils/languages';
 import { parsePastedSong } from '../utils/chordFormatParser';
+import { transposeChord } from '../utils/chordParser';
 import { extractTabBlocks } from '../utils/tabParser';
 import StrumEditorModal from './StrumEditorModal';
 import StrumDisplay from './StrumDisplay';
@@ -61,6 +62,8 @@ type SongFormValues = {
   language: string;
   tags: string;
   key: string;
+  /** The band's default transpose (`preferredTranspose`); members can override it for themselves. */
+  transpose: number;
   tempo: string;
   timeSignature: string;
   date: string;
@@ -89,6 +92,7 @@ export default function AddSongForm({
   const [language, setLanguage] = useState(initialSong?.language ?? 'en');
   const [tags, setTags] = useState((initialSong?.tags ?? []).join(', '));
   const [key, setKey] = useState(initialSong?.key ?? '');
+  const [transpose, setTranspose] = useState(initialSong?.preferredTranspose ?? 0);
 const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(initialSong.tempo) : '');
   const [timeSignature, setTimeSignature] = useState(initialSong?.timeSignature ?? '');
   const [date, setDate] = useState(initialSong?.date ?? '');
@@ -148,6 +152,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     language: initialSong?.language ?? 'en',
     tags: initialTags,
     key: initialSong?.key ?? '',
+    transpose: initialSong?.preferredTranspose ?? 0,
     tempo: initialSong?.tempo !== undefined ? String(initialSong.tempo) : '',
     timeSignature: initialSong?.timeSignature ?? '',
     date: initialSong?.date ?? '',
@@ -162,6 +167,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     initialSong?.language,
     initialTags,
     initialSong?.key,
+    initialSong?.preferredTranspose,
     initialSong?.tempo,
     initialSong?.timeSignature,
     initialSong?.date,
@@ -184,6 +190,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     language,
     tags,
     key,
+    transpose,
     tempo,
     timeSignature,
     date,
@@ -198,6 +205,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     language,
     tags,
     key,
+    transpose,
     tempo,
     timeSignature,
     date,
@@ -226,6 +234,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       || formValues.language !== lastSavedValues.language
       || formValues.tags !== lastSavedValues.tags
       || formValues.key !== lastSavedValues.key
+      || formValues.transpose !== lastSavedValues.transpose
       || formValues.tempo !== lastSavedValues.tempo
       || formValues.timeSignature !== lastSavedValues.timeSignature
       || formValues.date !== lastSavedValues.date
@@ -274,9 +283,9 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       language: values.language.trim() || 'other',
       tags: values.tags.split(',').map((t) => t.trim()).filter(Boolean),
       key: values.key.trim() || undefined,
+      preferredTranspose: values.transpose || undefined,
       // Not edited here, but the save replaces the whole song, so carry them over.
       capo: initialSong?.capo,
-      preferredTranspose: initialSong?.preferredTranspose,
       secondaryLanguages: initialSong?.secondaryLanguages,
       tempo: values.tempo && !Number.isNaN(parseInt(values.tempo, 10)) ? parseInt(values.tempo, 10) : undefined,
       timeSignature: values.timeSignature.trim() || undefined,
@@ -286,7 +295,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       createdAt: initialSong?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-  }, [initialSong?.id, initialSong?.createdAt, initialSong?.capo, initialSong?.preferredTranspose, initialSong?.secondaryLanguages]);
+  }, [initialSong?.id, initialSong?.createdAt, initialSong?.capo, initialSong?.secondaryLanguages]);
 
   function applyParsedSong(rawText: string, source: 'manual' | 'paste') {
     const parsed = parsePastedSong(rawText);
@@ -320,6 +329,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       }
       setTags((imported.tags ?? []).join(', '));
       setKey(imported.key ?? '');
+      setTranspose(imported.preferredTranspose ?? 0);
       setTempo(typeof imported.tempo === 'number' ? String(imported.tempo) : '');
       setTimeSignature(imported.timeSignature ?? '');
       setChordpro(imported.chordpro);
@@ -388,6 +398,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     setLanguage(values.language);
     setTags(values.tags);
     setKey(values.key);
+    setTranspose(values.transpose);
     setTempo(values.tempo);
     setTimeSignature(values.timeSignature);
     setDate(values.date);
@@ -702,7 +713,35 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
                 </div>
                 <div className="form-field">
                   <label>Key</label>
-                  <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="e.g. G" maxLength={4} />
+                  <div className="key-transpose">
+                    <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="e.g. G" maxLength={4} />
+                    <Button
+                      iconOnly
+                      size="sm"
+                      variant="ghost"
+                      icon={<Minus size={14} />}
+                      aria-label="Transpose down for the band"
+                      disabled={transpose <= -11}
+                      onClick={() => setTranspose((t) => t - 1)}
+                    />
+                    <span className="key-transpose-value" aria-live="polite">
+                      {transpose === 0 ? '±0' : `${transpose > 0 ? '+' : ''}${transpose}`}
+                    </span>
+                    <Button
+                      iconOnly
+                      size="sm"
+                      variant="ghost"
+                      icon={<Plus size={14} />}
+                      aria-label="Transpose up for the band"
+                      disabled={transpose >= 11}
+                      onClick={() => setTranspose((t) => t + 1)}
+                    />
+                  </div>
+                  {transpose !== 0 && (
+                    <p className="form-hint">
+                      The band sees it {key.trim() ? `in ${transposeChord(key.trim(), transpose)}` : `${transpose > 0 ? 'up' : 'down'} ${Math.abs(transpose)} semitone${Math.abs(transpose) === 1 ? '' : 's'}`}, unless they've set their own transpose.
+                    </p>
+                  )}
                 </div>
                 <div className="form-field">
                   <label>BPM</label>
