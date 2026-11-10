@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronsUpDown,
   List,
   Minus,
   Pause,
@@ -16,6 +15,7 @@ import {
   Square,
   Volume2,
   VolumeX,
+  X,
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -1177,7 +1177,7 @@ export default function ConcertModeView({
                 onClick={() => setShowSongNavigator(false)}
                 aria-label="Hide song navigator"
               >
-                <ChevronsUpDown size={14} />
+                <X size={14} />
               </button>
             </div>
             <ol>
@@ -1186,7 +1186,11 @@ export default function ConcertModeView({
                   <button
                     type="button"
                     className={`concert-song-jump${index === currentIndex ? ' active' : ''}${index < currentIndex ? ' played' : ''}`}
-                    onClick={() => goToSong(index)}
+                    onClick={() => {
+                      goToSong(index);
+                      // On narrow screens the list floats over the chart; get it out of the way.
+                      if (window.matchMedia('(max-width: 900px)').matches) setShowSongNavigator(false);
+                    }}
                   >
                     <span className="concert-song-jump-number">{index + 1}</span>
                     <span className="concert-song-jump-main">
