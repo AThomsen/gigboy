@@ -26,10 +26,11 @@ By default long songs are split into **pages**. You can:
 
 - tap the lower half of the chart, or press **Next**, to go forward;
 - tap the upper half of the chart, or press **Previous**, to go back;
-- swipe left or right;
 - use the left and right arrow keys on a keyboard.
 
 Going past the last page of a song takes you to the start of the next song.
+
+In a setlist, **swipe left** to go to the next song and **swipe right** to go to the previous one. The song follows your finger with the next (or previous) one coming into view beside it; let go before it's far enough and it springs back.
 
 ## Text size
 

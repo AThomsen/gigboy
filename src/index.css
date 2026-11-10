@@ -7586,6 +7586,16 @@ input, select, textarea { font: inherit; color: var(--text); }
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* While a song card is swiped aside, don't let it widen the page. */
+.concert-content-wrap--swiping {
+  overflow: hidden;
+}
+
+/* …and keep the song list above the song peeking in next to the card. */
+.concert-content-wrap--swiping .concert-song-navigator {
+  z-index: 1;
+}
+
 .concert-song-surface {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -7594,7 +7604,29 @@ input, select, textarea { font: inherit; color: var(--text); }
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Horizontal swipes change song (handled in JS); vertical panning stays native. */
+  touch-action: pan-y pinch-zoom;
+  position: relative;
 }
+
+/* The previous/next song, parked beside the card (16px apart: PEEK_GAP) while it's swiped. */
+.concert-song-peek {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.concert-song-peek--prev { transform: translateX(calc(-100% - 16px)); }
+.concert-song-peek--next { transform: translateX(calc(100% + 16px)); }
+
+/* Stands in for the real header's buttons so the chart starts at the same place. */
+.concert-song-peek-actions { height: 2rem; }
 
 .concert-song-header {
   padding: var(--space-xl) var(--space-xl) var(--space-lg);
@@ -7993,6 +8025,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   min-height: 0;
   overflow: hidden;
   position: relative;
+  touch-action: pan-y pinch-zoom;
 }
 
 .concert-page-content {
