@@ -13,6 +13,7 @@ import TabSequencerModal from './TabSequencerModal';
 import { LANGUAGE_NAMES } from '../utils/languages';
 import { parsePastedSong } from '../utils/chordFormatParser';
 import { transposeChord } from '../utils/chordParser';
+import { normalizeKey } from '../utils/songFilters';
 import { extractTabBlocks } from '../utils/tabParser';
 import StrumEditorModal from './StrumEditorModal';
 import StrumDisplay from './StrumDisplay';
@@ -93,6 +94,11 @@ export default function AddSongForm({
   const [tags, setTags] = useState((initialSong?.tags ?? []).join(', '));
   const [key, setKey] = useState(initialSong?.key ?? '');
   const [transpose, setTranspose] = useState(initialSong?.preferredTranspose ?? 0);
+  // Keys are free text; anything the library's key filter can't read is flagged. For the
+  // transpose hint, a plainly written key (Bb, F#m) is kept as typed, others normalized.
+  const normalizedKey = normalizeKey(key);
+  const keyInvalid = key.trim() !== '' && !normalizedKey;
+  const hintKey = /^[A-G][#b]?m?$/.test(key.trim()) ? key.trim() : normalizedKey;
 const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(initialSong.tempo) : '');
   const [timeSignature, setTimeSignature] = useState(initialSong?.timeSignature ?? '');
   const [date, setDate] = useState(initialSong?.date ?? '');
@@ -737,9 +743,14 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
                       onClick={() => setTranspose((t) => t + 1)}
                     />
                   </div>
+                  {keyInvalid && (
+                    <p className="form-hint form-hint--error" role="alert">
+                      “{key.trim()}” isn't a key — use a note A–G, with # or b and m for minor, like G, Bb or F#m.
+                    </p>
+                  )}
                   {transpose !== 0 && (
                     <p className="form-hint">
-                      The band sees it {key.trim() ? `in ${transposeChord(key.trim(), transpose)}` : `${transpose > 0 ? 'up' : 'down'} ${Math.abs(transpose)} semitone${Math.abs(transpose) === 1 ? '' : 's'}`}, unless they've set their own transpose.
+                      The band sees it {hintKey ? `in ${transposeChord(hintKey, transpose)}` : `${transpose > 0 ? 'up' : 'down'} ${Math.abs(transpose)} semitone${Math.abs(transpose) === 1 ? '' : 's'}`}, unless they've set their own transpose.
                     </p>
                   )}
                 </div>

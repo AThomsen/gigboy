@@ -5693,6 +5693,7 @@ input, select, textarea { font: inherit; color: var(--text); }
 }
 
 .form-hint { font-size: var(--text-xs); color: var(--muted); margin-top: var(--space-2xs); }
+.form-hint--error { color: var(--danger); }
 
 /* Key field with the band's default transpose beside it. */
 .key-transpose {
