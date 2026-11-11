@@ -19,6 +19,7 @@ export default function ProfilePreferences() {
   const prefs: UserPreferences = user?.preferences ?? {};
   const downbeatColor = prefs.concertDownbeatColor ?? DEFAULT_DOWNBEAT_COLOR;
   const tapToNavigate = prefs.concertTapToNavigate !== false;
+  const showNavButtons = prefs.concertShowNavButtons !== false;
 
   const save = async (update: UserPreferences) => {
     setSaving(true);
@@ -82,6 +83,24 @@ export default function ProfilePreferences() {
               onChange={(e) => { void save({ concertTapToNavigate: e.target.checked }); }}
             />
             {tapToNavigate ? 'On' : 'Off'}
+          </label>
+        </div>
+        <div className="profile-pref-row">
+          <div className="profile-pref-label" id="pref-nav-buttons-label">
+            Previous / Next buttons
+            <span className="profile-settings-muted">
+              Show the Previous and Next buttons at the bottom of the screen. Turn off for more room if you turn pages by tapping, swiping or with a pedal.
+            </span>
+          </div>
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={showNavButtons}
+              disabled={saving}
+              aria-labelledby="pref-nav-buttons-label"
+              onChange={(e) => { void save({ concertShowNavButtons: e.target.checked }); }}
+            />
+            {showNavButtons ? 'On' : 'Off'}
           </label>
         </div>
       </div>
