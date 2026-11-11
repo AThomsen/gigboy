@@ -1110,6 +1110,7 @@ export default function ConcertModeView({
     ? !scrollEdge.bottom || currentIndex < songs.length - 1
     : currentPageInSong < currentPageCount - 1 || currentIndex < songs.length - 1;
   const nextSong = songs[currentIndex + 1] ?? null;
+  const showNavButtons = user?.preferences?.concertShowNavButtons !== false;
 
   // The previous/next song, parked beside a swipe lane while swiping. The title lane shows
   // the start/end of the set where there's no song.
@@ -1477,16 +1478,18 @@ export default function ConcertModeView({
         )}
       </div>
 
-      <footer className="concert-nav-footer">
-        <button
-          type="button"
-          className="concert-nav-btn"
-          onClick={goToPrevPage}
-          disabled={!canGoPrev}
-          aria-label="Previous page"
-        >
-          <ChevronLeft size={18} /> Previous
-        </button>
+      <footer className={`concert-nav-footer${showNavButtons ? '' : ' concert-nav-footer--no-nav'}`}>
+        {showNavButtons && (
+          <button
+            type="button"
+            className="concert-nav-btn"
+            onClick={goToPrevPage}
+            disabled={!canGoPrev}
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={18} /> Previous
+          </button>
+        )}
         <div className="concert-font-size" role="group" aria-label="Text size">
           <button
             type="button"
@@ -1505,15 +1508,17 @@ export default function ConcertModeView({
             <Plus size={12} />A
           </button>
         </div>
-        <button
-          type="button"
-          className="concert-nav-btn concert-nav-btn--primary"
-          onClick={goToNextPage}
-          disabled={!canGoNext}
-          aria-label="Next page"
-        >
-          Next <ChevronRight size={18} />
-        </button>
+        {showNavButtons && (
+          <button
+            type="button"
+            className="concert-nav-btn concert-nav-btn--primary"
+            onClick={goToNextPage}
+            disabled={!canGoNext}
+            aria-label="Next page"
+          >
+            Next <ChevronRight size={18} />
+          </button>
+        )}
       </footer>
 
       {activeChord && (

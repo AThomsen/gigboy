@@ -9,6 +9,8 @@ export interface UserPreferences {
   concertDownbeatColor?: DownbeatColor;
   /** Whether tapping the chart turns pages in concert mode's page mode. Default on. */
   concertTapToNavigate?: boolean;
+  /** Whether concert mode shows the Previous / Next buttons at the bottom. Default on. */
+  concertShowNavButtons?: boolean;
 }
 
 export const DEFAULT_DOWNBEAT_COLOR: DownbeatColor = 'amber';

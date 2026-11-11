@@ -11,6 +11,8 @@ export interface UserPreferences {
   concertDownbeatColor?: DownbeatColor;
   /** Whether tapping the chart turns pages in concert mode's page mode. Default on. */
   concertTapToNavigate?: boolean;
+  /** Whether concert mode shows the Previous / Next buttons at the bottom. Default on. */
+  concertShowNavButtons?: boolean;
 }
 
 export function sanitizeUserPreferences(input: unknown): UserPreferences {
@@ -22,5 +24,6 @@ export function sanitizeUserPreferences(input: unknown): UserPreferences {
     prefs.concertDownbeatColor = raw.concertDownbeatColor as DownbeatColor;
   }
   if (typeof raw.concertTapToNavigate === 'boolean') prefs.concertTapToNavigate = raw.concertTapToNavigate;
+  if (typeof raw.concertShowNavButtons === 'boolean') prefs.concertShowNavButtons = raw.concertShowNavButtons;
   return prefs;
 }

@@ -8369,6 +8369,10 @@ input, select, textarea { font: inherit; color: var(--text); }
   pointer-events: none;
 }
 
+.concert-nav-footer--no-nav {
+  justify-content: center;
+}
+
 .concert-nav-btn {
   border: 1px solid var(--border);
   background: var(--surface);
