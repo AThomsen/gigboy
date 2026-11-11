@@ -22,15 +22,17 @@ Concert mode is a clean performance view for the stage. It shows one song at a t
 
 ## Moving between pages and songs
 
-By default long songs are split into **pages**. You can:
+By default long songs are split into **pages**, which turn sideways like a book. You can:
 
-- tap the lower half of the chart, or press **Next**, to go forward;
-- tap the upper half of the chart, or press **Previous**, to go back;
+- tap the right half of the chart, or press **Next**, to go forward;
+- tap the left half of the chart, or press **Previous**, to go back;
 - use the left and right arrow keys on a keyboard, or press **Space** to go forward (with autoscroll on, Space starts and pauses the scrolling instead).
 
 Going past the last page of a song takes you to the start of the next song.
 
-In a setlist, **swipe left** to go to the next song and **swipe right** to go to the previous one. The song follows your finger with the next (or previous) one coming into view beside it; let go before it's far enough and it springs back. Swiping past the first or last song shows **Start of set** or **End of set**.
+With pages turned off (and no autoscroll), the song scrolls instead: tap the lower half of the chart to scroll down and the upper half to scroll up. Either way, the half you tapped flashes briefly.
+
+**Swipe left** to go forward and **swipe right** to go back: with pages that's a page at a time, carrying on into the next or previous song at either end (a song is always entered at its start); when scrolling it's a whole song at a time. The chart follows your finger with the next (or previous) page or song coming into view beside it; let go before it's far enough and it springs back. Swiping past the first or last song shows **Start of set** or **End of set**.
 
 ## Text size
 
