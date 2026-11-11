@@ -1187,6 +1187,11 @@ export default function ConcertModeView({
               </div>
             </div>
             <div className="concert-header-actions">
+              {!continuous && currentPageCount > 1 && (
+                <span className="concert-page-count" aria-label={`Page ${currentPageInSong + 1} of ${currentPageCount}`}>
+                  {currentPageInSong + 1}/{currentPageCount}
+                </span>
+              )}
               {autoscroll && continuous && (
                 <button
                   type="button"

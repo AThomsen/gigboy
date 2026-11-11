@@ -22,7 +22,7 @@ Concert mode is a clean performance view for the stage. It shows one song at a t
 
 ## Moving between pages and songs
 
-By default long songs are split into **pages**, which turn sideways like a book. You can:
+By default long songs are split into **pages**, which turn sideways like a book. The page you're on and how many there are (2/3) show at the top right. You can:
 
 - tap the right half of the chart, or press **Next**, to go forward;
 - tap the left half of the chart, or press **Previous**, to go back;

@@ -7742,6 +7742,15 @@ input, select, textarea { font: inherit; color: var(--text); }
   flex: 0 0 auto;
 }
 
+/* Page mode: which page of how many, beside the header buttons. */
+.concert-page-count {
+  padding: 0 var(--space-xs);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .concert-settings {
   position: relative;
   flex: 0 0 auto;
