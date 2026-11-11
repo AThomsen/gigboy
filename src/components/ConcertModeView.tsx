@@ -198,6 +198,12 @@ export default function ConcertModeView({
   const [pagination, setPagination] = useState(() => readStoredFlag(PAGINATION_KEY, true));
   const [autoscroll, setAutoscroll] = useState(() => readStoredFlag(AUTOSCROLL_KEY, false));
   const [scrollSpeed, setScrollSpeed] = useState(readStoredScrollSpeed);
+  // Read by the autoscroll loop, so a speed change applies at once without restarting it.
+  const scrollSpeedRef = useRef(scrollSpeed);
+  scrollSpeedRef.current = scrollSpeed;
+  // One finger on the chart: autoscroll holds still while the user scrolls by hand. (Not
+  // with two, which adjust the speed — that should be felt as it changes.)
+  const touchingRef = useRef(false);
   const [pulse, setPulse] = useState(() => readStoredFlag(PULSE_KEY, true));
   const [scrolling, setScrolling] = useState(false);
   const [scrollEdge, setScrollEdge] = useState({ top: true, bottom: false });
@@ -478,19 +484,28 @@ export default function ConcertModeView({
   }, []);
 
   // Autoscroll loop. scrollTop can round to whole pixels, so keep the fractional position
-  // ourselves; slow speeds would otherwise never advance.
+  // ourselves; slow speeds would otherwise never advance. While the user scrolls by hand
+  // (a finger down, or the scroll still moving from a drag, wheel or button), it holds
+  // still and then carries on from wherever that left it.
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!scrolling || !autoscroll || !continuous || !viewport) return;
     let raf = 0;
     let last = performance.now();
     let pos = viewport.scrollTop;
+    let movedByOthersAt = -Infinity;
     const tick = (now: number) => {
       const dt = Math.min(now - last, 100) / 1000;
       last = now;
-      // Re-sync if something else (a nav button, the user) moved the scroll position.
-      if (Math.abs(viewport.scrollTop - pos) > 2) pos = viewport.scrollTop;
-      pos += scrollSpeed * dt;
+      if (Math.abs(viewport.scrollTop - pos) > 2) {
+        pos = viewport.scrollTop;
+        movedByOthersAt = now;
+      }
+      if (touchingRef.current || now - movedByOthersAt < 250) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      pos += scrollSpeedRef.current * dt;
       viewport.scrollTop = pos;
       if (viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 1) {
         setScrolling(false);
@@ -500,7 +515,7 @@ export default function ConcertModeView({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [scrolling, autoscroll, continuous, scrollSpeed]);
+  }, [scrolling, autoscroll, continuous]);
 
   // How a song is shown: one choice of three, stored as the two (exclusive) flags it's made of.
   const viewMode = pagination ? 'pages' : autoscroll ? 'autoscroll' : 'scroll';
@@ -549,33 +564,56 @@ export default function ConcertModeView({
     storeValue(SCROLL_SPEED_KEY, String(value));
   }, []);
 
-  // Drag-to-set-speed in autoscroll mode. The viewport handles the drag itself (finger
-  // and mouse alike, touch-action: none) so there is no native momentum fighting the
-  // autoscroll loop. On release, the forward speed of the last moments of the drag
-  // becomes the new autoscroll speed; a backward drag or a drag that came to rest
-  // before release just leaves autoscroll paused.
-  const dragRef = useRef<{
-    pointerId: number;
-    startY: number;
-    startScroll: number;
-    moved: boolean;
-    samples: { t: number; y: number }[];
-  } | null>(null);
   const lastGestureEndRef = useRef(0);
-  const dragScrollsManually = autoscroll && continuous;
-
-  // iOS Safari doesn't honour touch-action: none on a scroll container: it pans natively
-  // and sends pointercancel instead of pointerup, so the drag never sets a speed. A
-  // non-passive touchmove that calls preventDefault keeps the gesture ours.
+  // Autoscroll: one finger scrolls natively (the loop holds still meanwhile); dragging two
+  // fingers up or down changes the speed, live, with a bar showing it. Down is faster. Touch
+  // events, not pointer events, so a two-finger move can be kept from panning or zooming.
+  const [speedBar, setSpeedBar] = useState(false);
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!dragScrollsManually || !viewport) return;
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.cancelable) e.preventDefault();
+    if (!autoscroll || !continuous || !viewport) return;
+    let adjust: { y: number; speed: number; active: boolean } | null = null;
+    let hideTimer = 0;
+    const midY = (t: TouchList) => (t[0].clientY + t[1].clientY) / 2;
+    const onStart = (e: TouchEvent) => {
+      touchingRef.current = e.touches.length === 1;
+      adjust = e.touches.length === 2 ? { y: midY(e.touches), speed: scrollSpeedRef.current, active: false } : null;
     };
-    viewport.addEventListener('touchmove', onTouchMove, { passive: false });
-    return () => viewport.removeEventListener('touchmove', onTouchMove);
-  }, [dragScrollsManually]);
+    const onMove = (e: TouchEvent) => {
+      if (!adjust || e.touches.length !== 2) return;
+      if (e.cancelable) e.preventDefault();
+      const dy = midY(e.touches) - adjust.y;
+      // Past the quick menu's two-finger-tap tolerance, so a tap still opens the menu.
+      if (!adjust.active && Math.abs(dy) < 16) return;
+      adjust.active = true;
+      window.clearTimeout(hideTimer);
+      setSpeedBar(true);
+      const speed = adjust.speed + dy * ((SCROLL_SPEED_MAX - SCROLL_SPEED_MIN) / 300);
+      setScrollSpeed(Math.round(Math.min(SCROLL_SPEED_MAX, Math.max(SCROLL_SPEED_MIN, speed))));
+    };
+    const onEnd = (e: TouchEvent) => {
+      touchingRef.current = e.touches.length === 1;
+      if (!adjust || e.touches.length >= 2) return;
+      if (adjust.active) {
+        storeValue(SCROLL_SPEED_KEY, String(scrollSpeedRef.current));
+        hideTimer = window.setTimeout(() => setSpeedBar(false), 1200);
+      }
+      adjust = null;
+    };
+    viewport.addEventListener('touchstart', onStart, { passive: true });
+    viewport.addEventListener('touchmove', onMove, { passive: false });
+    viewport.addEventListener('touchend', onEnd);
+    viewport.addEventListener('touchcancel', onEnd);
+    return () => {
+      viewport.removeEventListener('touchstart', onStart);
+      viewport.removeEventListener('touchmove', onMove);
+      viewport.removeEventListener('touchend', onEnd);
+      viewport.removeEventListener('touchcancel', onEnd);
+      window.clearTimeout(hideTimer);
+      touchingRef.current = false;
+      setSpeedBar(false);
+    };
+  }, [autoscroll, continuous]);
 
   // Two-finger tap opens the quick-actions menu (always centred on screen). Tracked in the capture phase on the song
   // surface so a second finger can cancel the one-finger drag/swipe before it acts.
@@ -680,14 +718,13 @@ export default function ConcertModeView({
     const dx = e.clientX - swipe.x;
     const dy = e.clientY - swipe.y;
     if (!swipe.axis) {
-      // Decide once which way it goes; vertical gestures (scrolling, autoscroll drags) are left alone.
-      if (dragRef.current?.moved || Math.abs(dy) > Math.max(12, Math.abs(dx))) {
+      // Decide once which way it goes; vertical gestures (scrolling) are left alone.
+      if (Math.abs(dy) > Math.max(12, Math.abs(dx))) {
         swipe.axis = 'y';
         return;
       }
       if (Math.abs(dx) < 12) return;
       swipe.axis = 'x';
-      dragRef.current = null;
       setActiveChord(null);
       setSwiping(true);
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -768,8 +805,7 @@ export default function ConcertModeView({
       return;
     }
     const gesture = multiTouchRef.current;
-    // More than one finger: not a drag, swipe or tap.
-    dragRef.current = null;
+    // More than one finger: not a swipe or tap.
     cancelSongSwipe();
     if (!gesture) return;
     gesture.maxTouches = Math.max(gesture.maxTouches, touches.size);
@@ -850,56 +886,6 @@ export default function ConcertModeView({
     window.addEventListener('pointerdown', onPress, true);
     return () => window.removeEventListener('pointerdown', onPress, true);
   }, [showSongNavigator]);
-
-  const onViewportPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragScrollsManually || e.button !== 0) return;
-    if (touchesRef.current.size > 1) return;
-    if ((e.target as HTMLElement).closest('button, a, input, label, select, [role="button"]')) return;
-    dragRef.current = {
-      pointerId: e.pointerId,
-      startY: e.clientY,
-      startScroll: e.currentTarget.scrollTop,
-      moved: false,
-      samples: [{ t: e.timeStamp, y: e.clientY }],
-    };
-  }, [dragScrollsManually]);
-
-  const onViewportPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved) {
-      if (Math.abs(dy) < 8) return;
-      drag.moved = true;
-      setScrolling(false);
-      e.currentTarget.setPointerCapture(e.pointerId);
-    }
-    e.currentTarget.scrollTop = drag.startScroll - dy;
-    drag.samples.push({ t: e.timeStamp, y: e.clientY });
-    // Only the recent past matters for the release speed.
-    while (drag.samples.length > 2 && e.timeStamp - drag.samples[0].t > 300) drag.samples.shift();
-  }, []);
-
-  const onViewportPointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId) return;
-    dragRef.current = null;
-    if (!drag.moved) return;
-    lastGestureEndRef.current = Date.now();
-    if (e.type === 'pointercancel') return;
-    // Measure over the last ~150ms; holding still before letting go reads as zero.
-    const now = e.timeStamp;
-    const recent = drag.samples.filter((s) => now - s.t <= 150);
-    if (recent.length < 2) return;
-    const first = recent[0];
-    const last = recent[recent.length - 1];
-    const dt = (last.t - first.t) / 1000;
-    if (dt <= 0) return;
-    const forward = (first.y - last.y) / dt; // finger moving up = scrolling forward
-    if (forward < SCROLL_SPEED_MIN) return;
-    changeScrollSpeed(Math.round(Math.min(forward, SCROLL_SPEED_MAX)));
-    setScrolling(true);
-  }, [changeScrollSpeed]);
 
   const goToSong = useCallback((index: number) => {
     targetPageRef.current = 0;
@@ -1316,17 +1302,9 @@ export default function ConcertModeView({
 
           <div className="concert-swipe-lane concert-chart-lane" ref={chartLaneRef}>
             <div
-              className={`concert-page-viewport${continuous ? ' concert-page-viewport--scroll' : ''}${dragScrollsManually ? ' concert-page-viewport--drag' : ''}`}
+              className={`concert-page-viewport${continuous ? ' concert-page-viewport--scroll' : ''}`}
               ref={viewportRef}
               onScroll={continuous ? updateScrollEdge : undefined}
-              // With autoscroll on, a drag sets the speed (see onViewportPointer*). Without
-              // it, native scrolling applies and a wheel/touch just pauses.
-              onPointerDown={onViewportPointerDown}
-              onPointerMove={onViewportPointerMove}
-              onPointerUp={onViewportPointerEnd}
-              onPointerCancel={onViewportPointerEnd}
-              onTouchMove={continuous && !dragScrollsManually ? () => setScrolling(false) : undefined}
-              onWheel={continuous ? () => setScrolling(false) : undefined}
             >
               <div
                 className="concert-page-content"
@@ -1396,6 +1374,18 @@ export default function ConcertModeView({
                 )}
               </div>
             </div>
+          {speedBar && (
+            <div className="concert-speed-bar" role="status" aria-label={`Autoscroll speed ${scrollSpeed}`}>
+              <span className="concert-speed-bar-label">Speed</span>
+              <div className="concert-speed-bar-track">
+                <div
+                  className="concert-speed-bar-fill"
+                  style={{ height: `${((scrollSpeed - SCROLL_SPEED_MIN) / (SCROLL_SPEED_MAX - SCROLL_SPEED_MIN)) * 100}%` }}
+                />
+              </div>
+              <span className="concert-speed-bar-value">{scrollSpeed}</span>
+            </div>
+          )}
           {tapFlash && (
             <div
               key={tapFlash.n}
