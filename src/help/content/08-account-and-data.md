@@ -19,6 +19,7 @@ Open **Profile** from the top bar.
 The **Preferences** card holds settings that are saved to your account, so they apply on every device you sign in on.
 
 - **Concert mode → Beat one colour** — the colour of the first beat of each bar in the concert-mode beat flash. Pick **Same as other beats** to turn the highlight off.
+- **Concert mode → Tap to turn pages** — whether tapping the chart turns the page (or, when scrolling without autoscroll, scrolls up or down). Tapping to start and pause autoscroll isn't affected. Turn it off if stray taps get in your way; swiping, the keys and the on-screen buttons still work.
 
 ## Storage
 

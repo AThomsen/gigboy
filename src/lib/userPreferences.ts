@@ -7,6 +7,8 @@ export type DownbeatColor = 'amber' | 'red' | 'green' | 'blue' | 'purple' | 'acc
 export interface UserPreferences {
   /** Colour of beat one in the concert-mode beat flash. 'accent' = same as the other beats. */
   concertDownbeatColor?: DownbeatColor;
+  /** Whether tapping the chart turns pages in concert mode's page mode. Default on. */
+  concertTapToNavigate?: boolean;
 }
 
 export const DEFAULT_DOWNBEAT_COLOR: DownbeatColor = 'amber';

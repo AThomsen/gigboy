@@ -977,6 +977,8 @@ export default function ConcertModeView({
       setScrolling((v) => !v);
       return;
     }
+    // A personal preference: taps can be kept from turning pages / scrolling.
+    if (user?.preferences?.concertTapToNavigate === false) return;
     // Pages turn sideways, so the left half goes back and the right half forward. Scrolling
     // runs up and down, so there it's the upper and lower half.
     const rect = (chartLaneRef.current ?? e.currentTarget).getBoundingClientRect();
@@ -987,7 +989,7 @@ export default function ConcertModeView({
     else goToNextPage();
     const side = continuous ? (back ? 'top' : 'bottom') : (back ? 'left' : 'right');
     setTapFlash((flash) => ({ side, n: (flash?.n ?? 0) + 1 }));
-  }, [activeChord, autoscroll, continuous, goToNextPage, goToPrevPage]);
+  }, [activeChord, autoscroll, continuous, goToNextPage, goToPrevPage, user?.preferences?.concertTapToNavigate]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

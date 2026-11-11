@@ -18,6 +18,7 @@ export default function ProfilePreferences() {
   const [saving, setSaving] = useState(false);
   const prefs: UserPreferences = user?.preferences ?? {};
   const downbeatColor = prefs.concertDownbeatColor ?? DEFAULT_DOWNBEAT_COLOR;
+  const tapToNavigate = prefs.concertTapToNavigate !== false;
 
   const save = async (update: UserPreferences) => {
     setSaving(true);
@@ -64,6 +65,24 @@ export default function ProfilePreferences() {
               {DOWNBEAT_COLOR_OPTIONS.find((o) => o.value === downbeatColor)?.label}
             </span>
           </div>
+        </div>
+        <div className="profile-pref-row">
+          <div className="profile-pref-label" id="pref-tap-label">
+            Tap to turn pages
+            <span className="profile-settings-muted">
+              Tap the chart to turn pages (left half back, right half forward), or when scrolling, to scroll (upper half up, lower half down). Turn off if stray taps get in your way; swipes, keys and the buttons still work.
+            </span>
+          </div>
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={tapToNavigate}
+              disabled={saving}
+              aria-labelledby="pref-tap-label"
+              onChange={(e) => { void save({ concertTapToNavigate: e.target.checked }); }}
+            />
+            {tapToNavigate ? 'On' : 'Off'}
+          </label>
         </div>
       </div>
     </section>

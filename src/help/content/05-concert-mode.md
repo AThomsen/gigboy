@@ -32,6 +32,8 @@ Going past the last page of a song takes you to the start of the next song.
 
 With pages turned off (and no autoscroll), the song scrolls instead: tap the lower half of the chart to scroll down and the upper half to scroll up. Either way, the half you tapped flashes briefly.
 
+If stray taps turn pages when you don't want them to, switch off **Tap to turn pages** under Preferences on your profile page. Tapping then doesn't turn pages; the other ways still work.
+
 **Swipe left** to go forward and **swipe right** to go back: with pages that's a page at a time, carrying on into the next or previous song at either end (a song is always entered at its start); when scrolling it's a whole song at a time. The chart follows your finger with the next (or previous) page or song coming into view beside it; let go before it's far enough and it springs back. Swiping past the first or last song shows **Start of set** or **End of set**.
 
 ## Text size
