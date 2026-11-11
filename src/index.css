@@ -7670,6 +7670,29 @@ input, select, textarea { font: inherit; color: var(--text); }
   flex-direction: column;
 }
 
+/* A tap that turns a page or scrolls briefly lights up the half it acted on. */
+.concert-tap-flash {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  animation: concert-tap-flash 0.4s ease-out forwards;
+}
+.concert-tap-flash--left { inset: 0 50% 0 0; }
+.concert-tap-flash--right { inset: 0 0 0 50%; }
+.concert-tap-flash--top { inset: 0 0 50% 0; }
+.concert-tap-flash--bottom { inset: 50% 0 0 0; }
+
+@keyframes concert-tap-flash {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* In page mode, the neighbouring page: a copy of the content, clipped to the viewport. */
+.concert-page-peek {
+  overflow: hidden;
+}
+
 .concert-swipe-peek--prev { transform: translateX(calc(-100% - 24px)); }
 .concert-swipe-peek--next { transform: translateX(calc(100% + 24px)); }
 
@@ -8083,9 +8106,6 @@ input, select, textarea { font: inherit; color: var(--text); }
 
 .concert-page-content {
   width: 100%;
-  /* The clip animates with the slide: when paging back the new page's clip is tighter,
-     and applying it instantly would blank the screen until the content slid into place. */
-  transition: transform 0.28s ease, clip-path 0.28s ease;
   will-change: transform;
 }
 
@@ -8109,7 +8129,6 @@ input, select, textarea { font: inherit; color: var(--text); }
 }
 
 .concert-page-viewport--scroll .concert-page-content {
-  transition: none;
   padding-bottom: 5rem;
 }
 

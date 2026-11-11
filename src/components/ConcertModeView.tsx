@@ -291,16 +291,6 @@ export default function ConcertModeView({
     }
     setCurrentPageInSong(targetPageRef.current);
     targetPageRef.current = 0;
-    // Show the new song's page in place rather than sliding from the old song's offset.
-    // The page reset re-renders after this, so restore the transition a frame later.
-    const content = contentRef.current;
-    if (content && !continuous) {
-      content.style.transition = 'none';
-      requestAnimationFrame(() => {
-        void content.offsetHeight;
-        content.style.transition = '';
-      });
-    }
     setScrolling(false);
     setActiveChord(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -390,6 +380,72 @@ export default function ConcertModeView({
   useLayoutEffect(() => {
     if (!continuous && viewportRef.current) viewportRef.current.scrollTop = 0;
   }, [continuous]);
+
+  // Where the content sits to show a page: shifted up to the page's top and clipped below
+  // its bottom, so the next page's first lines don't peek in.
+  const pageStyle = useCallback((page: number) => {
+    const offsetY = pageOffsets[page] ?? 0;
+    // Read the content's *live* height rather than trusting the cached
+    // snapshot from the last measurement pass. Content can shrink after that
+    // snapshot was taken (e.g. hand-note data arriving and un-pinning lines
+    // that were temporarily forced to single-row layout) without a resize
+    // event ever re-running measure() — clipping against a stale, too-tall
+    // snapshot can clip away an entire page's visible content.
+    const liveScrollHeight = contentRef.current?.scrollHeight ?? contentScrollHeightRef.current;
+    const nextOffsetY = pageOffsets[page + 1] ?? liveScrollHeight;
+    // Guard against a broken/non-monotonic offset pair (e.g. a stale page
+    // index read against a different song's offsets) ever clipping away an
+    // entire page — better to show unclipped content than render nothing.
+    const bottomClip = nextOffsetY > offsetY ? Math.max(0, liveScrollHeight - nextOffsetY) : 0;
+    return { transform: `translateY(${-offsetY}px)`, clipPath: `inset(0 0 ${bottomClip}px 0)` };
+  }, [pageOffsets]);
+
+  // A static copy of the content showing `page`, placed exactly over the real content.
+  const clonePage = useCallback((page: number) => {
+    const content = contentRef.current!;
+    const copy = content.cloneNode(true) as HTMLElement;
+    Object.assign(copy.style, pageStyle(page), {
+      position: 'absolute',
+      top: `${content.offsetTop}px`,
+      left: `${content.offsetLeft}px`,
+      width: `${content.offsetWidth}px`,
+      pointerEvents: 'none',
+    });
+    // Cloning a canvas doesn't copy its drawing (the hand-written notes).
+    const canvases = copy.querySelectorAll('canvas');
+    content.querySelectorAll('canvas').forEach((canvas, i) => canvases[i]?.getContext('2d')?.drawImage(canvas, 0, 0));
+    return copy;
+  }, [pageStyle]);
+  // Set when a swipe has already slid the new page into place, so it isn't flipped in again.
+  const skipPageFlipRef = useRef(false);
+
+  // Pages turn sideways, like a book: a copy of the old page slides out while the new one
+  // slides in from the other side. Only for a page turn within a song — not a song change
+  // or a re-measure that happens to move the page.
+  const shownPageRef = useRef({ index: currentIndex, page: currentPageInSong, offsets: pageOffsets });
+  useLayoutEffect(() => {
+    const prev = shownPageRef.current;
+    shownPageRef.current = { index: currentIndex, page: currentPageInSong, offsets: pageOffsets };
+    const skip = skipPageFlipRef.current;
+    skipPageFlipRef.current = false;
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (
+      skip || continuous || !viewport || !content || prev.page === currentPageInSong
+      || prev.index !== currentIndex || prev.offsets !== pageOffsets
+    ) return;
+    const dir = currentPageInSong > prev.page ? 1 : -1;
+    const from = pageStyle(prev.page);
+    const to = pageStyle(currentPageInSong);
+    const old = clonePage(prev.page);
+    viewport.appendChild(old);
+    const timing = { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' };
+    old.animate(
+      [{ transform: from.transform }, { transform: `translateX(${-dir * 100}%) ${from.transform}` }],
+      timing,
+    ).onfinish = () => old.remove();
+    content.animate([{ transform: `translateX(${dir * 100}%) ${to.transform}` }, { transform: to.transform }], timing);
+  }, [currentPageInSong, currentIndex, pageOffsets, continuous, pageStyle, clonePage]);
 
   const pinnedLineIds = useMemo(
     () => extractPinnedLineIds(handNotes.visibleNotes),
@@ -579,14 +635,22 @@ export default function ConcertModeView({
       e.stopPropagation();
     }
   }, []);
-  // Swipe left/right to change song. The chart follows the finger with the neighbouring
-  // song's peeking in beside it; past a threshold it slides on to it, otherwise it springs
-  // back (and only gives a little where there's no song). The title doesn't follow: as soon
-  // as the swipe is clear, it snaps over to that song's, or to "start/end of set".
+  // Swipe left/right to change song — or in page mode, page, going on to the neighbouring
+  // song past either end. The chart follows the finger with the next page or song peeking in
+  // beside it; past a threshold it slides on to it, otherwise it springs back (and only gives
+  // a little where there's nothing). The title doesn't follow: as soon as the swipe is clearly
+  // heading for another song, it snaps over to that song's, or to "start/end of set".
   const songSwipeRef = useRef<{
     pointerId: number; x: number; y: number; dx: number; axis: 'x' | 'y' | null; titleDir: number;
   } | null>(null);
   const [swiping, setSwiping] = useState(false);
+  // In page mode, a neighbouring page of the same song is what peeks in (a copy, like the flip).
+  const pageThatWay = (dir: number) => !continuous && pageOffsets[currentPageInSong + dir] !== undefined;
+  const pagePeeksRef = useRef<HTMLElement[]>([]);
+  const removePagePeeks = useCallback(() => {
+    pagePeeksRef.current.forEach((peek) => peek.remove());
+    pagePeeksRef.current = [];
+  }, []);
 
   const showSwipeTitle = useCallback((dir: number) => {
     const title = titleLaneRef.current;
@@ -609,8 +673,11 @@ export default function ConcertModeView({
 
   const springBack = useCallback((dx: number) => {
     showSwipeTitle(0);
-    slideChart(dx, 0, () => setSwiping(false));
-  }, [showSwipeTitle, slideChart]);
+    slideChart(dx, 0, () => {
+      setSwiping(false);
+      removePagePeeks();
+    });
+  }, [showSwipeTitle, slideChart, removePagePeeks]);
 
   const cancelSongSwipe = useCallback(() => {
     const swipe = songSwipeRef.current;
@@ -635,17 +702,26 @@ export default function ConcertModeView({
       setActiveChord(null);
       setSwiping(true);
       e.currentTarget.setPointerCapture(e.pointerId);
+      ([-1, 1] as const).forEach((side) => {
+        if (!pageThatWay(side) || !chartLaneRef.current) return;
+        const peek = document.createElement('div');
+        peek.className = `concert-swipe-peek concert-swipe-peek--${side < 0 ? 'prev' : 'next'} concert-page-peek`;
+        peek.appendChild(clonePage(currentPageInSong + side));
+        chartLaneRef.current.appendChild(peek);
+        pagePeeksRef.current.push(peek);
+      });
     }
     const dir = dx < 0 ? 1 : -1;
-    const hasSong = Boolean(songs[currentIndex + dir]);
-    swipe.dx = hasSong ? dx : dx * 0.2;
+    const page = pageThatWay(dir);
+    swipe.dx = page || songs[currentIndex + dir] ? dx : dx * 0.2;
     if (chartLaneRef.current) chartLaneRef.current.style.transform = `translateX(${swipe.dx}px)`;
-    const titleDir = Math.abs(dx) > 40 ? dir : 0;
+    const titleDir = Math.abs(dx) > 40 && !page ? dir : 0;
     if (titleDir !== swipe.titleDir) {
       swipe.titleDir = titleDir;
       showSwipeTitle(titleDir);
     }
-  }, [currentIndex, songs, showSwipeTitle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, songs, showSwipeTitle, clonePage, continuous, pageOffsets, currentPageInSong]);
 
   const endSongSwipe = useCallback((e: React.PointerEvent) => {
     const swipe = songSwipeRef.current;
@@ -657,22 +733,31 @@ export default function ConcertModeView({
     e.stopPropagation();
     const dir = swipe.dx < 0 ? 1 : -1;
     const width = chartLaneRef.current?.offsetWidth ?? 0;
-    if (e.type === 'pointercancel' || !songs[currentIndex + dir] || Math.abs(swipe.dx) < Math.min(width / 4, 120)) {
+    const page = pageThatWay(dir);
+    if (e.type === 'pointercancel' || !(page || songs[currentIndex + dir]) || Math.abs(swipe.dx) < Math.min(width / 4, 120)) {
       springBack(swipe.dx);
       return;
     }
-    // Slide on until the peeking song sits where the chart was, then make it the current one.
-    // Dropping the swiping class in the same commit lets the title reset without animating.
-    showSwipeTitle(dir);
+    // Slide on until the peeking page or song sits where the chart was, then make it the
+    // current one. Dropping the swiping class in the same commit lets the title reset without
+    // animating. A song is entered at its start, whichever way the swipe went.
+    if (!page) showSwipeTitle(dir);
     slideChart(swipe.dx, -dir * (width + PEEK_GAP), () => {
       flushSync(() => {
-        targetPageRef.current = 0;
-        setCurrentIndex(currentIndex + dir);
+        if (page) {
+          skipPageFlipRef.current = true;
+          setCurrentPageInSong((p) => p + dir);
+        } else {
+          targetPageRef.current = 0;
+          setCurrentIndex(currentIndex + dir);
+        }
         setSwiping(false);
       });
+      removePagePeeks();
       showSwipeTitle(0);
     });
-  }, [currentIndex, songs, slideChart, springBack, showSwipeTitle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, songs, slideChart, springBack, showSwipeTitle, removePagePeeks, continuous, pageOffsets, currentPageInSong]);
 
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
   const multiTouchRef = useRef<{
@@ -874,6 +959,9 @@ export default function ConcertModeView({
     }
   }, [continuous, currentPageInSong, currentIndex]);
 
+  // A brief, faint flash over the half of the chart a tap acted on.
+  const [tapFlash, setTapFlash] = useState<{ side: 'left' | 'right' | 'top' | 'bottom'; n: number } | null>(null);
+
   const handleSurfaceTap = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, label, select, [role="button"]')) return;
@@ -884,15 +972,21 @@ export default function ConcertModeView({
       setActiveChord(null);
       return;
     }
-    if (continuous) {
+    if (autoscroll && continuous) {
       // Tap anywhere to start/pause autoscroll.
-      if (autoscroll) setScrolling((v) => !v);
+      setScrolling((v) => !v);
       return;
     }
-    // Tap the upper half to go back a page, the lower half to go forward.
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (e.clientY < rect.top + rect.height / 2) goToPrevPage();
+    // Pages turn sideways, so the left half goes back and the right half forward. Scrolling
+    // runs up and down, so there it's the upper and lower half.
+    const rect = (chartLaneRef.current ?? e.currentTarget).getBoundingClientRect();
+    const back = continuous
+      ? e.clientY < rect.top + rect.height / 2
+      : e.clientX < rect.left + rect.width / 2;
+    if (back) goToPrevPage();
     else goToNextPage();
+    const side = continuous ? (back ? 'top' : 'bottom') : (back ? 'left' : 'right');
+    setTapFlash((flash) => ({ side, n: (flash?.n ?? 0) + 1 }));
   }, [activeChord, autoscroll, continuous, goToNextPage, goToPrevPage]);
 
   useEffect(() => {
@@ -1020,7 +1114,7 @@ export default function ConcertModeView({
   const renderSwipePeeks = (render: (song: Song, index: number) => React.ReactNode, showSetEdges = false) => swiping
     && ([-1, 1] as const).map((dir) => {
       const song = songs[currentIndex + dir];
-      if (!song && !showSetEdges) return null;
+      if ((!song && !showSetEdges) || (!showSetEdges && pageThatWay(dir))) return null;
       return (
         <div key={dir} className={`concert-swipe-peek concert-swipe-peek--${dir < 0 ? 'prev' : 'next'}`} aria-hidden="true">
           {song ? render(song, currentIndex + dir) : (
@@ -1237,28 +1331,7 @@ export default function ConcertModeView({
               <div
                 className="concert-page-content"
                 ref={contentRef}
-                style={continuous ? undefined : (() => {
-                  const offsetY = pageOffsets[currentPageInSong] ?? 0;
-                  // Read the content's *live* height rather than trusting the cached
-                  // snapshot from the last measurement pass. Content can shrink after that
-                  // snapshot was taken (e.g. hand-note data arriving and un-pinning lines
-                  // that were temporarily forced to single-row layout) without a resize
-                  // event ever re-running measure() — clipping against a stale, too-tall
-                  // snapshot can clip away an entire page's visible content.
-                  const liveScrollHeight = contentRef.current?.scrollHeight ?? contentScrollHeightRef.current;
-                  const nextOffsetY = pageOffsets[currentPageInSong + 1] ?? liveScrollHeight;
-                  // Guard against a broken/non-monotonic offset pair (e.g. a stale page
-                  // index read against a different song's offsets) ever clipping away an
-                  // entire page — better to show unclipped content than render nothing.
-                  const bottomClip = nextOffsetY > offsetY
-                    ? Math.max(0, liveScrollHeight - nextOffsetY)
-                    : 0;
-                  return {
-                    transform: `translateY(${-offsetY}px)`,
-                    // Always an inset() (0 on the last page) so clip-path can transition.
-                    clipPath: `inset(0 0 ${bottomClip}px 0)`,
-                  };
-                })()}
+                style={continuous ? undefined : pageStyle(currentPageInSong)}
               >
                 <div className="song-notes-stage">
                   <ChordDisplay
@@ -1323,6 +1396,14 @@ export default function ConcertModeView({
                 )}
               </div>
             </div>
+          {tapFlash && (
+            <div
+              key={tapFlash.n}
+              className={`concert-tap-flash concert-tap-flash--${tapFlash.side}`}
+              onAnimationEnd={() => setTapFlash(null)}
+              aria-hidden="true"
+            />
+          )}
           {renderSwipePeeks((song) => (
             <div className="concert-page-viewport">
               <div className="concert-page-content song-notes-stage">
