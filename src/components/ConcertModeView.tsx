@@ -201,8 +201,9 @@ export default function ConcertModeView({
   // Read by the autoscroll loop, so a speed change applies at once without restarting it.
   const scrollSpeedRef = useRef(scrollSpeed);
   scrollSpeedRef.current = scrollSpeed;
-  // One finger on the chart: autoscroll holds still while the user scrolls by hand. (Not
-  // with two, which adjust the speed — that should be felt as it changes.)
+  // One finger moving on the chart: autoscroll holds still while the user scrolls by hand.
+  // A finger merely resting there (steadying the tablet) doesn't count, and neither do two,
+  // which adjust the speed — that should be felt as it changes.
   const touchingRef = useRef(false);
   const [pulse, setPulse] = useState(() => readStoredFlag(PULSE_KEY, true));
   const [scrolling, setScrolling] = useState(false);
@@ -497,11 +498,12 @@ export default function ConcertModeView({
     const tick = (now: number) => {
       const dt = Math.min(now - last, 100) / 1000;
       last = now;
-      if (Math.abs(viewport.scrollTop - pos) > 2) {
-        pos = viewport.scrollTop;
-        movedByOthersAt = now;
-      }
+      // Something else moved the scroll (a drag, its momentum, the wheel, a button). While
+      // already holding, even a slow drift counts, so it's followed to the very end.
+      const holding = touchingRef.current || now - movedByOthersAt < 250;
+      if (Math.abs(viewport.scrollTop - pos) > (holding ? 0.5 : 2)) movedByOthersAt = now;
       if (touchingRef.current || now - movedByOthersAt < 250) {
+        pos = viewport.scrollTop;
         raf = requestAnimationFrame(tick);
         return;
       }
@@ -564,10 +566,14 @@ export default function ConcertModeView({
     storeValue(SCROLL_SPEED_KEY, String(value));
   }, []);
 
+  // When a drag, swipe or multi-finger gesture last ended: the click that follows isn't a tap.
   const lastGestureEndRef = useRef(0);
+
   // Autoscroll: one finger scrolls natively (the loop holds still meanwhile); dragging two
   // fingers up or down changes the speed, live, with a bar showing it. Down is faster. Touch
   // events, not pointer events, so a two-finger move can be kept from panning or zooming.
+  // Only fingers on the chart count (targetTouches): a thumb on the header or footer mustn't
+  // turn a scroll into a speed change, and the chart never hears such a finger lift.
   const [speedBar, setSpeedBar] = useState(false);
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -576,13 +582,16 @@ export default function ConcertModeView({
     let hideTimer = 0;
     const midY = (t: TouchList) => (t[0].clientY + t[1].clientY) / 2;
     const onStart = (e: TouchEvent) => {
-      touchingRef.current = e.touches.length === 1;
-      adjust = e.touches.length === 2 ? { y: midY(e.touches), speed: scrollSpeedRef.current, active: false } : null;
+      touchingRef.current = false;
+      const fingers = e.targetTouches;
+      adjust = fingers.length === 2 ? { y: midY(fingers), speed: scrollSpeedRef.current, active: false } : null;
     };
     const onMove = (e: TouchEvent) => {
-      if (!adjust || e.touches.length !== 2) return;
+      const fingers = e.targetTouches;
+      if (fingers.length === 1) touchingRef.current = true;
+      if (!adjust || fingers.length !== 2) return;
       if (e.cancelable) e.preventDefault();
-      const dy = midY(e.touches) - adjust.y;
+      const dy = midY(fingers) - adjust.y;
       // Past the quick menu's two-finger-tap tolerance, so a tap still opens the menu.
       if (!adjust.active && Math.abs(dy) < 16) return;
       adjust.active = true;
@@ -592,10 +601,10 @@ export default function ConcertModeView({
       setScrollSpeed(Math.round(Math.min(SCROLL_SPEED_MAX, Math.max(SCROLL_SPEED_MIN, speed))));
     };
     const onEnd = (e: TouchEvent) => {
-      touchingRef.current = e.touches.length === 1;
-      if (!adjust || e.touches.length >= 2) return;
+      touchingRef.current = false;
+      if (!adjust || e.targetTouches.length >= 2) return;
       if (adjust.active) {
-        storeValue(SCROLL_SPEED_KEY, String(scrollSpeedRef.current));
+        changeScrollSpeed(scrollSpeedRef.current); // saves it
         hideTimer = window.setTimeout(() => setSpeedBar(false), 1200);
       }
       adjust = null;
@@ -613,7 +622,7 @@ export default function ConcertModeView({
       touchingRef.current = false;
       setSpeedBar(false);
     };
-  }, [autoscroll, continuous]);
+  }, [autoscroll, continuous, changeScrollSpeed]);
 
   // Two-finger tap opens the quick-actions menu (always centred on screen). Tracked in the capture phase on the song
   // surface so a second finger can cancel the one-finger drag/swipe before it acts.
@@ -786,6 +795,9 @@ export default function ConcertModeView({
   }, [currentIndex, songs, slideChart, springBack, showSwipeTitle, removePagePeeks, continuous, pageOffsets, currentPageInSong]);
 
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
+  // Where the last press on the chart started: a click that ends far from it was a drag
+  // (e.g. selecting text with the mouse), not a tap.
+  const pressRef = useRef<{ x: number; y: number } | null>(null);
   const multiTouchRef = useRef<{
     start: number;
     maxTouches: number;
@@ -793,6 +805,7 @@ export default function ConcertModeView({
   } | null>(null);
 
   const onSurfacePointerDownCapture = useCallback((e: React.PointerEvent) => {
+    pressRef.current = { x: e.clientX, y: e.clientY };
     if (e.pointerType !== 'touch') return;
     const touches = touchesRef.current;
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -940,7 +953,9 @@ export default function ConcertModeView({
   const handleSurfaceTap = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, label, select, [role="button"]')) return;
-    // A drag (which sets the autoscroll speed), a swipe or a multi-finger gesture is not a tap.
+    // A drag, a swipe or a multi-finger gesture is not a tap.
+    const press = pressRef.current;
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) return;
     if (Date.now() - lastGestureEndRef.current < 400) return;
     if ((multiTouchRef.current?.maxTouches ?? 0) > 1) return;
     if (activeChord) {
@@ -1256,7 +1271,7 @@ export default function ConcertModeView({
                         type="range"
                         min={SCROLL_SPEED_MIN}
                         max={SCROLL_SPEED_MAX}
-                        step={5}
+                        step={1}
                         value={scrollSpeed}
                         onChange={(e) => changeScrollSpeed(Number(e.target.value))}
                         aria-label="Autoscroll speed"
