@@ -502,25 +502,14 @@ export default function ConcertModeView({
     return () => cancelAnimationFrame(raf);
   }, [scrolling, autoscroll, continuous, scrollSpeed]);
 
-  const changePagination = useCallback((on: boolean) => {
-    setPagination(on);
-    storeValue(PAGINATION_KEY, on ? '1' : '0');
-    if (on) {
-      setAutoscroll(false);
-      setScrolling(false);
-      storeValue(AUTOSCROLL_KEY, '0');
-    }
-  }, []);
-
-  const changeAutoscroll = useCallback((on: boolean) => {
-    setAutoscroll(on);
-    storeValue(AUTOSCROLL_KEY, on ? '1' : '0');
-    if (on) {
-      setPagination(false);
-      storeValue(PAGINATION_KEY, '0');
-    } else {
-      setScrolling(false);
-    }
+  // How a song is shown: one choice of three, stored as the two (exclusive) flags it's made of.
+  const viewMode = pagination ? 'pages' : autoscroll ? 'autoscroll' : 'scroll';
+  const changeViewMode = useCallback((mode: 'pages' | 'scroll' | 'autoscroll') => {
+    setPagination(mode === 'pages');
+    setAutoscroll(mode === 'autoscroll');
+    setScrolling(false);
+    storeValue(PAGINATION_KEY, mode === 'pages' ? '1' : '0');
+    storeValue(AUTOSCROLL_KEY, mode === 'autoscroll' ? '1' : '0');
   }, []);
 
   const changePulse = useCallback((on: boolean) => {
@@ -1245,22 +1234,25 @@ export default function ConcertModeView({
               </button>
               {showSettings && (
                 <div className="concert-settings-panel" role="dialog" aria-label="Concert settings">
-                  <label className="toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={pagination}
-                      onChange={(e) => changePagination(e.target.checked)}
-                    />
-                    Pagination
-                  </label>
-                  <label className="toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={autoscroll}
-                      onChange={(e) => changeAutoscroll(e.target.checked)}
-                    />
-                    Autoscroll
-                  </label>
+                  <div className="concert-session-toggle" role="radiogroup" aria-label="Show the song as">
+                    {(['pages', 'scroll', 'autoscroll'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={viewMode === mode}
+                        className={viewMode === mode ? 'is-active' : ''}
+                        onClick={() => changeViewMode(mode)}
+                        title={
+                          mode === 'pages' ? 'Split the song into pages you turn'
+                            : mode === 'scroll' ? 'One long page you scroll yourself'
+                              : 'One long page that scrolls by itself'
+                        }
+                      >
+                        {mode === 'pages' ? 'Pages' : mode === 'scroll' ? 'Scroll' : 'Autoscroll'}
+                      </button>
+                    ))}
+                  </div>
                   {canUseMetronome && (
                     <label className="toggle-label">
                       <input
