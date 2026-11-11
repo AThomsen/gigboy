@@ -744,7 +744,10 @@ export default function ConcertModeView({
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setQuickMenu(false);
+      if (e.key === 'Escape') {
+        e.preventDefault(); // handled: don't also leave concert mode
+        setQuickMenu(false);
+      }
     };
     document.addEventListener('pointerdown', onPress, true);
     document.addEventListener('keydown', onKey);
@@ -905,9 +908,10 @@ export default function ConcertModeView({
       }
 
       // Esc closes whatever is open (the menus close themselves); with nothing open, it
-      // leaves concert mode.
+      // leaves concert mode. A menu that closed on this Esc marks it handled: its state may
+      // already read closed here, since React applies that update before this listener runs.
       if (event.key === 'Escape') {
-        if (quickMenu || showSettings || activeChord || showIntro) return;
+        if (event.defaultPrevented || quickMenu || showSettings || activeChord || showIntro) return;
         if (showSongNavigator) setShowSongNavigator(false);
         else navigate(backRoute);
         return;
@@ -963,7 +967,10 @@ export default function ConcertModeView({
       if (!settingsRef.current?.contains(e.target as Node)) setShowSettings(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowSettings(false);
+      if (e.key === 'Escape') {
+        e.preventDefault(); // handled: don't also leave concert mode
+        setShowSettings(false);
+      }
     };
     document.addEventListener('pointerdown', onPress);
     document.addEventListener('keydown', onKey);
@@ -1445,7 +1452,11 @@ export default function ConcertModeView({
           onPointerDown={onIntroPointerDown}
           onPointerUp={onIntroPointerEnd}
           onPointerCancel={onIntroPointerEnd}
-          onKeyDown={(e) => { if (e.key === 'Escape') dismissIntro(); }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault(); // handled: don't also leave concert mode
+            dismissIntro();
+          }}
         >
           <div className="concert-intro-card">
             <div className="concert-intro-fingers" aria-hidden="true">
