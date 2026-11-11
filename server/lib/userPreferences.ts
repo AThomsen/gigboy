@@ -9,6 +9,8 @@ export type DownbeatColor = (typeof DOWNBEAT_COLORS)[number];
 export interface UserPreferences {
   /** Colour of beat one in the concert-mode beat flash. 'accent' = same as the other beats. */
   concertDownbeatColor?: DownbeatColor;
+  /** Whether tapping the chart turns pages in concert mode's page mode. Default on. */
+  concertTapToNavigate?: boolean;
 }
 
 export function sanitizeUserPreferences(input: unknown): UserPreferences {
@@ -19,5 +21,6 @@ export function sanitizeUserPreferences(input: unknown): UserPreferences {
     && (DOWNBEAT_COLORS as readonly string[]).includes(raw.concertDownbeatColor)) {
     prefs.concertDownbeatColor = raw.concertDownbeatColor as DownbeatColor;
   }
+  if (typeof raw.concertTapToNavigate === 'boolean') prefs.concertTapToNavigate = raw.concertTapToNavigate;
   return prefs;
 }
