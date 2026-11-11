@@ -7670,6 +7670,44 @@ input, select, textarea { font: inherit; color: var(--text); }
   flex-direction: column;
 }
 
+/* Autoscroll speed, shown while two fingers drag it up (slower) or down (faster). It
+   fills downwards, the way the fingers move to speed up. */
+.concert-speed-bar {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: var(--space-lg);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.concert-speed-bar-track {
+  width: 8px;
+  height: min(40vh, 240px);
+  border-radius: var(--radius-pill);
+  background: var(--border);
+  overflow: hidden;
+}
+.concert-speed-bar-fill {
+  width: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+.concert-speed-bar-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* A tap that turns a page or scrolls briefly lights up the half it acted on. */
 .concert-tap-flash {
   position: absolute;
@@ -8122,19 +8160,6 @@ input, select, textarea { font: inherit; color: var(--text); }
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Autoscroll: drags are handled in JS (they set the scroll speed), so suppress native
-   panning and text selection while dragging. */
-.concert-page-viewport--drag {
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  cursor: grab;
-}
-
-.concert-page-viewport--drag:active {
-  cursor: grabbing;
 }
 
 .concert-page-viewport--scroll .concert-page-content {

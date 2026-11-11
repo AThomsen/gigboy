@@ -69,7 +69,11 @@ All settings are remembered per device.
 
 ### Autoscroll
 
-With autoscroll on, a green **down-pointing play** button appears at the top. Press it, or just **tap the chart**, to start and pause the scrolling. You can also set the speed by **dragging the chart** with a finger or the mouse: drag it along at the pace you want and let go, and autoscroll carries on at that speed. Drag backwards, or hold still before letting go, to move the chart without starting it. Scrolling with a mouse wheel pauses autoscroll; tap again to carry on. The speed can also be set from the cog.
+With autoscroll on, a green **down-pointing play** button appears at the top. Press it, or just **tap the chart**, to start and pause the scrolling.
+
+- **Drag with one finger** (or use the mouse wheel) to scroll by hand, to look ahead or go back a bit. Autoscroll holds still while you do, then carries on from where you left it.
+- **Drag with two fingers** to change the speed while it plays: down for faster, up for slower. A bar at the side shows the speed as you go.
+- The speed can also be set from the cog.
 
 ## The song list
 
