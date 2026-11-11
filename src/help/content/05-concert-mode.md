@@ -30,7 +30,7 @@ By default long songs are split into **pages**, which turn sideways like a book.
 
 Going past the last page of a song takes you to the start of the next song.
 
-With pages turned off (and no autoscroll), the song scrolls instead: tap the lower half of the chart to scroll down and the upper half to scroll up. Either way, the half you tapped flashes briefly.
+With **Scroll** chosen under the cog, the song scrolls instead: tap the lower half of the chart to scroll down and the upper half to scroll up. Either way, the half you tapped flashes briefly.
 
 If stray taps turn pages when you don't want them to, switch off **Tap to turn pages** under Preferences on your profile page. Tapping then doesn't turn pages; the other ways still work.
 
@@ -58,12 +58,14 @@ Press the cog in the top right.
 
 ![Concert settings.](concert-settings)
 
-- **Pagination** — show the song in pages (the default).
-- **Autoscroll** — instead of pages, the chart scrolls by itself. Turning this on adds a speed slider.
+- **Pages / Scroll / Autoscroll** — how the song is shown:
+  - **Pages** (the default) — split into pages that you turn.
+  - **Scroll** — one long page that you scroll yourself.
+  - **Autoscroll** — one long page that scrolls by itself. Choosing this adds a speed slider.
 - **BPM pulse** — a soft, silent flash at the song's tempo, so you can keep time without a click in your ears. The first beat of each bar flashes larger and in its own colour (amber unless you change it under **Profile → Preferences**), following the song's time signature (4/4 if none is set).
 - **Solo / Follow / Lead** — see [Playing together](#playing-together).
 
-Pagination and autoscroll are alternatives: turning one on turns the other off. All settings are remembered per device.
+All settings are remembered per device.
 
 ### Autoscroll
 
