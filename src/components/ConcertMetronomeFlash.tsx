@@ -68,15 +68,14 @@ export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, aud
     const secondsPerBeat = Math.max(0.08, 60 / bpm);
     // The clock: the audio clock when clicking, otherwise the page's (both in seconds).
     const now = () => (ctx ? ctx.currentTime : performance.now() / 1000);
-    // When a beat at clock time t is heard (or, without a click, due), in performance.now() ms.
-    const dueAt = (t: number) => {
-      if (!ctx) return t * 1000;
-      const stamp = ctx.getOutputTimestamp?.();
-      if (stamp?.contextTime !== undefined && stamp.performanceTime) {
-        return stamp.performanceTime + (t - stamp.contextTime) * 1000;
-      }
+    // How long from now until a beat at clock time t is heard (or, without a click, due), in
+    // ms. Read straight off the clock that schedules it, plus the output latency the browser
+    // reports. (Not via getOutputTimestamp: on iOS its performanceTime isn't reliably on the
+    // page's clock, which left flashes scheduled far off — never shown, or only every other.)
+    const msUntil = (t: number) => {
+      if (!ctx) return t * 1000 - performance.now();
       const latency = ctx.outputLatency || ctx.baseLatency || 0;
-      return performance.now() + (t - ctx.currentTime + latency) * 1000;
+      return (t - ctx.currentTime + latency) * 1000;
     };
     const showFlash = (isDownbeat: boolean, inMs: number) => {
       const layer = layerRef.current;
@@ -101,7 +100,7 @@ export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, aud
       for (let at = start + beat * secondsPerBeat; at < t + LOOKAHEAD_S; at = start + beat * secondsPerBeat) {
         const isDownbeat = beat % beatsPerBar === 0;
         if (ctx) scheduleClick(ctx, at, isDownbeat);
-        if (flashRef.current) showFlash(isDownbeat, dueAt(at) - performance.now());
+        if (flashRef.current) showFlash(isDownbeat, msUntil(at));
         beat += 1;
       }
     };
