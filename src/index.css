@@ -1092,8 +1092,10 @@ input, select, textarea { font: inherit; color: var(--text); }
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px currentColor;
-  opacity: .25;
+  /* Only opacity animates (the ring itself is static), so the browser can run it on the
+     GPU without repainting: a setlist shows one of these per song, all the time. */
+  box-shadow: inset 0 0 0 2px currentColor;
+  opacity: .15;
   animation-name: tempo-ring-pulse;
   animation-timing-function: ease-out;
   animation-iteration-count: infinite;
@@ -1112,14 +1114,8 @@ input, select, textarea { font: inherit; color: var(--text); }
 }
 
 @keyframes tempo-ring-pulse {
-  0%, 100% {
-    opacity: .25;
-    box-shadow: inset 0 0 0 1px currentColor;
-  }
-  12% {
-    opacity: 1;
-    box-shadow: inset 0 0 0 2.5px currentColor;
-  }
+  0%, 100% { opacity: .15; }
+  12% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3408,6 +3404,11 @@ input, select, textarea { font: inherit; color: var(--text); }
   inset: 0;
   z-index: 9000;
   pointer-events: none;
+  /* The glow is drawn once per beat and only its opacity animates, which the GPU does on
+     its own. Animating the (full-screen, heavily blurred) shadow itself meant repainting
+     the whole screen every frame of every beat, which runs a tablet hot. */
+  box-shadow: inset 0 0 var(--metronome-flash-blur) var(--metronome-flash-spread) color-mix(in srgb, var(--accent) var(--metronome-flash-opacity), transparent);
+  will-change: opacity;
   animation-name: concert-edge-flash;
   animation-duration: .32s;
   animation-timing-function: ease-out;
@@ -3415,26 +3416,13 @@ input, select, textarea { font: inherit; color: var(--text); }
 }
 
 .concert-metronome-flash.is-downbeat {
-  animation-name: concert-edge-flash-downbeat;
+  box-shadow: inset 0 0 var(--metronome-flash-blur-downbeat) var(--metronome-flash-spread-downbeat) color-mix(in srgb, var(--metronome-flash-downbeat-color) var(--metronome-flash-opacity-downbeat), transparent);
   animation-duration: .4s;
 }
 
 @keyframes concert-edge-flash {
-  0% {
-    box-shadow: inset 0 0 var(--metronome-flash-blur) var(--metronome-flash-spread) color-mix(in srgb, var(--accent) var(--metronome-flash-opacity), transparent);
-  }
-  100% {
-    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
-  }
-}
-
-@keyframes concert-edge-flash-downbeat {
-  0% {
-    box-shadow: inset 0 0 var(--metronome-flash-blur-downbeat) var(--metronome-flash-spread-downbeat) color-mix(in srgb, var(--metronome-flash-downbeat-color) var(--metronome-flash-opacity-downbeat), transparent);
-  }
-  100% {
-    box-shadow: inset 0 0 0 0 color-mix(in srgb, var(--metronome-flash-downbeat-color) 0%, transparent);
-  }
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
