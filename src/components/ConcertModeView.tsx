@@ -543,7 +543,12 @@ export default function ConcertModeView({
 
   const changeClickSound = useCallback((on: boolean) => {
     setClickSound(on);
-    if (!on) return;
+    if (!on) {
+      // A running context keeps the audio hardware awake (and the battery draining) even
+      // when silent; suspend it until the click is wanted again.
+      void clickAudioRef.current?.suspend().catch(() => {});
+      return;
+    }
     setAudioSessionType('playback'); // play through the iOS silent switch
     if (clickAudioRef.current) {
       resumeAudioContext(clickAudioRef.current);
