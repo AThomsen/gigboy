@@ -3399,11 +3399,21 @@ input, select, textarea { font: inherit; color: var(--text); }
   --metronome-flash-opacity-downbeat: 95%;
 }
 
+/* Holds the beat flashes (see ConcertMetronomeFlash); takes no space itself. */
+.concert-metronome-layer {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 .concert-metronome-flash {
   position: fixed;
   inset: 0;
   z-index: 9000;
   pointer-events: none;
+  /* Queued slightly ahead of its beat (animation-delay): invisible until the beat. */
+  opacity: 0;
   /* The glow is drawn once per beat and only its opacity animates, which the GPU does on
      its own. Animating the (full-screen, heavily blurred) shadow itself meant repainting
      the whole screen every frame of every beat, which runs a tablet hot. */
