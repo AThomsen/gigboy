@@ -8009,8 +8009,12 @@ input, select, textarea { font: inherit; color: var(--text); }
   max-width: 100%;
 }
 
-.concert-quick-tile:hover:not(:disabled) {
-  background: var(--chord-bg);
+/* Only where there's a real hover (mouse, trackpad): on a touch screen the last tile tapped
+   stays "hovered", so a toggle just switched off would still look lit. */
+@media (hover: hover) {
+  .concert-quick-tile:hover:not(:disabled) {
+    background: var(--chord-bg);
+  }
 }
 
 /* Toggles that are on (and the open song list) are lit in the accent colour. */
