@@ -220,6 +220,7 @@ export default function ConcertModeView({
   const contentRef = useRef<HTMLDivElement>(null);
   // While swiping, the chart and the title slide in lanes of their own; the header's buttons stay put.
   const chartLaneRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLElement>(null);
   const titleLaneRef = useRef<HTMLDivElement>(null);
   const targetPageRef = useRef(0);
   const contentScrollHeightRef = useRef(0);
@@ -799,6 +800,25 @@ export default function ConcertModeView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, songs, slideChart, springBack, showSwipeTitle, removePagePeeks, continuous, pageOffsets, currentPageInSong]);
 
+  // iOS takes over a swipe that isn't dead level as a native pan, and cancels it midway (so
+  // it springs back). Claim a one-finger gesture as soon as it heads more sideways than up or
+  // down, before iOS starts panning; vertical ones are left to scroll natively. (In page
+  // mode there's no native panning to begin with: touch-action: none.)
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const onTouchMove = (e: TouchEvent) => {
+      const swipe = songSwipeRef.current;
+      if (!swipe || swipe.axis === 'y' || e.touches.length !== 1 || !e.cancelable) return;
+      const touch = e.touches[0];
+      if (swipe.axis === 'x' || Math.abs(touch.clientX - swipe.x) > Math.abs(touch.clientY - swipe.y)) {
+        e.preventDefault();
+      }
+    };
+    surface.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => surface.removeEventListener('touchmove', onTouchMove);
+  }, []);
+
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
   // Where the last press on the chart started: a click that ends far from it was a drag
   // (e.g. selecting text with the mouse), not a tap.
@@ -1168,7 +1188,8 @@ export default function ConcertModeView({
 
       <div className={`concert-content-wrap${showSongNavigator && isMultiSong ? '' : ' concert-content-wrap--full'}`}>
         <article
-          className={`concert-song-surface${swiping ? ' concert-song-surface--swiping' : ''}`}
+          className={`concert-song-surface${swiping ? ' concert-song-surface--swiping' : ''}${continuous ? '' : ' concert-song-surface--paged'}`}
+          ref={surfaceRef}
           onPointerDownCapture={onSurfacePointerDownCapture}
           onPointerMoveCapture={onSurfacePointerMoveCapture}
           onPointerUpCapture={onSurfacePointerEndCapture}
