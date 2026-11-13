@@ -1157,6 +1157,7 @@ export default function ConcertModeView({
       {session?.error && <p className="concert-session-error">{session.error}</p>}
       {canUseMetronome && (
         <ConcertMetronomeFlash
+          key={currentSong.id /* each song starts its own bar */}
           tempo={currentSong.tempo}
           timeSignature={currentSong.timeSignature}
           flash={pulse}
