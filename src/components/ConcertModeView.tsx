@@ -819,6 +819,18 @@ export default function ConcertModeView({
     return () => surface.removeEventListener('touchmove', onTouchMove);
   }, []);
 
+  // No pinch-zoom on stage (the text-size buttons set the size). touch-action covers most of
+  // it; Safari also zooms on its own gesture events, so those are blocked while here.
+  useEffect(() => {
+    const block = (e: Event) => e.preventDefault();
+    document.addEventListener('gesturestart', block);
+    document.addEventListener('gesturechange', block);
+    return () => {
+      document.removeEventListener('gesturestart', block);
+      document.removeEventListener('gesturechange', block);
+    };
+  }, []);
+
   const touchesRef = useRef(new Map<number, { x: number; y: number }>());
   // Where the last press on the chart started: a click that ends far from it was a drag
   // (e.g. selecting text with the mouse), not a tap.

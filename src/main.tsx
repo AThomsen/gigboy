@@ -7,9 +7,11 @@ import { migrateLocalStorageKeys } from './lib/migrateLocalStorage.ts'
 import { isDynamicImportFailure, recoverFromDynamicImportFailure } from './lib/chunkRecovery.ts'
 import { initErrorMonitoring } from './lib/errorMonitoring.ts'
 import { reloadWhenSafe } from './lib/reloadGuard.ts'
+import { disableZoomInInstalledApp } from './lib/installedAppZoom.ts'
 
 migrateLocalStorageKeys()
 initErrorMonitoring()
+disableZoomInInstalledApp()
 
 function installChunkRecoveryHandlers() {
   window.addEventListener('error', (event) => {
