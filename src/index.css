@@ -7624,6 +7624,13 @@ input, select, textarea { font: inherit; color: var(--text); }
   touch-action: pan-y pinch-zoom;
 }
 
+/* Pages don't scroll natively, so nothing needs native panning; without it iOS can't take a
+   slightly slanted swipe over as a pan (and cancel it). */
+.concert-song-surface--paged,
+.concert-song-surface--paged .concert-page-viewport {
+  touch-action: none;
+}
+
 /* Swiping between songs: the title and the chart each move in a lane, with the
    neighbouring song's parked beside it (PEEK_GAP apart), clipped to the card / title area. */
 .concert-song-surface--swiping,
