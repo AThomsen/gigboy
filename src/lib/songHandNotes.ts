@@ -40,6 +40,13 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/** A song's notes, loaded once (no polling): e.g. for a passing look at a neighbouring song. */
+export async function loadSongHandNotes(bandId: string, songId: string): Promise<LyricNoteDocument[]> {
+  if (isDemoMode) return demoStore.listHandNotes(bandId, songId);
+  const data = await apiFetch<{ notes: LyricNoteDocument[] }>(notesUrl(bandId, songId));
+  return data.notes ?? [];
+}
+
 /** Polls the notes list every 4s (matching the realtime feel `onSnapshot` used to give) and reports changes. */
 export function subscribeToSongHandNotes(
   bandId: string,

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useBands } from '../context/BandsContext';
-import type { Song } from '../types';
+import type { LyricNoteDocument, Song } from '../types';
 import ChordDisplay from './ChordDisplay';
 import ChordDiagram, { type DiagramInstrument } from './ChordDiagram';
 import { useBandChordVoicings } from '../hooks/useBandChordVoicings';
@@ -31,6 +31,7 @@ import SongTextNotesOverlay from './SongTextNotesOverlay';
 import ConcertMetronomeFlash from './ConcertMetronomeFlash';
 import { createResumedAudioContext, resumeAudioContext, setAudioSessionType } from '../lib/webAudio';
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
+import { loadSongHandNotes } from '../lib/songHandNotes';
 import { downbeatColorCss } from '../lib/userPreferences';
 import type { ChordNotation } from '../utils/chordParser';
 import { getUserNoteColor } from '../lib/userColors';
@@ -454,6 +455,24 @@ export default function ConcertModeView({
     ).onfinish = () => old.remove();
     content.animate([{ transform: `translateX(${dir * 100}%) ${to.transform}` }, { transform: to.transform }], timing);
   }, [currentPageInSong, currentIndex, pageOffsets, continuous, pageStyle, clonePage]);
+
+  // Your typed notes on the neighbouring songs, for the swipe peek. Loaded once per song (no
+  // polling, unlike the current song's): they're only glimpsed in passing.
+  const [neighbourNotes, setNeighbourNotes] = useState<Record<string, LyricNoteDocument[]>>({});
+  const requestedNotesRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!bandId || !user) return;
+    for (const song of [songs[currentIndex - 1], songs[currentIndex + 1]]) {
+      if (!song || requestedNotesRef.current.has(song.id)) continue;
+      requestedNotesRef.current.add(song.id);
+      loadSongHandNotes(bandId, song.id)
+        .then((notes) => {
+          const mine = notes.filter((note) => note.authorUid === user.id);
+          setNeighbourNotes((prev) => ({ ...prev, [song.id]: mine }));
+        })
+        .catch(() => requestedNotesRef.current.delete(song.id)); // try again next time
+    }
+  }, [bandId, user, songs, currentIndex]);
 
   const pinnedLineIds = useMemo(
     () => extractPinnedLineIds(handNotes.visibleNotes),
@@ -1211,7 +1230,7 @@ export default function ConcertModeView({
           <div className="concert-song-header concert-song-header--compact">
             <div className="concert-song-header-main">
               <div className="concert-swipe-lane concert-title-lane" ref={titleLaneRef}>
-                {renderSongTitle(currentSong, currentIndex)}
+                <div>{renderSongTitle(currentSong, currentIndex)}</div>
                 {renderSwipePeeks(renderSongTitle, true)}
               </div>
             </div>
@@ -1448,22 +1467,37 @@ export default function ConcertModeView({
               aria-hidden="true"
             />
           )}
-          {renderSwipePeeks((song) => (
-            <div className="concert-page-viewport">
-              <div className="concert-page-content song-notes-stage">
-                <ChordDisplay
-                  chordpro={song.chordpro}
-                  transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
-                  showChords={showChords}
-                  notation={chordNotation}
-                  bpm={song.tempo}
-                  timeSignature={song.timeSignature}
-                  instrument={chordInstrument}
-                  hideMetaDirectives
-                />
+          {renderSwipePeeks((song) => {
+            const myNotes = neighbourNotes[song.id] ?? [];
+            return (
+              <div className="concert-page-viewport">
+                <div className="concert-page-content song-notes-stage">
+                  <ChordDisplay
+                    chordpro={song.chordpro}
+                    transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
+                    showChords={showChords}
+                    notation={chordNotation}
+                    bpm={song.tempo}
+                    timeSignature={song.timeSignature}
+                    instrument={chordInstrument}
+                    hideMetaDirectives
+                  />
+                  {user && myNotes.length > 0 && (
+                    <SongTextNotesOverlay
+                      visible
+                      typeEnabled={false}
+                      notes={myNotes}
+                      myTextNotes={myNotes[0]?.textNotes ?? []}
+                      myAuthorUid={user.id}
+                      myNotesVisible
+                      noteColor={getUserNoteColor(user.id)}
+                      onMyTextNotesChange={noop}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           </div>
 
           {!continuous && currentPageCount > 1 && (
