@@ -800,7 +800,7 @@ export default function ConcertModeView({
     }
     // Slide on until the peeking page or song sits where the chart was, then make it the
     // current one. Dropping the swiping class in the same commit lets the title reset without
-    // animating. A song is entered at its start, whichever way the swipe went.
+    // animating.
     if (!page) showSwipeTitle(dir);
     slideChart(swipe.dx, -dir * (width + PEEK_GAP), () => {
       flushSync(() => {
@@ -808,7 +808,8 @@ export default function ConcertModeView({
           skipPageFlipRef.current = true;
           setCurrentPageInSong((p) => p + dir);
         } else {
-          targetPageRef.current = 0;
+          // Like a book: back into a song lands on its last page (what its peek showed).
+          targetPageRef.current = dir < 0 && !continuous ? Number.POSITIVE_INFINITY : 0;
           setCurrentIndex(currentIndex + dir);
         }
         setSwiping(false);
@@ -818,6 +819,28 @@ export default function ConcertModeView({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, songs, slideChart, springBack, showSwipeTitle, removePagePeeks, continuous, pageOffsets, currentPageInSong]);
+
+  // In page mode a swipe back from the first page lands on the previous song's last page, so
+  // its peek shows that page: split into pages like the real view, then shifted to the last.
+  useLayoutEffect(() => {
+    if (!swiping || continuous) return;
+    const content = chartLaneRef.current?.querySelector<HTMLElement>(
+      ':scope > .concert-swipe-peek--prev:not(.concert-page-peek) .concert-page-content',
+    );
+    const viewport = content?.parentElement;
+    if (!content || !viewport || viewport.clientHeight <= 0) return;
+    // While swiping, the header is as tall as the tallest title shown; on the previous song
+    // it'll fit that song's title, leaving the chart a different height — and page breaks.
+    const lane = titleLaneRef.current;
+    const prevTitle = lane?.querySelector<HTMLElement>(':scope > .concert-swipe-peek--prev');
+    const actions = lane?.closest('.concert-song-header')?.querySelector<HTMLElement>('.concert-header-actions');
+    const actionsHeight = actions?.offsetHeight ?? 0;
+    const headerShrink = lane && prevTitle
+      ? Math.max(lane.offsetHeight, actionsHeight) - Math.max(prevTitle.offsetHeight, actionsHeight)
+      : 0;
+    const offsets = computePageOffsets(content, viewport.clientHeight + headerShrink);
+    content.style.transform = `translateY(${-offsets[offsets.length - 1]}px)`;
+  }, [swiping, continuous, currentIndex]);
 
   // iOS takes over a swipe that isn't dead level as a native pan, and cancels it midway (so
   // it springs back). Claim a one-finger gesture as soon as it heads more sideways than up or
@@ -1155,7 +1178,6 @@ export default function ConcertModeView({
   const canGoNext = continuous
     ? !scrollEdge.bottom || currentIndex < songs.length - 1
     : currentPageInSong < currentPageCount - 1 || currentIndex < songs.length - 1;
-  const nextSong = songs[currentIndex + 1] ?? null;
   const showNavButtons = user?.preferences?.concertShowNavButtons !== false;
 
   // The previous/next song, parked beside a swipe lane while swiping. The title lane shows
@@ -1172,6 +1194,30 @@ export default function ConcertModeView({
         </div>
       );
     });
+
+  // The "Up next" line ending a song's text (so it lands on the last page / end of the scroll).
+  // Peeks get a copy too, so their pages break exactly like the real thing.
+  const renderUpNext = (index: number, peek = false) => {
+    const next = songs[index + 1];
+    if (!next) return null;
+    return (
+      <button
+        type="button"
+        className="concert-next-song"
+        onClick={peek ? undefined : () => goToSong(index + 1)}
+        tabIndex={peek ? -1 : undefined}
+        aria-label={`Next song: ${next.title}`}
+      >
+        <span className="concert-next-song-label">Up next</span>
+        <span className="concert-next-song-position">{index + 2}/{songs.length}</span>
+        <span className="concert-next-song-title">
+          <strong>{next.title}</strong>
+          {next.artist && <span className="concert-next-song-artist"> · {next.artist}</span>}
+        </span>
+        <ChevronRight size={16} />
+      </button>
+    );
+  };
 
   const renderSongTitle = (song: Song, index: number) => {
     const note = songNotes?.[song.id]?.trim();
@@ -1429,22 +1475,7 @@ export default function ConcertModeView({
                   )}
                 </div>
                 {/* Part of the running text, so it lands on the last page / end of the scroll. */}
-                {nextSong && (
-                  <button
-                    type="button"
-                    className="concert-next-song"
-                    onClick={() => goToSong(currentIndex + 1)}
-                    aria-label={`Next song: ${nextSong.title}`}
-                  >
-                    <span className="concert-next-song-label">Up next</span>
-                    <span className="concert-next-song-position">{currentIndex + 2}/{songs.length}</span>
-                    <span className="concert-next-song-title">
-                      <strong>{nextSong.title}</strong>
-                      {nextSong.artist && <span className="concert-next-song-artist"> · {nextSong.artist}</span>}
-                    </span>
-                    <ChevronRight size={16} />
-                  </button>
-                )}
+                {renderUpNext(currentIndex)}
               </div>
             </div>
           {speedBar && (
@@ -1467,7 +1498,7 @@ export default function ConcertModeView({
               aria-hidden="true"
             />
           )}
-          {renderSwipePeeks((song) => {
+          {renderSwipePeeks((song, index) => {
             const myNotes = neighbourNotes[song.id] ?? [];
             return (
               <div className="concert-page-viewport">
@@ -1494,25 +1525,13 @@ export default function ConcertModeView({
                       onMyTextNotesChange={noop}
                     />
                   )}
+                  {renderUpNext(index, true)}
                 </div>
               </div>
             );
           })}
           </div>
 
-          {!continuous && currentPageCount > 1 && (
-            <div className="concert-page-indicator" aria-label={`Page ${currentPageInSong + 1} of ${currentPageCount}`}>
-              {Array.from({ length: currentPageCount }, (_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className={`concert-page-dot${i === currentPageInSong ? ' concert-page-dot--active' : ''}`}
-                  onClick={() => setCurrentPageInSong(i)}
-                  aria-label={`Go to page ${i + 1}`}
-                />
-              ))}
-            </div>
-          )}
         </article>
 
         {isMultiSong && showSongNavigator && (
