@@ -702,9 +702,13 @@ export default function ConcertModeView({
   // a little where there's nothing). The title doesn't follow: as soon as the swipe is clearly
   // heading for another song, it snaps over to that song's, or to "start/end of set".
   const songSwipeRef = useRef<{
-    pointerId: number; x: number; y: number; dx: number; axis: 'x' | 'y' | null; titleDir: number;
+    pointerId: number; x: number; y: number; dx: number; axis: 'x' | 'y' | null; titleDir: number; previewDir: number;
   } | null>(null);
   const [swiping, setSwiping] = useState(false);
+  // The page counter previews where the swipe is heading (it snaps with the title), and the
+  // neighbouring songs' page counts it needs, worked out with their peeks.
+  const [pagePreview, setPagePreview] = useState<{ page: number; count: number } | null>(null);
+  const neighbourPagesRef = useRef<Record<-1 | 1, number>>({ [-1]: 1, 1: 1 });
   // In page mode, a neighbouring page of the same song is what peeks in (a copy, like the flip).
   const pageThatWay = (dir: number) => !continuous && pageOffsets[currentPageInSong + dir] !== undefined;
   const pagePeeksRef = useRef<HTMLElement[]>([]);
@@ -734,6 +738,7 @@ export default function ConcertModeView({
 
   const springBack = useCallback((dx: number) => {
     showSwipeTitle(0);
+    setPagePreview(null);
     slideChart(dx, 0, () => {
       setSwiping(false);
       removePagePeeks();
@@ -780,6 +785,19 @@ export default function ConcertModeView({
       swipe.titleDir = titleDir;
       showSwipeTitle(titleDir);
     }
+    // Pages only: the page the swipe is heading for — in this song, or the start / end of the
+    // neighbouring one.
+    const previewDir = continuous || Math.abs(dx) <= 40 ? 0 : dir;
+    if (previewDir !== swipe.previewDir) {
+      swipe.previewDir = previewDir;
+      const count = neighbourPagesRef.current[dir];
+      setPagePreview(
+        !previewDir ? null
+          : page ? { page: currentPageInSong + dir + 1, count: currentPageCount }
+            : songs[currentIndex + dir] ? { page: dir > 0 ? 1 : count, count }
+              : null,
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, songs, showSwipeTitle, clonePage, continuous, pageOffsets, currentPageInSong]);
 
@@ -813,6 +831,7 @@ export default function ConcertModeView({
           setCurrentIndex(currentIndex + dir);
         }
         setSwiping(false);
+        setPagePreview(null);
       });
       removePagePeeks();
       showSwipeTitle(0);
@@ -820,26 +839,31 @@ export default function ConcertModeView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, songs, slideChart, springBack, showSwipeTitle, removePagePeeks, continuous, pageOffsets, currentPageInSong]);
 
-  // In page mode a swipe back from the first page lands on the previous song's last page, so
-  // its peek shows that page: split into pages like the real view, then shifted to the last.
+  // In page mode the neighbouring songs' peeks are split into pages like the real view, for
+  // their page counts (the counter's preview), and a swipe back from the first page lands on
+  // the previous song's last page, so its peek is shifted to show that page.
   useLayoutEffect(() => {
     if (!swiping || continuous) return;
-    const content = chartLaneRef.current?.querySelector<HTMLElement>(
-      ':scope > .concert-swipe-peek--prev:not(.concert-page-peek) .concert-page-content',
-    );
-    const viewport = content?.parentElement;
-    if (!content || !viewport || viewport.clientHeight <= 0) return;
-    // While swiping, the header is as tall as the tallest title shown; on the previous song
-    // it'll fit that song's title, leaving the chart a different height — and page breaks.
     const lane = titleLaneRef.current;
-    const prevTitle = lane?.querySelector<HTMLElement>(':scope > .concert-swipe-peek--prev');
     const actions = lane?.closest('.concert-song-header')?.querySelector<HTMLElement>('.concert-header-actions');
     const actionsHeight = actions?.offsetHeight ?? 0;
-    const headerShrink = lane && prevTitle
-      ? Math.max(lane.offsetHeight, actionsHeight) - Math.max(prevTitle.offsetHeight, actionsHeight)
-      : 0;
-    const offsets = computePageOffsets(content, viewport.clientHeight + headerShrink);
-    content.style.transform = `translateY(${-offsets[offsets.length - 1]}px)`;
+    for (const dir of [-1, 1] as const) {
+      const side = dir < 0 ? 'prev' : 'next';
+      const content = chartLaneRef.current?.querySelector<HTMLElement>(
+        `:scope > .concert-swipe-peek--${side}:not(.concert-page-peek) .concert-page-content`,
+      );
+      const viewport = content?.parentElement;
+      if (!content || !viewport || viewport.clientHeight <= 0) continue;
+      // While swiping, the header is as tall as the tallest title shown; on that song it'll
+      // fit its own title, leaving the chart a different height — and page breaks.
+      const title = lane?.querySelector<HTMLElement>(`:scope > .concert-swipe-peek--${side}`);
+      const headerShrink = lane && title
+        ? Math.max(lane.offsetHeight, actionsHeight) - Math.max(title.offsetHeight, actionsHeight)
+        : 0;
+      const offsets = computePageOffsets(content, viewport.clientHeight + headerShrink);
+      neighbourPagesRef.current[dir] = offsets.length;
+      if (dir < 0) content.style.transform = `translateY(${-offsets[offsets.length - 1]}px)`;
+    }
   }, [swiping, continuous, currentIndex]);
 
   // iOS takes over a swipe that isn't dead level as a native pan, and cancels it midway (so
@@ -893,7 +917,7 @@ export default function ConcertModeView({
       const busy = !isMultiSong || chartLaneRef.current?.getAnimations().length;
       songSwipeRef.current = busy || (e.target as Element).closest('.concert-settings, input')
         ? null
-        : { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, axis: null, titleDir: 0 };
+        : { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, axis: null, titleDir: 0, previewDir: 0 };
       return;
     }
     const gesture = multiTouchRef.current;
@@ -1281,11 +1305,14 @@ export default function ConcertModeView({
               </div>
             </div>
             <div className="concert-header-actions">
-              {!continuous && currentPageCount > 1 && (
-                <span className="concert-page-count" aria-label={`Page ${currentPageInSong + 1} of ${currentPageCount}`}>
-                  {currentPageInSong + 1}/{currentPageCount}
-                </span>
-              )}
+              {(() => {
+                const shown = pagePreview ?? (continuous ? null : { page: currentPageInSong + 1, count: currentPageCount });
+                return shown && shown.count > 1 && (
+                  <span className="concert-page-count" aria-label={`Page ${shown.page} of ${shown.count}`}>
+                    {shown.page}/{shown.count}
+                  </span>
+                );
+              })()}
               {autoscroll && continuous && (
                 <button
                   type="button"
