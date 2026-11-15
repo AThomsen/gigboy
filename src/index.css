@@ -7640,6 +7640,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative; /* for the autoscroll button */
   /* Horizontal swipes change song (handled in JS); vertical panning stays native. No
      pinch-zoom on stage: the text-size buttons set the size. */
   touch-action: pan-y;
@@ -7710,42 +7711,77 @@ input, select, textarea { font: inherit; color: var(--text); }
   flex-direction: column;
 }
 
-/* Autoscroll speed, shown while two fingers drag it up (slower) or down (faster). It
-   fills downwards, the way the fingers move to speed up. */
-.concert-speed-bar {
+/* Autoscroll's round start/pause button at the right edge of the chart (see
+   ConcertAutoscrollButton). Held, a speed track appears through it and it becomes the
+   track's handle; let go and it slides home. */
+.concert-autoscroll {
   position: absolute;
   z-index: 3;
   top: 50%;
-  right: var(--space-lg);
+  right: var(--space-2xl);
   transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
+}
+
+.concert-autoscroll-btn {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm);
-  border-radius: var(--radius-pill);
+  justify-content: center;
+  color: var(--media-play);
   background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 2px solid currentColor;
+  box-shadow: var(--shadow-lg);
+  /* Slides home when let go; follows the finger exactly while held. */
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Held and dragged: no scrolling, selection or iOS long-press menu. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.concert-autoscroll-btn.is-playing,
+.concert-autoscroll-btn.is-adjusting {
+  color: #fff;
+  background: var(--media-play);
+  border-color: var(--media-play);
+}
+
+.concert-autoscroll-btn.is-adjusting {
+  transition: none;
+}
+
+.concert-autoscroll-speed {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The speed track, centred on the button; it fills down to the handle. */
+.concert-autoscroll-track {
+  position: absolute;
+  left: 50%;
+  width: 10px;
+  margin-left: -5px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--border) 85%, transparent);
   box-shadow: var(--shadow-lg);
   pointer-events: none;
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-.concert-speed-bar-track {
-  width: 8px;
-  height: min(40vh, 240px);
-  border-radius: var(--radius-pill);
-  background: var(--border);
   overflow: hidden;
+  animation: concert-autoscroll-track-in 0.15s ease-out;
 }
-.concert-speed-bar-fill {
+
+.concert-autoscroll-track-fill {
   width: 100%;
   background: var(--accent);
-  border-radius: var(--radius-pill);
 }
-.concert-speed-bar-value {
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-  font-weight: 600;
+
+@keyframes concert-autoscroll-track-in {
+  from { opacity: 0; transform: scaleY(0.6); }
+  to { opacity: 1; transform: none; }
 }
 
 /* A tap that turns a page or scrolls briefly lights up the half it acted on. */
@@ -7853,20 +7889,9 @@ input, select, textarea { font: inherit; color: var(--text); }
   background: var(--chord-bg);
 }
 
-.concert-icon-btn--play,
 .concert-icon-btn--danger {
   background: #fff;
   border: 1px solid currentColor;
-}
-
-.concert-icon-btn--play {
-  color: var(--media-play);
-}
-
-.concert-icon-btn--play:hover,
-.concert-icon-btn--play.is-active {
-  color: #fff;
-  background: var(--media-play);
 }
 
 .concert-icon-btn--danger {

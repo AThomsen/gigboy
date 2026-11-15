@@ -29,6 +29,7 @@ import type { useSetlistSession } from '../hooks/useSetlistSession';
 import LyricHandNotesOverlay from './LyricHandNotesOverlay';
 import SongTextNotesOverlay from './SongTextNotesOverlay';
 import ConcertMetronomeFlash from './ConcertMetronomeFlash';
+import ConcertAutoscrollButton from './ConcertAutoscrollButton';
 import { createResumedAudioContext, resumeAudioContext, setAudioSessionType } from '../lib/webAudio';
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
 import { loadSongHandNotes } from '../lib/songHandNotes';
@@ -203,8 +204,7 @@ export default function ConcertModeView({
   const scrollSpeedRef = useRef(scrollSpeed);
   scrollSpeedRef.current = scrollSpeed;
   // One finger moving on the chart: autoscroll holds still while the user scrolls by hand.
-  // A finger merely resting there (steadying the tablet) doesn't count, and neither do two,
-  // which adjust the speed — that should be felt as it changes.
+  // A finger merely resting there (steadying the tablet) doesn't count.
   const touchingRef = useRef(false);
   const [pulse, setPulse] = useState(() => readStoredFlag(PULSE_KEY, true));
   const [scrolling, setScrolling] = useState(false);
@@ -594,60 +594,29 @@ export default function ConcertModeView({
   // When a drag, swipe or multi-finger gesture last ended: the click that follows isn't a tap.
   const lastGestureEndRef = useRef(0);
 
-  // Autoscroll: one finger scrolls natively (the loop holds still meanwhile); dragging two
-  // fingers up or down changes the speed, live, with a bar showing it. Down is faster. Touch
-  // events, not pointer events, so a two-finger move can be kept from panning or zooming.
-  // Only fingers on the chart count (targetTouches): a thumb on the header or footer mustn't
-  // turn a scroll into a speed change, and the chart never hears such a finger lift.
-  const [speedBar, setSpeedBar] = useState(false);
+  // Autoscroll: one finger scrolls natively, and the loop holds still while it moves. Only
+  // fingers on the chart count (targetTouches); the chart never hears a finger elsewhere lift.
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!autoscroll || !continuous || !viewport) return;
-    let adjust: { y: number; speed: number; active: boolean } | null = null;
-    let hideTimer = 0;
-    const midY = (t: TouchList) => (t[0].clientY + t[1].clientY) / 2;
-    const onStart = (e: TouchEvent) => {
-      touchingRef.current = false;
-      const fingers = e.targetTouches;
-      adjust = fingers.length === 2 ? { y: midY(fingers), speed: scrollSpeedRef.current, active: false } : null;
-    };
     const onMove = (e: TouchEvent) => {
-      const fingers = e.targetTouches;
-      if (fingers.length === 1) touchingRef.current = true;
-      if (!adjust || fingers.length !== 2) return;
-      if (e.cancelable) e.preventDefault();
-      const dy = midY(fingers) - adjust.y;
-      // Past the quick menu's two-finger-tap tolerance, so a tap still opens the menu.
-      if (!adjust.active && Math.abs(dy) < 16) return;
-      adjust.active = true;
-      window.clearTimeout(hideTimer);
-      setSpeedBar(true);
-      const speed = adjust.speed + dy * ((SCROLL_SPEED_MAX - SCROLL_SPEED_MIN) / 300);
-      setScrollSpeed(Math.round(Math.min(SCROLL_SPEED_MAX, Math.max(SCROLL_SPEED_MIN, speed))));
+      if (e.targetTouches.length === 1) touchingRef.current = true;
     };
-    const onEnd = (e: TouchEvent) => {
+    const onEnd = () => {
       touchingRef.current = false;
-      if (!adjust || e.targetTouches.length >= 2) return;
-      if (adjust.active) {
-        changeScrollSpeed(scrollSpeedRef.current); // saves it
-        hideTimer = window.setTimeout(() => setSpeedBar(false), 1200);
-      }
-      adjust = null;
     };
-    viewport.addEventListener('touchstart', onStart, { passive: true });
-    viewport.addEventListener('touchmove', onMove, { passive: false });
+    viewport.addEventListener('touchstart', onEnd, { passive: true });
+    viewport.addEventListener('touchmove', onMove, { passive: true });
     viewport.addEventListener('touchend', onEnd);
     viewport.addEventListener('touchcancel', onEnd);
     return () => {
-      viewport.removeEventListener('touchstart', onStart);
+      viewport.removeEventListener('touchstart', onEnd);
       viewport.removeEventListener('touchmove', onMove);
       viewport.removeEventListener('touchend', onEnd);
       viewport.removeEventListener('touchcancel', onEnd);
-      window.clearTimeout(hideTimer);
       touchingRef.current = false;
-      setSpeedBar(false);
     };
-  }, [autoscroll, continuous, changeScrollSpeed]);
+  }, [autoscroll, continuous]);
 
   // Two-finger tap opens the quick-actions menu (always centred on screen). Tracked in the capture phase on the song
   // surface so a second finger can cancel the one-finger drag/swipe before it acts.
@@ -915,7 +884,7 @@ export default function ConcertModeView({
     if (touches.size === 1) {
       multiTouchRef.current = { start: e.timeStamp, maxTouches: 1, moved: false };
       const busy = !isMultiSong || chartLaneRef.current?.getAnimations().length;
-      songSwipeRef.current = busy || (e.target as Element).closest('.concert-settings, input')
+      songSwipeRef.current = busy || (e.target as Element).closest('.concert-settings, .concert-autoscroll, input')
         ? null
         : { pointerId: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, axis: null, titleDir: 0, previewDir: 0 };
       return;
@@ -1313,18 +1282,6 @@ export default function ConcertModeView({
                   </span>
                 );
               })()}
-              {autoscroll && continuous && (
-                <button
-                  type="button"
-                  className={`concert-icon-btn concert-icon-btn--play${scrolling ? ' is-active' : ''}`}
-                  onClick={() => setScrolling((v) => !v)}
-                  aria-label={scrolling ? 'Pause autoscroll' : 'Start autoscroll'}
-                  aria-pressed={scrolling}
-                  title={scrolling ? 'Pause autoscroll' : 'Start autoscroll'}
-                >
-                  <Play size={18} fill="currentColor" style={{ transform: 'rotate(90deg)' }} />
-                </button>
-              )}
               <button
                 type="button"
                 className={`concert-icon-btn concert-icon-btn--danger${confirmingStop ? ' is-confirming' : ''}`}
@@ -1505,18 +1462,6 @@ export default function ConcertModeView({
                 {renderUpNext(currentIndex)}
               </div>
             </div>
-          {speedBar && (
-            <div className="concert-speed-bar" role="status" aria-label={`Autoscroll speed ${scrollSpeed}`}>
-              <span className="concert-speed-bar-label">Speed</span>
-              <div className="concert-speed-bar-track">
-                <div
-                  className="concert-speed-bar-fill"
-                  style={{ height: `${((scrollSpeed - SCROLL_SPEED_MIN) / (SCROLL_SPEED_MAX - SCROLL_SPEED_MIN)) * 100}%` }}
-                />
-              </div>
-              <span className="concert-speed-bar-value">{scrollSpeed}</span>
-            </div>
-          )}
           {tapFlash && (
             <div
               key={tapFlash.n}
@@ -1559,6 +1504,16 @@ export default function ConcertModeView({
           })}
           </div>
 
+          {autoscroll && continuous && (
+            <ConcertAutoscrollButton
+              scrolling={scrolling}
+              speed={scrollSpeed}
+              min={SCROLL_SPEED_MIN}
+              max={SCROLL_SPEED_MAX}
+              onToggle={() => setScrolling((v) => !v)}
+              onSpeedChange={(value, done) => (done ? changeScrollSpeed(value) : setScrollSpeed(value))}
+            />
+          )}
         </article>
 
         {isMultiSong && showSongNavigator && (
