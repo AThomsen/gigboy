@@ -25,9 +25,10 @@ const REWIND_MAX_PX_PER_S = 400;
 
 /**
  * Concert mode's autoscroll control, at the right edge of the chart: tap to start/pause.
- * Press and hold (or just drag) and a speed track appears through the button, which becomes
- * its handle: drag it along (down is faster, like the scroll) to change the speed, live. The
- * track is placed so the handle starts right under the finger; let go and it slides home.
+ * Press and hold (or just drag): autoscroll starts if paused, and a speed track appears
+ * through the button, which becomes its handle: drag it along (down is faster, like the
+ * scroll) to change the speed, live. The track is placed so the handle starts right under
+ * the finger; let go and it slides home.
  * Dragged on up past the track's top (the slowest end), it scrolls the chart back instead,
  * faster the further up: for when the song ran ahead. Back on the track, autoscroll carries on.
  */
@@ -49,6 +50,8 @@ export default function ConcertAutoscrollButton({ scrolling, speed, min, max, on
     press.held = true;
     setStartFraction(fraction(press.speed));
     setAdjusting(true);
+    // Adjusting the speed means wanting to see it: a paused autoscroll starts right away.
+    if (!scrolling) onToggle();
   };
 
   const finish = (pointerId: number) => {
