@@ -504,13 +504,22 @@ export default function ConcertModeView({
     setScrollEdge((prev) => (prev.top === top && prev.bottom === bottom ? prev : { top, bottom }));
   }, []);
 
+  // Rewinding: the autoscroll button's handle dragged above its speed track scrolls the chart
+  // back at this rate (px/s), playing or paused.
+  const rewindRef = useRef(0);
+  const [rewinding, setRewinding] = useState(false);
+  const changeRewind = useCallback((pxPerSecond: number) => {
+    rewindRef.current = pxPerSecond;
+    setRewinding(pxPerSecond > 0);
+  }, []);
+
   // Autoscroll loop. scrollTop can round to whole pixels, so keep the fractional position
   // ourselves; slow speeds would otherwise never advance. While the user scrolls by hand
   // (a finger down, or the scroll still moving from a drag, wheel or button), it holds
   // still and then carries on from wherever that left it.
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!scrolling || !autoscroll || !continuous || !viewport) return;
+    if ((!scrolling && !rewinding) || !autoscroll || !continuous || !viewport) return;
     let raf = 0;
     let last = performance.now();
     let pos = viewport.scrollTop;
@@ -518,6 +527,14 @@ export default function ConcertModeView({
     const tick = (now: number) => {
       const dt = Math.min(now - last, 100) / 1000;
       last = now;
+      if (rewindRef.current > 0) {
+        if (Math.abs(viewport.scrollTop - pos) > 2) pos = viewport.scrollTop;
+        pos = Math.max(0, pos - rewindRef.current * dt);
+        viewport.scrollTop = pos;
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      if (!scrolling) return; // rewinding just ended, and autoscroll is paused
       // Something else moved the scroll (a drag, its momentum, the wheel, a button). While
       // already holding, even a slow drift counts, so it's followed to the very end.
       const holding = touchingRef.current || now - movedByOthersAt < 250;
@@ -537,7 +554,7 @@ export default function ConcertModeView({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [scrolling, autoscroll, continuous]);
+  }, [scrolling, rewinding, autoscroll, continuous]);
 
   // How a song is shown: one choice of three, stored as the two (exclusive) flags it's made of.
   const viewMode = pagination ? 'pages' : autoscroll ? 'autoscroll' : 'scroll';
@@ -1512,6 +1529,7 @@ export default function ConcertModeView({
               max={SCROLL_SPEED_MAX}
               onToggle={() => setScrolling((v) => !v)}
               onSpeedChange={(value, done) => (done ? changeScrollSpeed(value) : setScrollSpeed(value))}
+              onRewind={changeRewind}
             />
           )}
         </article>

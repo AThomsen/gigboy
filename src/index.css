@@ -7779,6 +7779,30 @@ input, select, textarea { font: inherit; color: var(--text); }
   background: var(--accent);
 }
 
+/* Above the track: the rewind zone, shown faintly while adjusting and lit while in use. */
+.concert-autoscroll-rewind {
+  position: absolute;
+  left: 50%;
+  width: 10px;
+  margin-left: -5px;
+  border-radius: var(--radius-pill) var(--radius-pill) 0 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--border) 85%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  pointer-events: none;
+  animation: concert-autoscroll-track-in 0.15s ease-out;
+}
+
+.concert-autoscroll-rewind.is-active {
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--media-play) 70%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+
 @keyframes concert-autoscroll-track-in {
   from { opacity: 0; transform: scaleY(0.6); }
   to { opacity: 1; transform: none; }
