@@ -1340,7 +1340,8 @@ export default function ConcertModeView({
               </button>
               {showSettings && (
                 <div className="concert-settings-panel" role="dialog" aria-label="Concert settings">
-                  <div className="concert-session-toggle" role="radiogroup" aria-label="Show the song as">
+                  <span className="concert-settings-caption" id="concert-settings-view">Show song as</span>
+                  <div className="concert-session-toggle" role="radiogroup" aria-labelledby="concert-settings-view">
                     {(['pages', 'scroll', 'autoscroll'] as const).map((mode) => (
                       <button
                         key={mode}
@@ -1359,32 +1360,11 @@ export default function ConcertModeView({
                       </button>
                     ))}
                   </div>
-                  {canUseMetronome && (
-                    <label className="toggle-label">
-                      <input
-                        type="checkbox"
-                        checked={pulse}
-                        onChange={(e) => changePulse(e.target.checked)}
-                      />
-                      BPM pulse
-                    </label>
-                  )}
-                  {autoscroll && (
-                    <label className="concert-settings-slider">
-                      <span>Speed</span>
-                      <input
-                        type="range"
-                        min={SCROLL_SPEED_MIN}
-                        max={SCROLL_SPEED_MAX}
-                        step={1}
-                        value={scrollSpeed}
-                        onChange={(e) => changeScrollSpeed(Number(e.target.value))}
-                        aria-label="Autoscroll speed"
-                      />
-                    </label>
+                  {session && (
+                    <span className="concert-settings-caption" id="concert-settings-sync">Setlist sync</span>
                   )}
                   {session && (
-                    <div className="concert-session-toggle" role="group" aria-label="Setlist sync">
+                    <div className="concert-session-toggle" role="group" aria-labelledby="concert-settings-sync">
                       {(['solo', 'follow', 'lead'] as const).map((m) => (
                         <button
                           key={m}

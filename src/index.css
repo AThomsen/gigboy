@@ -7976,6 +7976,29 @@ input, select, textarea { font: inherit; color: var(--text); }
   box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
 }
 
+/* A small heading over each switch; it sits close to its switch, apart from the one above. */
+.concert-settings-caption {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-xs) - var(--space-md));
+}
+
+.concert-settings-caption:not(:first-child) {
+  margin-top: var(--space-xs);
+}
+
+/* The panel's switches line up: full width, their options sharing it evenly. */
+.concert-settings-panel .concert-session-toggle {
+  display: flex;
+  align-self: stretch;
+}
+
+.concert-settings-panel .concert-session-toggle button {
+  flex: 1 1 0;
+  padding-inline: var(--space-sm);
+}
+
 /* First-visit coach mark introducing the quick-actions menu. */
 .concert-intro {
   position: fixed;
@@ -8152,20 +8175,6 @@ input, select, textarea { font: inherit; color: var(--text); }
   text-align: center;
   font-size: var(--text-sm);
   color: var(--muted);
-}
-
-.concert-settings-slider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  font-size: var(--text-sm);
-  color: var(--muted);
-}
-
-.concert-settings-slider input {
-  flex: 1;
-  accent-color: var(--accent);
 }
 
 

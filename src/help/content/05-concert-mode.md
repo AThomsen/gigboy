@@ -42,7 +42,7 @@ If stray taps turn pages when you don't want them to, switch off **Tap to turn p
 
 ## Quick actions
 
-Tap the chart with **two fingers** to open a menu in the middle of the screen. The app's top bar (menu, profile and so on) is hidden in concert mode and appears while this menu is open. From there you can start or pause autoscroll, jump to the previous or next song, open the song list, **edit the song**, turn the **beat flash** and the metronome **click sound** on or off, and change the text size. The flash and click follow the song's BPM, so they only appear on songs that have one. The click is always off when you enter concert mode. Tap outside the menu to close it.
+Tap the chart with **two fingers** to open a menu in the middle of the screen. The app's top bar (menu, profile and so on) is hidden in concert mode and appears while this menu is open. From there you can start or pause autoscroll, jump to the previous or next song, open the song list, **edit the song**, turn the **beat flash** and the metronome **click sound** on or off, and change the text size. The flash and click follow the song's BPM, so they only appear on songs that have one. The flash is soft and silent, so you can keep time without a click in your ears; the first beat of each bar flashes larger and in its own colour (amber unless you change it under **Profile → Preferences**), following the song's time signature (4/4 if none is set). The click is always off when you enter concert mode. Tap outside the menu to close it.
 
 **Edit song** opens the song's edit page. When you save or cancel, you're taken back to concert mode on the same song.
 
@@ -61,18 +61,16 @@ Press the cog in the top right.
 - **Pages / Scroll / Autoscroll** — how the song is shown:
   - **Pages** (the default) — split into pages that you turn.
   - **Scroll** — one long page that you scroll yourself.
-  - **Autoscroll** — one long page that scrolls by itself. Choosing this adds a speed slider.
-- **BPM pulse** — a soft, silent flash at the song's tempo, so you can keep time without a click in your ears. The first beat of each bar flashes larger and in its own colour (amber unless you change it under **Profile → Preferences**), following the song's time signature (4/4 if none is set).
+  - **Autoscroll** — one long page that scrolls by itself, with its own button to set the speed (see [Autoscroll](#autoscroll)).
 - **Solo / Follow / Lead** — see [Playing together](#playing-together).
 
 All settings are remembered per device.
 
 ### Autoscroll
 
-With autoscroll on, a round button (a square with a down arrow) sits at the right of the chart; it shows a pause sign while scrolling. Tap it, or just **tap the chart**, to start and pause the scrolling. **Hold** the button (or drag it straight away) and it turns into a slider, starting autoscroll if it was paused: drag it up or down to change the speed while it plays (down for faster, up for slower), and let go to put it back. If the song has run ahead, drag on up past the top of the slider: the chart scrolls back, faster the further up you go, until you bring the handle back onto the slider.
+With autoscroll on, a round button (a double down arrow) sits at the right of the chart; it shows a pause sign while scrolling. Tap it, or just **tap the chart**, to start and pause the scrolling. **Hold** the button (or drag it straight away) and it turns into a slider, starting autoscroll if it was paused: drag it up or down to change the speed while it plays (down for faster, up for slower), and let go to put it back. If the song has run ahead, drag on up past the top of the slider: the chart scrolls back, faster the further up you go, until you bring the handle back onto the slider.
 
 - **Drag with one finger** (or use the mouse wheel) to scroll by hand, to look ahead or go back a bit. Autoscroll holds still while you do, then carries on from where you left it.
-- The speed can also be set from the cog.
 
 ## The song list
 
