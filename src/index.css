@@ -7731,11 +7731,12 @@ input, select, textarea { font: inherit; color: var(--text); }
   align-items: center;
   justify-content: center;
   color: var(--media-play);
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
-  border: 2px solid currentColor;
-  box-shadow: var(--shadow-lg);
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+  border: 1.5px solid color-mix(in srgb, currentColor 60%, transparent);
+  /* Kept in the background over the chart; full strength while held. */
+  opacity: 0.7;
   /* Slides home when let go; follows the finger exactly while held. */
-  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.15s ease;
   /* Held and dragged: no scrolling, selection or iOS long-press menu. */
   touch-action: none;
   user-select: none;
@@ -7743,14 +7744,28 @@ input, select, textarea { font: inherit; color: var(--text); }
   -webkit-touch-callout: none;
 }
 
-.concert-autoscroll-btn.is-playing,
+.concert-autoscroll-btn.is-playing {
+  color: #fff;
+  background: color-mix(in srgb, var(--media-play) 55%, transparent);
+  border-color: transparent;
+}
+
+@media (hover: hover) {
+  .concert-autoscroll-btn:hover {
+    opacity: 0.85;
+  }
+}
+
+.concert-autoscroll-btn:focus-visible {
+  opacity: 1;
+}
+
 .concert-autoscroll-btn.is-adjusting {
   color: #fff;
   background: var(--media-play);
   border-color: var(--media-play);
-}
-
-.concert-autoscroll-btn.is-adjusting {
+  box-shadow: var(--shadow-lg);
+  opacity: 1;
   transition: none;
 }
 
