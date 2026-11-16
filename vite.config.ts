@@ -145,6 +145,8 @@ export default defineConfig(({ command }) => ({
               url.pathname.startsWith('/api/')
               && request.method === 'GET'
               && !url.pathname.endsWith('/session/stream')
+              // A stale (or service-worker-delayed) clock reading would put the shared beat off.
+              && url.pathname !== '/api/time'
               && !/\/recordings\/[^/]+\/download$/.test(url.pathname),
             handler: 'NetworkFirst',
             options: {

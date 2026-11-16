@@ -26,6 +26,7 @@ import ChordDisplay from './ChordDisplay';
 import ChordDiagram, { type DiagramInstrument } from './ChordDiagram';
 import { useBandChordVoicings } from '../hooks/useBandChordVoicings';
 import type { useSetlistSession } from '../hooks/useSetlistSession';
+import { useServerClockOffset } from '../hooks/useServerClockOffset';
 import LyricHandNotesOverlay from './LyricHandNotesOverlay';
 import SongTextNotesOverlay from './SongTextNotesOverlay';
 import ConcertMetronomeFlash from './ConcertMetronomeFlash';
@@ -307,6 +308,8 @@ export default function ConcertModeView({
 
   const sessionMode = session?.mode ?? 'solo';
   const sessionState = session?.state ?? null;
+  // Leading or following: the metronome keeps the band's beat, on the server's clock.
+  const sharedClock = useServerClockOffset(sessionMode !== 'solo');
 
   // Seed the transpose from this member's own saved value for the song. Skipped while
   // following — there the leader's transpose is applied to everyone (see the effect below),
@@ -1270,6 +1273,7 @@ export default function ConcertModeView({
           flash={pulse}
           audioContext={clickSound ? clickAudio : null}
           downbeatColor={downbeatColorCss(user?.preferences?.concertDownbeatColor)}
+          sharedClock={sharedClock}
         />
       )}
 

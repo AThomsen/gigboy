@@ -88,6 +88,8 @@ When you are playing a setlist, the cog also shows **Solo / Follow / Lead**:
 
 One person (the singer, say) picks **Lead** and everyone else picks **Follow**. The panel shows who is currently leading.
 
+While you lead or follow, the beat flash and click keep the same beat on every device in the session, with beat one of the bar landing together. Each device just needs to be online, on Wi-Fi or mobile data. They line up as closely as the connection allows: usually to within about 10 ms, and a few tens of ms at worst on a slow mobile connection. The shared beat runs on its own clock, so it can't be started on a count-in, and it won't follow a drummer who speeds up or slows down. (A Bluetooth speaker or headphones adds its own delay to the click.)
+
 ## Stopping
 
 Press the red **stop** button. So that a stray tap on stage can't end the show, the first press only turns it into **Tap again**; press it a second time within a few seconds to leave concert mode.

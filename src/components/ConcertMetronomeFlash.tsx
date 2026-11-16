@@ -15,6 +15,12 @@ interface Props {
   audioContext: AudioContext | null;
   /** CSS colour for beat one of the bar (the user's preference). */
   downbeatColor?: string;
+  /**
+   * A clock shared with other devices, as its lead over `performance.now()` in ms (see
+   * useServerClockOffset). Given, the bars are counted from its zero, so every device on it
+   * with the same song keeps the same beat. null/undefined = this device's own beat.
+   */
+  sharedClock?: number | null;
 }
 
 // How far ahead beats are queued. The scheduler wakes once per beat, just as the next one
@@ -56,8 +62,11 @@ function scheduleClick(ctx: AudioContext, at: number, isDownbeat: boolean): Osci
  * is in page time; clicks are placed on it through one page-to-audio conversion that
  * allows for output latency (several ms on a speaker, far more over Bluetooth), so a click
  * is heard as its flash shows.
+ *
+ * Given a shared clock (in a setlist session), the grid is laid on it instead, so the band's
+ * devices flash and click together without sending the beat around.
  */
-export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, audioContext, downbeatColor }: Props) {
+export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, audioContext, downbeatColor, sharedClock }: Props) {
   const bpm = typeof tempo === 'number' && Number.isFinite(tempo) && tempo > 0
     ? Math.round(tempo)
     : null;
@@ -69,8 +78,10 @@ export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, aud
   const running = Boolean(bpm) && (flash || Boolean(audioContext));
   // The song's beat grid, in page time: when beat 0 is due (seen / heard), and the next beat
   // still to be flashed. Kept while the metronome runs, so switching the click on or off
-  // carries on in the same bar; the parent remounts this per song for a fresh one.
-  const gridRef = useRef<{ anchor: number; nextFlash: number } | null>(null);
+  // carries on in the same bar; the parent remounts this per song for a fresh one. On a
+  // shared clock it's laid out from that clock, and again whenever the reading of it changes.
+  const gridRef = useRef<{ anchor: number; nextFlash: number; clock: number | null } | null>(null);
+  const clock = sharedClock ?? null;
 
   useEffect(() => {
     if (!bpm || !running) {
@@ -80,8 +91,24 @@ export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, aud
     }
     const ctx = audioContext;
     const beatMs = Math.max(80, 60000 / bpm);
-    // Starting: beat one a moment from now, so it can be queued ahead like the rest.
-    const grid = gridRef.current ?? (gridRef.current = { anchor: performance.now() + 50, nextFlash: 0 });
+    if (gridRef.current && gridRef.current.clock !== clock) {
+      // A new reading of the shared clock moves the beat (a little): drop the flashes queued
+      // on the old one, or they'd show next to the moved ones.
+      gridRef.current = null;
+      layerRef.current?.replaceChildren();
+    }
+    if (!gridRef.current) {
+      const now = performance.now();
+      if (clock === null) {
+        // Starting: beat one a moment from now, so it can be queued ahead like the rest.
+        gridRef.current = { anchor: now + 50, nextFlash: 0, clock };
+      } else {
+        // The bar under way on the shared clock, counted from its zero: the same on every device.
+        const barMs = beatMs * beatsPerBar;
+        gridRef.current = { anchor: Math.floor((now + clock) / barMs) * barMs - clock, nextFlash: 0, clock };
+      }
+    }
+    const grid = gridRef.current;
     const beatAt = (n: number) => grid.anchor + n * beatMs;
     const firstBeatFrom = (ms: number) => Math.max(0, Math.ceil((ms - grid.anchor) / beatMs));
     const showFlash = (isDownbeat: boolean, inMs: number) => {
@@ -148,7 +175,7 @@ export default function ConcertMetronomeFlash({ tempo, timeSignature, flash, aud
         try { osc.disconnect(); } catch { /* already gone */ }
       });
     };
-  }, [bpm, beatsPerBar, running, audioContext]);
+  }, [bpm, beatsPerBar, running, audioContext, clock]);
 
   if (!bpm) return null;
 

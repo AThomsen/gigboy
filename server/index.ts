@@ -75,6 +75,13 @@ app.set('trust proxy', trustProxy);
 
 app.use(securityHeaders);
 app.use(express.json({ limit: '5mb' }));
+// The server's clock, for devices in a setlist session to share a metronome beat. Ahead of the
+// session lookup so it answers at once: the round trip is what the client measures by.
+app.get('/api/time', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ now: Date.now() });
+});
+
 app.use(cookieParser(process.env.SESSION_SECRET));
 app.use(attachSession);
 
