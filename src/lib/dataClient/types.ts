@@ -47,9 +47,25 @@ export interface InviteContext {
 /** Fields collected on the invite-accept form; `email` is required only when the invite has none pinned. */
 export interface AcceptInviteInput {
   username: string;
-  password: string;
+  /** Required only when passwords are the server's sole sign-in method; see AuthMethods. */
+  password?: string;
   fullName?: string;
   email?: string;
+}
+
+/** The sign-in methods a server offers (`GET /api/auth/config`). */
+export interface AuthMethods {
+  passwords: boolean;
+  /** One-time link + 6-digit code by email. */
+  magicLinks: boolean;
+  passkeys: boolean;
+}
+
+export interface Passkey {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
 }
 
 export interface AuthClient {
@@ -58,6 +74,22 @@ export interface AuthClient {
   /** Subscribes to auth state changes; returns an unsubscribe function. Fires once immediately. */
   onAuthStateChanged(callback: (user: User | null) => void): () => void;
   login(email: string, password: string): Promise<{ user: User | null; error: string | null }>;
+  getAuthMethods(): Promise<AuthMethods>;
+  /** Emails a sign-in link + code if the address has an account. Doesn't say whether it does. */
+  requestSignInEmail(email: string): Promise<{ error: string | null }>;
+  verifySignInLink(token: string): Promise<{ user: User | null; error: string | null }>;
+  verifySignInCode(email: string, code: string): Promise<{ user: User | null; error: string | null }>;
+  /**
+   * Runs a passkey sign-in. With `autofill`, waits for the user to pick a passkey from the
+   * email field's autofill (conditional UI) instead of opening a dialog. A cancelled or
+   * superseded ceremony resolves with both fields null.
+   */
+  signInWithPasskey(options?: { autofill?: boolean }): Promise<{ user: User | null; error: string | null }>;
+  listPasskeys(): Promise<Passkey[]>;
+  /** Creates a passkey on this device for the signed-in user. Cancelled: both fields null. */
+  addPasskey(): Promise<{ passkey: Passkey | null; error: string | null }>;
+  renamePasskey(id: string, name: string): Promise<void>;
+  deletePasskey(id: string): Promise<void>;
   /** Looks up an invite by token. Null invite + non-null error covers not-found/expired/revoked/already-used. */
   getInvite(token: string): Promise<{ invite: InviteContext | null; error: string | null }>;
   /** Accepts an invite, creating the account and (on success) signing it in via session cookie. */
@@ -68,7 +100,7 @@ export interface AuthClient {
   updateFullName(fullName: string): Promise<{ user: User | null; error: string | null }>;
   /** Partial update, merged with the stored preferences. */
   updatePreferences(preferences: UserPreferences): Promise<{ user: User | null; error: string | null }>;
-  /** Requires the current password (re-auth). */
+  /** Requires the current password (re-auth), unless the account has none yet. */
   updatePassword(currentPassword: string, newPassword: string): Promise<{ error: string | null }>;
   /** Permanently deletes the account. Self-host cascades via FKs; hosted SaaS calls the existing server-side cascade. */
   deleteAccount(): Promise<{ error: string | null }>;
@@ -117,6 +149,8 @@ export interface AdminUsersClient {
   list(): Promise<AdminUserListing[]>;
   /** Sets a user's storage quota override; pass null to reset to the default. */
   setQuota(id: string, storageQuotaBytes: number | null): Promise<void>;
+  /** Changes a user's email — how an admin restores access for someone who lost their inbox. */
+  setEmail(id: string, email: string): Promise<void>;
   /** Promotes or demotes a user's site-wide admin role. Unrelated to band ownership. */
   setRole(id: string, role: 'member' | 'admin'): Promise<void>;
   /** Permanently deletes a user, the bands they own, and every file those bands held. */

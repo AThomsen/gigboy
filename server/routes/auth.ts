@@ -2,11 +2,9 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { users, sessions } from '../db/schema.js';
+import { users, sessions, loginCodes } from '../db/schema.js';
 import {
-  generateSessionToken,
-  sessionExpiry,
-  setSessionCookie,
+  startSession,
   clearSessionCookie,
   getSessionToken,
   requireAuth,
@@ -14,6 +12,7 @@ import {
 } from '../middleware/session.js';
 import { toPublicUser } from '../lib/user.js';
 import { sanitizeUserPreferences } from '../lib/userPreferences.js';
+import { getAuthConfig } from '../lib/authConfig.js';
 
 // A valid-looking bcrypt hash of a random string, compared against on the "no such user" login
 // path so response timing doesn't reveal whether an email is registered.
@@ -28,8 +27,20 @@ const BCRYPT_ROUNDS = 12;
 
 export const authRouter = Router();
 
+/** Which sign-in methods this server offers, so the login screen shows only those. */
+authRouter.get('/config', (_req, res) => {
+  const { passwords, magicLinks, passkeys } = getAuthConfig();
+  res.set('Cache-Control', 'no-store');
+  res.json({ passwords, magicLinks, passkeys });
+});
+
 authRouter.post('/login', async (req, res) => {
   try {
+    if (!getAuthConfig().passwords) {
+      res.json({ user: null, error: 'Password sign-in is disabled on this server.' });
+      return;
+    }
+
     const { email, password } = req.body ?? {};
 
     if (typeof email !== 'string' || typeof password !== 'string') {
@@ -41,8 +52,9 @@ authRouter.post('/login', async (req, res) => {
     const rows = await db.select().from(users).where(eq(users.emailLower, emailLower)).limit(1);
     const row = rows[0];
 
-    if (!row) {
-      // Spend comparable time to a real bcrypt check so timing doesn't leak account existence.
+    if (!row?.passwordHash) {
+      // No such user, or one without a password: spend comparable time to a real bcrypt check
+      // so timing doesn't leak account existence.
       await bcrypt.compare(password, DUMMY_BCRYPT_HASH);
       res.json({ user: null, error: 'Invalid email or password.' });
       return;
@@ -54,10 +66,7 @@ authRouter.post('/login', async (req, res) => {
       return;
     }
 
-    const token = generateSessionToken();
-    const expiresAt = sessionExpiry();
-    await db.insert(sessions).values({ token, userId: row.id, expiresAt });
-    setSessionCookie(res, token, expiresAt);
+    await startSession(res, row.id);
 
     res.json({ user: toPublicUser(row), error: null });
   } catch (err) {
@@ -158,6 +167,10 @@ authRouter.patch('/me', requireAuth, async (req, res) => {
     }
 
     const [row] = await db.update(users).set(updates).where(eq(users.id, req.userId!)).returning();
+    if (updates.email) {
+      // A pending sign-in email went to the old address; it shouldn't outlive the change.
+      await db.delete(loginCodes).where(eq(loginCodes.userId, req.userId!));
+    }
     res.json({ user: row ? toPublicUser(row) : null, error: null });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -171,12 +184,13 @@ authRouter.patch('/me', requireAuth, async (req, res) => {
 
 authRouter.post('/password', requireAuth, async (req, res) => {
   try {
-    const { currentPassword, newPassword } = (req.body ?? {}) as Record<string, unknown>;
-
-    if (typeof currentPassword !== 'string' || !currentPassword) {
-      res.json({ error: 'Current password is required.' });
+    if (!getAuthConfig().passwords) {
+      res.status(403).json({ error: 'Passwords are disabled on this server.' });
       return;
     }
+
+    const { currentPassword, newPassword } = (req.body ?? {}) as Record<string, unknown>;
+
     if (typeof newPassword !== 'string' || newPassword.length < 8) {
       res.json({ error: 'Password must be at least 8 characters.' });
       return;
@@ -189,10 +203,17 @@ authRouter.post('/password', requireAuth, async (req, res) => {
       return;
     }
 
-    const valid = await bcrypt.compare(currentPassword, row.passwordHash);
-    if (!valid) {
-      res.json({ error: 'Current password is incorrect.' });
-      return;
+    // An account without a password (made by passkey or emailed sign-in) can set one directly.
+    if (row.passwordHash) {
+      if (typeof currentPassword !== 'string' || !currentPassword) {
+        res.json({ error: 'Current password is required.' });
+        return;
+      }
+      const valid = await bcrypt.compare(currentPassword, row.passwordHash);
+      if (!valid) {
+        res.json({ error: 'Current password is incorrect.' });
+        return;
+      }
     }
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);

@@ -5,7 +5,8 @@ There is no hosted SaaS version, and no third-party account (Firebase, Stripe, C
 involved anywhere in the stack — it's just this app, a Postgres database, and a volume for
 uploaded files.
 
-> This build covers: email/password auth with full profile management (email/username/avatar/
+> This build covers: sign-in by password, emailed link/code and/or passkey (see
+> [Sign-in methods](#sign-in-methods)) with full profile management (email/username/avatar/
 > full name/password changes, account deletion); personal and band-owned songs, songlists, and
 > setlists; bands with invite-link membership; band technical riders/stage plots with public
 > share links; song PDF attachments (20MB cap); song hand notes and recordings; band logo
@@ -37,7 +38,8 @@ uploaded files.
    points at the `postgres` service host used by Compose — just swap in your password).
 
 4. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` — see [Admin account and invites](#admin-account-and-invites)
-   below. Set both, or leave both unset if an admin already exists from a previous run.
+   below. Set both, or leave both unset if an admin already exists from a previous run. (Going
+   passwordless? Set only `ADMIN_EMAIL` — see [Sign-in methods](#sign-in-methods).)
 
 5. Bring the stack up:
 
@@ -107,7 +109,8 @@ then create the link. Every invite creates a regular member — there's no admin
 invite time, since band ownership is unconditional (whoever creates a band owns it) and has
 nothing to do with site-wide admin access. Copy the link (it's copied to your clipboard
 automatically) and share it with the person you're inviting — they open it at
-`/invite/<token>` to set a username and password and create their account. Links expire after
+`/invite/<token>` to choose a username and create their account (with a password, unless emailed
+sign-in is on — see below). Links expire after
 7 days and can be revoked from the same page before they're used.
 
 **Promoting/demoting admins** — on the Users tab (`/admin/users`), each user (other than
@@ -121,6 +124,40 @@ account with the storage used across bands they own, and lets an admin set (or r
 5GB default) each user's storage quota. Uploads (attachments, recordings, press kit images,
 band logos) that would push a band's total usage past the uploading user's quota are rejected
 server-side.
+
+## Sign-in methods
+
+Three ways to sign in, each switched on or off in `.env`. Any combination works as long as people
+can always get in; the server refuses to start otherwise, and says what's missing.
+
+| Variable | Default | What it needs |
+| --- | --- | --- |
+| `AUTH_PASSWORDS` | `true` | Nothing — works over plain HTTP on a LAN. |
+| `AUTH_MAGIC_LINKS` | `false` | An SMTP server (`SMTP_HOST`, `SMTP_FROM`, usually `SMTP_USER`/`SMTP_PASSWORD`) and `PUBLIC_ORIGIN`. |
+| `AUTH_PASSKEYS` | `false` | `PUBLIC_ORIGIN` on `https://` with a domain name, plus passwords or magic links. |
+
+**Emailed sign-in (magic links)** — people enter their email and get a one-time **link and 6-digit
+code**, valid for 15 minutes. It doubles as "forgot my password" and "lost my passkey". If someone
+has lost access to their inbox too, an admin can change their email address on the Users tab
+(`/admin/users`). The code exists for **installed apps**: on iOS, a home-screen app doesn't share
+cookies with Safari, so a link tapped in Mail signs in Safari, not the app. Typing the code in the
+app works everywhere. `PUBLIC_ORIGIN` is required so the link in the email can't be pointed
+elsewhere by a forged `Host` header.
+
+**Passkeys** — sign in with a fingerprint, face or screen lock. People add passkeys in their
+profile, or right after accepting an invite. Browsers only allow passkeys on HTTPS (or
+`localhost`), and a passkey is bound to the domain in `PUBLIC_ORIGIN`. **Changing that domain later
+makes every existing passkey stop working** (people then sign in another way and add a new one).
+Plain-HTTP LAN installs can't use passkeys.
+
+**Fully passwordless** — `AUTH_PASSWORDS=false`, `AUTH_MAGIC_LINKS=true`, and optionally
+`AUTH_PASSKEYS=true`. Set only `ADMIN_EMAIL` (not `ADMIN_PASSWORD`); the admin signs in with an
+emailed code. Existing accounts keep their stored passwords, but they're no longer accepted. Turn
+passwords back on and they work again.
+
+Mixing is fine. With all three on, the login screen offers a password field, an "email me a code"
+fallback and a passkey button. Accounts created without a password can set one from their profile
+whenever passwords are on.
 
 ## Data persistence
 

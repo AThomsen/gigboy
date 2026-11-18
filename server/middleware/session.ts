@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { and, eq, lt, ne } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { sessions } from '../db/schema.js';
+import { loginCodes, sessions } from '../db/schema.js';
 
 const SESSION_COOKIE = 'session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -35,6 +35,14 @@ export function setSessionCookie(res: Response, token: string, expires: Date): v
     path: '/',
     expires,
   });
+}
+
+/** Creates a session for `userId` and sets its cookie on the response. */
+export async function startSession(res: Response, userId: string): Promise<void> {
+  const token = generateSessionToken();
+  const expiresAt = sessionExpiry();
+  await db.insert(sessions).values({ token, userId, expiresAt });
+  setSessionCookie(res, token, expiresAt);
 }
 
 export function clearSessionCookie(res: Response): void {
@@ -76,12 +84,15 @@ export async function revokeOtherSessions(userId: string, keepToken: string | nu
   await db.delete(sessions).where(condition);
 }
 
-/** Periodically purges expired session rows so the table doesn't grow unbounded. */
+/** Periodically purges expired session and emailed-sign-in rows so the tables don't grow unbounded. */
 export function startSessionCleanup(): void {
   const runOnce = () => {
     db.delete(sessions)
       .where(lt(sessions.expiresAt, new Date()))
       .catch((err) => console.error('Session cleanup failed:', err));
+    db.delete(loginCodes)
+      .where(lt(loginCodes.expiresAt, new Date()))
+      .catch((err) => console.error('Login code cleanup failed:', err));
   };
   runOnce();
   setInterval(runOnce, 6 * 60 * 60 * 1000).unref();

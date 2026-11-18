@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Location } from 'react-router-dom';
-import { Music2, ListMusic, Users, MonitorSpeaker, Newspaper, Activity, type LucideIcon } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Music2, ListMusic, Users, MonitorSpeaker, Newspaper, Activity, KeyRound, type LucideIcon } from 'lucide-react';
+import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from '@simplewebauthn/browser';
+import { useAuth, type User } from '../context/AuthContext';
+import { dataClient } from '../lib/dataClient';
 import BrandMark from '../components/BrandMark';
 import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/Button';
@@ -214,32 +216,169 @@ function LoginBackdrop() {
   );
 }
 
+const PENDING_SIGN_IN_KEY = 'gigboy-pending-email-sign-in';
+const PENDING_SIGN_IN_TTL_MS = 15 * 60_000;
+const RESEND_COOLDOWN_MS = 30_000;
+
+/**
+ * The address a sign-in code was sent to, kept in localStorage: an installed PWA on iOS is often
+ * killed while the user switches to Mail, and should reopen on the code step, not a blank form.
+ */
+function loadPendingSignIn(): { email: string; sentAt: number } | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_SIGN_IN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { email?: unknown; sentAt?: unknown };
+    if (typeof parsed.email !== 'string' || typeof parsed.sentAt !== 'number') return null;
+    if (Date.now() - parsed.sentAt > PENDING_SIGN_IN_TTL_MS) return null;
+    return { email: parsed.email, sentAt: parsed.sentAt };
+  } catch {
+    return null;
+  }
+}
+
+function savePendingSignIn(value: { email: string; sentAt: number } | null) {
+  try {
+    if (value) window.localStorage.setItem(PENDING_SIGN_IN_KEY, JSON.stringify(value));
+    else window.localStorage.removeItem(PENDING_SIGN_IN_KEY);
+  } catch {
+    // Storage unavailable: the code step just won't survive a reload.
+  }
+}
+
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, setUser, authMethods } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState(isDemoMode ? 'demo@example.com' : '');
+  const initialPending = useRef(loadPendingSignIn()).current;
+  const [email, setEmail] = useState(isDemoMode ? 'demo@example.com' : initialPending?.email ?? '');
   const [password, setPassword] = useState(isDemoMode ? 'demo' : '');
+  const [code, setCode] = useState('');
+  const [codeSentAt, setCodeSentAt] = useState<number | null>(initialPending?.sentAt ?? null);
+  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
+  const step = authMethods.magicLinks && codeSentAt !== null ? 'code' : 'start';
+  const passkeysUsable = authMethods.passkeys && browserSupportsWebAuthn();
 
   useDocumentTitle('Sign in');
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  function finishSignIn(user: User) {
+    savePendingSignIn(null);
+    setUser(user);
+    const destination = getPostLoginDestination(location);
+    navigate(destination.path, destination.state ? { state: destination.state } : undefined);
+  }
+
+  // Passkey autofill: the browser offers saved passkeys in the email field's suggestions.
+  // Restarted after a modal passkey attempt, which replaces (aborts) this ceremony.
+  const [autofillRun, setAutofillRun] = useState(0);
+  useEffect(() => {
+    if (!passkeysUsable || step !== 'start') return;
+    let active = true;
+    void browserSupportsWebAuthnAutofill().then(async (supported) => {
+      if (!supported || !active) return;
+      const result = await dataClient.auth.signInWithPasskey({ autofill: true });
+      if (active && result.user) finishSignIn(result.user);
+    });
+    return () => {
+      active = false;
+      WebAuthnAbortService.cancelCeremony();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- finishSignIn only reads current location
+  }, [passkeysUsable, step, autofillRun]);
+
+  // Ticks the resend countdown while on the code step.
+  useEffect(() => {
+    if (step !== 'code') return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 'code') codeInputRef.current?.focus();
+  }, [step]);
+
+  async function handlePasswordSignIn() {
     setBusy(true);
     setError('');
-
     const err = await login(email, password);
-
     if (err) {
       setError(err);
       setBusy(false);
     } else {
+      savePendingSignIn(null);
       const destination = getPostLoginDestination(location);
       navigate(destination.path, destination.state ? { state: destination.state } : undefined);
     }
   }
+
+  async function handleSendCode() {
+    if (!email.includes('@')) {
+      setError('Enter your email address first.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    const { error: sendError } = await dataClient.auth.requestSignInEmail(email.trim());
+    setBusy(false);
+    if (sendError) {
+      setError(sendError);
+      return;
+    }
+    const sentAt = Date.now();
+    setCode('');
+    setNow(sentAt);
+    setCodeSentAt(sentAt);
+    savePendingSignIn({ email: email.trim(), sentAt });
+  }
+
+  async function handleVerifyCode(value = code) {
+    if (value.replace(/\D/g, '').length !== 6) {
+      setError('Enter the 6-digit code from the email.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    const result = await dataClient.auth.verifySignInCode(email.trim(), value);
+    if (result.user) {
+      finishSignIn(result.user);
+      return;
+    }
+    setBusy(false);
+    setError(result.error ?? 'Sign-in failed.');
+  }
+
+  async function handlePasskeySignIn() {
+    setBusy(true);
+    setError('');
+    const result = await dataClient.auth.signInWithPasskey();
+    if (result.user) {
+      finishSignIn(result.user);
+      return;
+    }
+    setBusy(false);
+    if (result.error) setError(result.error);
+    setAutofillRun((n) => n + 1);
+  }
+
+  function handleStartSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (authMethods.passwords) void handlePasswordSignIn();
+    else if (authMethods.magicLinks) void handleSendCode();
+  }
+
+  function useDifferentEmail() {
+    savePendingSignIn(null);
+    setCodeSentAt(null);
+    setCode('');
+    setError('');
+  }
+
+  const resendIn = codeSentAt === null ? 0 : Math.max(0, Math.ceil((codeSentAt + RESEND_COOLDOWN_MS - now) / 1000));
+  const showStartForm = authMethods.passwords || authMethods.magicLinks;
 
   return (
     <div className="login-screen">
@@ -247,7 +386,7 @@ export default function LoginPage() {
       <div className="login-shell">
         <LoginHero />
         <div className="login-card">
-          <h1 className="login-title">Sign in</h1>
+          <h1 className="login-title">{step === 'code' ? 'Check your email' : 'Sign in'}</h1>
 
           {/band-invite\/|bandInvite=/.test(`${location.pathname}${location.search}`) && (
             <p className="login-description">
@@ -263,34 +402,110 @@ export default function LoginPage() {
             </p>
           )}
 
-          <form className="login-form" onSubmit={handleSubmit} noValidate>
-            <div className="form-field">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                required
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                required
-              />
-            </div>
-            {error && <p className="login-error">{error}</p>}
-            <Button type="submit" variant="primary" className="login-submit" disabled={busy}>
-              {busy ? 'Signing in...' : 'Sign in'}
-            </Button>
-          </form>
+          {step === 'code' ? (
+            <form className="login-form" onSubmit={(e) => { e.preventDefault(); void handleVerifyCode(); }} noValidate>
+              <p className="login-description">
+                If <strong>{email}</strong> has an account, we&rsquo;ve sent it a 6-digit code.
+                Enter it here, or open the link in the email on this device.
+              </p>
+              <div className="form-field">
+                <label htmlFor="sign-in-code">Sign-in code</label>
+                <input
+                  ref={codeInputRef}
+                  id="sign-in-code"
+                  className="login-code-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9 ]*"
+                  maxLength={7}
+                  value={code}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d ]/g, '');
+                    setCode(next);
+                    setError('');
+                    // Autofilled or pasted codes go straight through.
+                    if (next.replace(/\D/g, '').length === 6 && !busy) void handleVerifyCode(next);
+                  }}
+                  required
+                />
+              </div>
+              {error && <p className="login-error">{error}</p>}
+              <Button type="submit" variant="primary" className="login-submit" disabled={busy}>
+                {busy ? 'Signing in...' : 'Sign in'}
+              </Button>
+              <div className="login-alt-actions">
+                <button type="button" className="login-link-btn" onClick={() => void handleSendCode()} disabled={busy || resendIn > 0}>
+                  {resendIn > 0 ? `Send a new code (${resendIn}s)` : 'Send a new code'}
+                </button>
+                <button type="button" className="login-link-btn" onClick={useDifferentEmail} disabled={busy}>
+                  Use a different email
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              {showStartForm && (
+                <form className="login-form" onSubmit={handleStartSubmit} noValidate>
+                  <div className="form-field">
+                    <label htmlFor="email">Email</label>
+                    <input
+                      id="email"
+                      type="email"
+                      // "webauthn" lets the browser offer saved passkeys in this field's autofill.
+                      autoComplete={passkeysUsable ? 'username webauthn' : 'email'}
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                      required
+                    />
+                  </div>
+                  {authMethods.passwords && (
+                    <div className="form-field">
+                      <label htmlFor="password">Password</label>
+                      <input
+                        id="password"
+                        type="password"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                        required
+                      />
+                    </div>
+                  )}
+                  {error && <p className="login-error">{error}</p>}
+                  <Button type="submit" variant="primary" className="login-submit" disabled={busy}>
+                    {authMethods.passwords
+                      ? (busy ? 'Signing in...' : 'Sign in')
+                      : (busy ? 'Sending...' : 'Email me a sign-in code')}
+                  </Button>
+                  {authMethods.passwords && authMethods.magicLinks && (
+                    <div className="login-alt-actions">
+                      <button type="button" className="login-link-btn" onClick={() => void handleSendCode()} disabled={busy}>
+                        Forgot your password? Email me a sign-in code
+                      </button>
+                    </div>
+                  )}
+                </form>
+              )}
+
+              {passkeysUsable && (
+                <>
+                  {showStartForm && <div className="login-divider"><span>or</span></div>}
+                  {!showStartForm && error && <p className="login-error">{error}</p>}
+                  <Button
+                    type="button"
+                    variant={showStartForm ? 'secondary' : 'primary'}
+                    className="login-submit"
+                    icon={<KeyRound size={16} aria-hidden="true" />}
+                    onClick={() => void handlePasskeySignIn()}
+                    disabled={busy}
+                  >
+                    Sign in with a passkey
+                  </Button>
+                </>
+              )}
+            </>
+          )}
 
           <footer className="footer">
             <BrandLogo size={14} className="footer-logo" />From Norway {'<3'} with chords

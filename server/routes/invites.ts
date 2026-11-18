@@ -2,16 +2,12 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { users, sessions, userInvites } from '../db/schema.js';
-import {
-  generateSessionToken,
-  sessionExpiry,
-  setSessionCookie,
-  requireAuth,
-} from '../middleware/session.js';
+import { users, userInvites } from '../db/schema.js';
+import { startSession, requireAuth } from '../middleware/session.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { toPublicUser } from '../lib/user.js';
 import { resolveOrigin } from '../lib/http.js';
+import { getAuthConfig } from '../lib/authConfig.js';
 
 const BCRYPT_ROUNDS = 12;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches band invites
@@ -144,7 +140,17 @@ publicInvitesRouter.post('/:token/accept', async (req, res) => {
 
     const { username, password, fullName, email: bodyEmail } = (req.body ?? {}) as Record<string, unknown>;
 
-    if (typeof password !== 'string' || password.length < 8) {
+    // Without emailed sign-in, a password is the new account's only guaranteed way back in (a
+    // passkey can be added after, but not every device can make one), so it's required. With
+    // emailed sign-in it's optional, and with passwords off it's not accepted at all.
+    const config = getAuthConfig();
+    const passwordRequired = config.passwords && !config.magicLinks;
+    const passwordGiven = typeof password === 'string' && password.length > 0;
+    if (passwordGiven && !config.passwords) {
+      res.json({ user: null, error: 'Passwords are disabled on this server.' });
+      return;
+    }
+    if ((passwordRequired || passwordGiven) && (typeof password !== 'string' || password.length < 8)) {
       res.json({ user: null, error: 'Password must be at least 8 characters.' });
       return;
     }
@@ -168,7 +174,7 @@ publicInvitesRouter.post('/:token/accept', async (req, res) => {
     }
 
     const emailLower = email.trim().toLowerCase();
-    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const passwordHash = passwordGiven ? await bcrypt.hash(password as string, BCRYPT_ROUNDS) : null;
     const id = crypto.randomUUID();
 
     // Atomically claim the invite: only one concurrent request can flip it from pending.
@@ -217,10 +223,7 @@ publicInvitesRouter.post('/:token/accept', async (req, res) => {
       .set({ acceptedUserId: id })
       .where(eq(userInvites.id, invite.id));
 
-    const token = generateSessionToken();
-    const expiresAt = sessionExpiry();
-    await db.insert(sessions).values({ token, userId: id, expiresAt });
-    setSessionCookie(res, token, expiresAt);
+    await startSession(res, id);
 
     res.json({ user: toPublicUser(row), error: null });
   } catch (err) {

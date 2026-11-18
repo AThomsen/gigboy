@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { and, eq, ne } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { bands, users } from '../db/schema.js';
+import { bands, loginCodes, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { getBandStorageKeys, getBandStorageUsageBytes, resolveStorageQuotaBytes } from '../lib/storageQuota.js';
@@ -78,6 +78,44 @@ adminUsersRouter.patch('/:id/quota', async (req, res) => {
     });
   } catch (err) {
     console.error('Failed to update user quota:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+/**
+ * Changes a user's email address — the recovery path for someone who has lost access to their
+ * old inbox, since emailed sign-in goes to this address.
+ */
+adminUsersRouter.patch('/:id/email', async (req, res) => {
+  try {
+    const email = (req.body ?? {}).email;
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+$/.test(email.trim())) {
+      res.status(400).json({ error: 'A valid email is required.' });
+      return;
+    }
+    let row;
+    try {
+      [row] = await db
+        .update(users)
+        .set({ email: email.trim(), emailLower: email.trim().toLowerCase() })
+        .where(eq(users.id, req.params.id))
+        .returning();
+    } catch (err) {
+      if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505') {
+        res.status(409).json({ error: 'Another account already uses this email.' });
+        return;
+      }
+      throw err;
+    }
+    if (!row) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+    // Any sign-in email still pending went to the old address.
+    await db.delete(loginCodes).where(eq(loginCodes.userId, row.id));
+    res.json({ id: row.id, email: row.email });
+  } catch (err) {
+    console.error('Failed to update user email:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });

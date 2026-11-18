@@ -10,6 +10,10 @@ import { getPublicPressKitData } from './routes/publicPressKits.js';
 import { renderPressKitOgHtml } from './lib/pressKitOg.js';
 import { authRateLimit } from './middleware/rateLimit.js';
 import { authRouter } from './routes/auth.js';
+import { magicLinkRouter } from './routes/magicLinks.js';
+import { passkeysRouter } from './routes/passkeys.js';
+import { getAuthConfig } from './lib/authConfig.js';
+import { checkMailerAtStartup } from './lib/mailer.js';
 import { adminInvitesRouter, publicInvitesRouter } from './routes/invites.js';
 import { adminUsersRouter } from './routes/adminUsers.js';
 import { bandsRouter } from './routes/bands.js';
@@ -49,9 +53,13 @@ if (!process.env.SESSION_SECRET) {
 if (!process.env.ATTACHMENTS_DIR) {
   throw new Error('ATTACHMENTS_DIR environment variable is required.');
 }
-if (Boolean(process.env.ADMIN_EMAIL) !== Boolean(process.env.ADMIN_PASSWORD)) {
-  throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must both be set, or both left unset.');
-}
+// Validates the sign-in methods (AUTH_PASSWORDS / AUTH_MAGIC_LINKS / AUTH_PASSKEYS) and what
+// each one needs; an invalid combination stops the server here.
+const authConfig = getAuthConfig();
+console.log(
+  `Sign-in methods: ${[authConfig.passwords && 'password', authConfig.magicLinks && 'email link/code', authConfig.passkeys && 'passkey'].filter(Boolean).join(', ')}`,
+);
+if (authConfig.magicLinks) checkMailerAtStartup();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 6168;
@@ -85,6 +93,8 @@ app.get('/api/time', (_req, res) => {
 app.use(cookieParser(process.env.SESSION_SECRET));
 app.use(attachSession);
 
+app.use('/api/auth/magic-link', authRateLimit, magicLinkRouter);
+app.use('/api/auth/passkeys', authRateLimit, passkeysRouter);
 app.use('/api/auth', authRateLimit, authRouter);
 app.use('/api/admin/invites', adminInvitesRouter);
 app.use('/api/admin/users', adminUsersRouter);

@@ -13,6 +13,8 @@ export interface PublicUser {
   role: 'member' | 'admin';
   storageQuotaBytes: number;
   preferences: UserPreferences;
+  /** Whether the account has a password set (accounts may sign in by passkey or email only). */
+  hasPassword: boolean;
 }
 
 /** Self-host builds have no billing/plan concept — every user gets full feature access, aside
@@ -27,5 +29,6 @@ export function toPublicUser(row: UserRow): PublicUser {
     role: row.role === 'admin' ? 'admin' : 'member',
     storageQuotaBytes: resolveStorageQuotaBytes(row.storageQuotaBytes),
     preferences: sanitizeUserPreferences(row.preferences),
+    hasPassword: Boolean(row.passwordHash),
   };
 }

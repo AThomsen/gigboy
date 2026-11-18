@@ -13,6 +13,14 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   files into a timestamped folder (`KEEP=N` prunes old ones), and `restore` puts them back. A
   failed run never leaves a half-written backup. See SELFHOSTING.md.
   
+- **Passwordless sign-in.** Two new sign-in methods alongside passwords, each switched on in
+  `.env`: **emailed sign-in** (`AUTH_MAGIC_LINKS`, a one-time link plus a 6-digit code to type
+  into the installed app; needs SMTP) and **passkeys** (`AUTH_PASSKEYS`, needs HTTPS).
+  `AUTH_PASSWORDS=false` turns passwords off. The server refuses to start with a combination
+  nobody could sign in with. Admins can change a user's email from the Users tab. Adds a
+  database migration (applied automatically by the Docker image). See SELFHOSTING.md →
+  Sign-in methods.
+  
 - **Import Songbook Pro backups.** The Library's upload button takes a `.sbpbackup` file. Songs come
   in with their key, transpose and length; sets become setlists, with any per-set transpose
   added as a song note; and PDF songs are created with the PDF attached.

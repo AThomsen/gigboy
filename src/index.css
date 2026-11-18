@@ -13397,3 +13397,76 @@ input.stageplot-legend-number:focus {
     display: none;
   }
 }
+
+/* ─── Passwordless sign-in ─────────────────────────────────────────────────── */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  margin: calc(var(--space-xl) * -0.5) 0;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.login-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.6rem;
+  letter-spacing: 0.35em;
+  text-align: center;
+}
+
+.login-alt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm) var(--space-xl);
+  margin-top: calc(var(--space-xl) * -0.5);
+}
+
+.login-link-btn {
+  background: none;
+  border: 0;
+  padding: var(--space-2xs);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.login-link-btn:hover:not(:disabled) { text-decoration: underline; }
+.login-link-btn:disabled { color: var(--muted); cursor: default; }
+
+.passkey-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.passkey-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  min-width: 0;
+}
+.passkey-item + .passkey-item { border-top: 1px solid var(--border); }
+.passkey-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+.passkey-info strong { overflow-wrap: anywhere; }
+.passkey-info .profile-settings-muted { font-size: var(--text-xs); }
+.passkey-actions { display: flex; gap: var(--space-2xs); flex-shrink: 0; }
+.passkey-rename { display: flex; flex-wrap: wrap; gap: var(--space-xs); width: 100%; }
+.passkey-rename input { flex: 1; min-width: 10rem; }

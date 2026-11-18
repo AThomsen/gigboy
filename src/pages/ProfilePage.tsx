@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBands } from '../context/BandsContext';
 import UserAvatar from '../components/UserAvatar';
 import ProfilePreferences from '../components/ProfilePreferences';
+import PasskeySettings from '../components/PasskeySettings';
 import { normalizeUsername, validateUsername } from '../lib/userProfiles';
 import { dataClient } from '../lib/dataClient';
 import { loadSongRecordings, type SongRecording } from '../lib/songRecordings';
@@ -16,7 +17,7 @@ import { writeStoredString } from '../lib/safeStorage';
 
 export default function ProfilePage() {
   useDocumentTitle('Profile');
-  const { user, updateEmailAddress, updateUsername, updateFullName, updatePassword, deleteAccount, logout } = useAuth();
+  const { user, setUser, authMethods, updateEmailAddress, updateUsername, updateFullName, updatePassword, deleteAccount, logout } = useAuth();
   const {
     bands,
     loading: bandsLoading,
@@ -128,9 +129,11 @@ export default function ProfilePage() {
       return;
     }
 
+    const hadPassword = user.hasPassword !== false;
     setCurrentPassword('');
     setNewPassword('');
-    toast.success('Password updated.');
+    if (!hadPassword) setUser({ ...user, hasPassword: true });
+    toast.success(hadPassword ? 'Password updated.' : 'Password set.');
   };
 
   const onLogout = async () => {
@@ -350,32 +353,38 @@ export default function ProfilePage() {
               {busyEmail ? 'Saving…' : 'Save'}
             </button>
           </form>
-          <form className="profile-settings-form profile-settings-form--inline" onSubmit={onPasswordSubmit}>
-            <label className="form-field">
-              <span>Current password</span>
-              <input
-                type="password"
-                value={currentPassword}
-                autoComplete="current-password"
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-            </label>
-            <label className="form-field">
-              <span>New password</span>
-              <input
-                type="password"
-                value={newPassword}
-                autoComplete="new-password"
-                onChange={(event) => setNewPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-            </label>
-            <button type="submit" className="btn btn--primary profile-settings-save-btn" disabled={busyPassword}>
-              {busyPassword ? 'Saving…' : 'Change password'}
-            </button>
-          </form>
+          {authMethods.passwords && (
+            <form className="profile-settings-form profile-settings-form--inline" onSubmit={onPasswordSubmit}>
+              {user.hasPassword !== false && (
+                <label className="form-field">
+                  <span>Current password</span>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    autoComplete="current-password"
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                  />
+                </label>
+              )}
+              <label className="form-field">
+                <span>New password</span>
+                <input
+                  type="password"
+                  value={newPassword}
+                  autoComplete="new-password"
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  minLength={8}
+                  required
+                />
+              </label>
+              <button type="submit" className="btn btn--primary profile-settings-save-btn" disabled={busyPassword}>
+                {busyPassword ? 'Saving…' : user.hasPassword === false ? 'Set password' : 'Change password'}
+              </button>
+            </form>
+          )}
         </section>
+
+        {authMethods.passkeys && <PasskeySettings />}
 
         <ProfilePreferences />
 

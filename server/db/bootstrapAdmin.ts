@@ -2,11 +2,12 @@ import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { db } from './client.js';
 import { users } from './schema.js';
+import { loadAuthConfig } from '../lib/authConfig.js';
 
 const BCRYPT_ROUNDS = 12;
 
 /**
- * Idempotent admin bootstrap. If ADMIN_EMAIL/ADMIN_PASSWORD are both set and no user with that
+ * Idempotent admin bootstrap. If ADMIN_EMAIL (and ADMIN_PASSWORD, when passwords are on) is set and no user with that
  * email exists yet, creates one with role 'admin'. If both are unset, this is a no-op (an admin
  * may already exist in the database from a previous run). If a user with that email already
  * exists but isn't an admin, it is left untouched — we never silently promote an existing
@@ -16,10 +17,10 @@ export async function bootstrapAdmin(): Promise<void> {
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
 
-  if (!email && !password) return;
-  if (!email || !password) {
-    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must both be set, or both left unset.');
-  }
+  // Validates the whole sign-in setup, including which ADMIN_* variables it needs: with
+  // AUTH_PASSWORDS=false the admin has no password and signs in with an emailed link.
+  loadAuthConfig();
+  if (!email) return;
 
   const emailLower = email.trim().toLowerCase();
   const rows = await db.select().from(users).where(eq(users.emailLower, emailLower)).limit(1);
@@ -37,7 +38,7 @@ export async function bootstrapAdmin(): Promise<void> {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
   const id = crypto.randomUUID();
   const username = emailLower.split('@')[0] || 'admin';
 

@@ -81,6 +81,19 @@ const authClient: AuthClient = {
     store.setDemoSignedIn(true);
     return delay({ user: store.getDemoUser(), error: null });
   },
+  getAuthMethods: () => delay({ passwords: true, magicLinks: false, passkeys: false }),
+  requestSignInEmail: () => delay({ error: 'Email sign-in is disabled in the demo.' }),
+  verifySignInLink: () => delay({ user: null, error: 'Email sign-in is disabled in the demo.' }),
+  verifySignInCode: () => delay({ user: null, error: 'Email sign-in is disabled in the demo.' }),
+  signInWithPasskey: () => delay({ user: null, error: 'Passkeys are disabled in the demo.' }),
+  listPasskeys: () => delay([]),
+  addPasskey: () => delay({ passkey: null, error: 'Passkeys are disabled in the demo.' }),
+  renamePasskey: async () => {
+    throw new Error('Passkeys are disabled in the demo.');
+  },
+  deletePasskey: async () => {
+    throw new Error('Passkeys are disabled in the demo.');
+  },
   getInvite: () => delay({ invite: null, error: 'Invites are disabled in the demo.' }),
   acceptInvite: () => {
     store.setDemoSignedIn(true);
@@ -173,6 +186,9 @@ const adminInvitesClient: AdminInvitesClient = {
 const adminUsersClient: AdminUsersClient = {
   list: () => delay([]),
   setQuota: async () => {
+    throw new Error('Admin actions are disabled in the demo.');
+  },
+  setEmail: async () => {
     throw new Error('Admin actions are disabled in the demo.');
   },
   setRole: async () => {

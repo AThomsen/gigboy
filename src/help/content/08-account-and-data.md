@@ -10,9 +10,20 @@ Open **Profile** from the top bar.
 ![Your profile and account settings.](profile)
 
 - Change your **name**, **username** and **email**.
-- Change your **password** (you need your current one).
+- Change your **password** (you need your current one), or set one if your account doesn't have one yet. Only shown if your Gigboy uses passwords.
+- Add **passkeys** (if your Gigboy has them on), so you can sign in with your fingerprint, face or screen lock.
 - **Log out** from the top of the page.
 - Accept pending **band invites** under **Invites**.
+
+### Signing in
+
+Depending on how your Gigboy is set up, the sign-in screen offers some of these:
+
+- **Password** — your email and password.
+- **Email me a sign-in code** — you get an email with a 6-digit code and a link. Use this if you forgot your password or lost your passkey. **In the installed app, type the code** — the link opens in your browser instead of the app.
+- **Sign in with a passkey** — uses a passkey saved on your device, or offered when you tap the email field. Add passkeys on your profile, one per device (or one that syncs through iCloud Keychain or Google Password Manager).
+
+If you can't get into your email any more, ask whoever runs your Gigboy to change your email address.
 
 ### Preferences
 

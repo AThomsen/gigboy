@@ -1,4 +1,5 @@
 import type { Band, Gig, InputList, PressKit, Setlist, Song, SongList, Tour } from '../../types';
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import type { User } from '../../context/AuthContext';
 import type { SongAttachment } from '../songAttachments';
 import type { TrashListItem } from '../../components/TrashView';
@@ -8,6 +9,8 @@ import type {
   AdminUserListing,
   AdminUsersClient,
   AuthClient,
+  AuthMethods,
+  Passkey,
   BandAttachmentsClient,
   BandInvite,
   BandScopedCrudClient,
@@ -311,6 +314,12 @@ const bandTrashClient: BandTrashClient = {
   },
 };
 
+/** True when a WebAuthn call ended because the user dismissed it or another ceremony replaced it. */
+function isCancelledCeremony(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.name === 'NotAllowedError' || err.name === 'AbortError';
+}
+
 const authClient: AuthClient = {
   async getCurrentUser() {
     try {
@@ -338,6 +347,92 @@ const authClient: AuthClient = {
     } catch (err) {
       return { user: null, error: err instanceof Error ? err.message : 'Login failed' };
     }
+  },
+  async getAuthMethods() {
+    try {
+      return await apiFetch<AuthMethods>('/auth/config');
+    } catch {
+      // An older server without the endpoint only knows passwords.
+      return { passwords: true, magicLinks: false, passkeys: false };
+    }
+  },
+  async requestSignInEmail(email) {
+    try {
+      return await apiFetch<{ error: string | null }>('/auth/magic-link', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to send the email.' };
+    }
+  },
+  async verifySignInLink(token) {
+    try {
+      return await apiFetch<{ user: User | null; error: string | null }>('/auth/magic-link/verify-link', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      });
+    } catch (err) {
+      return { user: null, error: err instanceof Error ? err.message : 'Sign-in failed.' };
+    }
+  },
+  async verifySignInCode(email, code) {
+    try {
+      return await apiFetch<{ user: User | null; error: string | null }>('/auth/magic-link/verify-code', {
+        method: 'POST',
+        body: JSON.stringify({ email, code }),
+      });
+    } catch (err) {
+      return { user: null, error: err instanceof Error ? err.message : 'Sign-in failed.' };
+    }
+  },
+  async signInWithPasskey(options) {
+    const autofill = Boolean(options?.autofill);
+    try {
+      const { options: optionsJSON } = await apiFetch<{ options: Parameters<typeof startAuthentication>[0]['optionsJSON'] }>(
+        '/auth/passkeys/login/options',
+        { method: 'POST' },
+      );
+      const response = await startAuthentication({ optionsJSON, useBrowserAutofill: autofill });
+      return await apiFetch<{ user: User | null; error: string | null }>('/auth/passkeys/login/verify', {
+        method: 'POST',
+        body: JSON.stringify({ response }),
+      });
+    } catch (err) {
+      if (isCancelledCeremony(err)) return { user: null, error: null };
+      // Autofill runs in the background; a failure to start it shouldn't shout at the user.
+      if (autofill) return { user: null, error: null };
+      return { user: null, error: err instanceof Error ? err.message : 'Passkey sign-in failed.' };
+    }
+  },
+  async listPasskeys() {
+    const data = await apiFetch<{ passkeys: Passkey[] }>('/auth/passkeys');
+    return data.passkeys;
+  },
+  async addPasskey() {
+    try {
+      const { options: optionsJSON } = await apiFetch<{ options: Parameters<typeof startRegistration>[0]['optionsJSON'] }>(
+        '/auth/passkeys/register/options',
+        { method: 'POST' },
+      );
+      const response = await startRegistration({ optionsJSON });
+      return await apiFetch<{ passkey: Passkey | null; error: string | null }>('/auth/passkeys/register/verify', {
+        method: 'POST',
+        body: JSON.stringify({ response }),
+      });
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED') {
+        return { passkey: null, error: 'This device already has a passkey for your account.' };
+      }
+      if (isCancelledCeremony(err)) return { passkey: null, error: null };
+      return { passkey: null, error: err instanceof Error ? err.message : 'Passkey setup failed.' };
+    }
+  },
+  async renamePasskey(id, name) {
+    await apiFetch(`/auth/passkeys/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  },
+  async deletePasskey(id) {
+    await apiFetch(`/auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
   async getInvite(token) {
     try {
@@ -444,6 +539,12 @@ const adminUsersClient: AdminUsersClient = {
     await apiFetch<{ id: string; storageQuotaBytes: number; hasCustomQuota: boolean }>(`/admin/users/${id}/quota`, {
       method: 'PATCH',
       body: JSON.stringify({ storageQuotaBytes }),
+    });
+  },
+  async setEmail(id, email) {
+    await apiFetch<{ id: string; email: string }>(`/admin/users/${id}/email`, {
+      method: 'PATCH',
+      body: JSON.stringify({ email }),
     });
   },
   async setRole(id, role) {

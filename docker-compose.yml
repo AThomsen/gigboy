@@ -33,6 +33,15 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-false}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      AUTH_PASSWORDS: ${AUTH_PASSWORDS:-true}
+      AUTH_MAGIC_LINKS: ${AUTH_MAGIC_LINKS:-false}
+      AUTH_PASSKEYS: ${AUTH_PASSKEYS:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - ./data/attachments:/data/attachments
     ports:

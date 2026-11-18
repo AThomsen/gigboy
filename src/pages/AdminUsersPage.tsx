@@ -27,6 +27,8 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [editEmailId, setEditEmailId] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState('');
 
   const refreshUsers = useCallback(async () => {
     setLoading(true);
@@ -96,6 +98,25 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleChangeEmail = async (user: AdminUserListing) => {
+    const nextEmail = emailDraft.trim();
+    if (!nextEmail.includes('@')) {
+      toast.error('Enter a valid email address.');
+      return;
+    }
+    setBusyId(user.id);
+    try {
+      await dataClient.adminUsers.setEmail(user.id, nextEmail);
+      toast.success(`Email changed to ${nextEmail}.`);
+      setEditEmailId(null);
+      setUsers((prev) => prev.map((entry) => (entry.id === user.id ? { ...entry, email: nextEmail } : entry)));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to change email.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleDeleteUser = async (user: AdminUserListing) => {
     if (deleteConfirmText.trim().toLowerCase() !== user.email.toLowerCase()) return;
     setBusyId(user.id);
@@ -140,8 +161,9 @@ export default function AdminUsersPage() {
               const busy = busyId === user.id;
               const isSelf = user.id === currentUser?.id;
               const confirming = confirmDeleteId === user.id;
+              const editingEmail = editEmailId === user.id;
               return (
-                <li key={user.id} className={confirming ? 'profile-invite-card profile-invite-card--stacked' : 'profile-invite-card'}>
+                <li key={user.id} className={confirming || editingEmail ? 'profile-invite-card profile-invite-card--stacked' : 'profile-invite-card'}>
                   <div className="profile-invite-main">
                     <strong>{user.fullName || user.username || user.email}</strong>
                     <span>
@@ -151,7 +173,37 @@ export default function AdminUsersPage() {
                       {user.hasCustomQuota ? '' : ' (default)'}
                     </span>
                   </div>
-                  {confirming ? (
+                  {editingEmail ? (
+                    <form
+                      className="admin-user-delete-confirm"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void handleChangeEmail(user);
+                      }}
+                    >
+                      <label className="share-menu-field">
+                        <span>
+                          New email for {user.fullName || user.username || user.email}. Sign-in codes go
+                          to this address, so this is how to restore access for someone who lost theirs.
+                        </span>
+                        <input
+                          type="email"
+                          value={emailDraft}
+                          onChange={(e) => setEmailDraft(e.target.value)}
+                          disabled={busy}
+                          autoFocus
+                        />
+                      </label>
+                      <div className="admin-user-delete-confirm-actions">
+                        <button type="submit" className="btn btn--primary" disabled={busy || emailDraft.trim() === user.email}>
+                          {busy ? 'Saving…' : 'Change email'}
+                        </button>
+                        <button type="button" className="btn btn--secondary" disabled={busy} onClick={() => setEditEmailId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : confirming ? (
                     <div className="admin-user-delete-confirm">
                       <label className="share-menu-field">
                         <span>Type <strong>{user.email}</strong> to permanently delete this user and all their files</span>
@@ -217,6 +269,18 @@ export default function AdminUsersPage() {
                           Reset to default
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        className="btn btn--secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditEmailId(user.id);
+                          setEmailDraft(user.email);
+                          setConfirmDeleteId(null);
+                        }}
+                      >
+                        Change email
+                      </button>
                       {!isSelf && (
                         <button
                           type="button"
@@ -234,6 +298,7 @@ export default function AdminUsersPage() {
                           disabled={busy}
                           onClick={() => {
                             setConfirmDeleteId(user.id);
+                            setEditEmailId(null);
                             setDeleteConfirmText('');
                           }}
                           title="Delete user and all their files"

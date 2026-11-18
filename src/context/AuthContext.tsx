@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useMemo } 
 import type { ReactNode } from 'react';
 import { dataClient } from '../lib/dataClient';
 import type { UserPreferences } from '../lib/userPreferences';
+import type { AuthMethods } from '../lib/dataClient/types';
 
 export interface User {
   id: string;
@@ -14,6 +15,8 @@ export interface User {
   storageQuotaBytes: number;
   /** Optional so older payloads / fixtures without it still type-check; treat missing as {}. */
   preferences?: UserPreferences;
+  /** False for accounts that sign in only by passkey or emailed code. */
+  hasPassword?: boolean;
 }
 
 interface AuthContextValue {
@@ -21,6 +24,8 @@ interface AuthContextValue {
   loading: boolean;
   authEnabled: boolean;
   authError: string | null;
+  /** Sign-in methods this server offers. Loaded before `loading` turns false. */
+  authMethods: AuthMethods;
   login: (email: string, password: string) => Promise<string | null>;
   setUser: (user: User | null) => void;
   completeUsername: (username: string) => Promise<string | null>;
@@ -35,20 +40,35 @@ interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
+const DEFAULT_AUTH_METHODS: AuthMethods = { passwords: true, magicLinks: false, passkeys: false };
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [authMethods, setAuthMethods] = useState<AuthMethods | null>(null);
+  const [sessionResolved, setSessionResolved] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    void dataClient.auth.getAuthMethods().then((methods) => {
+      if (!cancelled) setAuthMethods(methods);
+    });
     const unsubscribe = dataClient.auth.onAuthStateChanged((nextUser) => {
       setUser(nextUser);
-      setLoading(false);
+      setSessionResolved(true);
     });
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (sessionResolved && authMethods) setLoading(false);
+  }, [sessionResolved, authMethods]);
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { user: loggedInUser, error } = await dataClient.auth.login(email, password);
@@ -125,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       authEnabled: true,
       authError: null,
+      authMethods: authMethods ?? DEFAULT_AUTH_METHODS,
       login,
       setUser,
       completeUsername,
@@ -140,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       user,
       loading,
+      authMethods,
       login,
       completeUsername,
       updateEmailAddress,

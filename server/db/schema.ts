@@ -8,7 +8,8 @@ export const users = pgTable(
     email: text('email').notNull().unique(),
     emailLower: text('email_lower').notNull().unique(),
     username: text('username').notNull().unique(),
-    passwordHash: text('password_hash').notNull(),
+    // Null for accounts that sign in only by passkey or emailed link (see server/lib/authConfig.ts).
+    passwordHash: text('password_hash'),
     avatar: text('avatar'),
     fullName: text('full_name'),
     role: text('role').notNull().default('member'),
@@ -26,6 +27,32 @@ export const users = pgTable(
 export const sessions = pgTable('sessions', {
   token: text('token').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** WebAuthn credentials. `id` is the credential ID (base64url), as the browser reports it. */
+export const passkeys = pgTable('passkeys', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  publicKey: text('public_key').notNull(), // base64url COSE public key
+  counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+  transports: jsonb('transports').$type<string[]>().notNull().default([]),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+});
+
+/**
+ * A pending emailed sign-in: a link token and a 6-digit code, either of which signs in once.
+ * Only hashes are stored. At most one row per user — requesting a new email replaces it.
+ */
+export const loginCodes = pgTable('login_codes', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  linkTokenHash: text('link_token_hash').notNull().unique(),
+  codeHash: text('code_hash').notNull(),
+  attempts: integer('attempts').notNull().default(0),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
