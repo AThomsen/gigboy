@@ -257,6 +257,8 @@ export default function LoginPage() {
   const [codeSentAt, setCodeSentAt] = useState<number | null>(initialPending?.sentAt ?? null);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState('');
+  // Kept apart from `error` so a failed passkey attempt shows by the passkey button, not the form.
+  const [passkeyError, setPasskeyError] = useState('');
   const [busy, setBusy] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
 
@@ -354,18 +356,20 @@ export default function LoginPage() {
   async function handlePasskeySignIn() {
     setBusy(true);
     setError('');
+    setPasskeyError('');
     const result = await dataClient.auth.signInWithPasskey();
     if (result.user) {
       finishSignIn(result.user);
       return;
     }
     setBusy(false);
-    if (result.error) setError(result.error);
+    if (result.error) setPasskeyError(result.error);
     setAutofillRun((n) => n + 1);
   }
 
   function handleStartSubmit(e: FormEvent) {
     e.preventDefault();
+    setPasskeyError('');
     if (authMethods.passwords) void handlePasswordSignIn();
     else if (authMethods.magicLinks) void handleSendCode();
   }
@@ -445,56 +449,11 @@ export default function LoginPage() {
             </form>
           ) : (
             <>
-              {showStartForm && (
-                <form className="login-form" onSubmit={handleStartSubmit} noValidate>
-                  <div className="form-field">
-                    <label htmlFor="email">Email</label>
-                    <input
-                      id="email"
-                      type="email"
-                      // "webauthn" lets the browser offer saved passkeys in this field's autofill.
-                      autoComplete={passkeysUsable ? 'username webauthn' : 'email'}
-                      value={email}
-                      onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                      required
-                    />
-                  </div>
-                  {authMethods.passwords && (
-                    <div className="form-field">
-                      <label htmlFor="password">Password</label>
-                      <input
-                        id="password"
-                        type="password"
-                        autoComplete="current-password"
-                        value={password}
-                        onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                        required
-                      />
-                    </div>
-                  )}
-                  {error && <p className="login-error">{error}</p>}
-                  <Button type="submit" variant="primary" className="login-submit" disabled={busy}>
-                    {authMethods.passwords
-                      ? (busy ? 'Signing in...' : 'Sign in')
-                      : (busy ? 'Sending...' : 'Email me a sign-in code')}
-                  </Button>
-                  {authMethods.passwords && authMethods.magicLinks && (
-                    <div className="login-alt-actions">
-                      <button type="button" className="login-link-btn" onClick={() => void handleSendCode()} disabled={busy}>
-                        Forgot your password? Email me a sign-in code
-                      </button>
-                    </div>
-                  )}
-                </form>
-              )}
-
               {passkeysUsable && (
                 <>
-                  {showStartForm && <div className="login-divider"><span>or</span></div>}
-                  {!showStartForm && error && <p className="login-error">{error}</p>}
                   <Button
                     type="button"
-                    variant={showStartForm ? 'secondary' : 'primary'}
+                    variant="primary"
                     className="login-submit"
                     icon={<KeyRound size={16} aria-hidden="true" />}
                     onClick={() => void handlePasskeySignIn()}
@@ -502,6 +461,53 @@ export default function LoginPage() {
                   >
                     Sign in with a passkey
                   </Button>
+                  {passkeyError && <p className="login-error">{passkeyError}</p>}
+                </>
+              )}
+
+              {showStartForm && (
+                <>
+                  {passkeysUsable && <div className="login-divider"><span>or</span></div>}
+                  <form className="login-form" onSubmit={handleStartSubmit} noValidate>
+                    <div className="form-field">
+                      <label htmlFor="email">Email</label>
+                      <input
+                        id="email"
+                        type="email"
+                        // "webauthn" lets the browser offer saved passkeys in this field's autofill.
+                        autoComplete={passkeysUsable ? 'username webauthn' : 'email'}
+                        value={email}
+                        onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                        required
+                      />
+                    </div>
+                    {authMethods.passwords && (
+                      <div className="form-field">
+                        <label htmlFor="password">Password</label>
+                        <input
+                          id="password"
+                          type="password"
+                          autoComplete="current-password"
+                          value={password}
+                          onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                          required
+                        />
+                      </div>
+                    )}
+                    {error && <p className="login-error">{error}</p>}
+                    <Button type="submit" variant={passkeysUsable ? 'secondary' : 'primary'} className="login-submit" disabled={busy}>
+                      {authMethods.passwords
+                        ? (busy ? 'Signing in...' : 'Sign in')
+                        : (busy ? 'Sending...' : 'Email me a sign-in code')}
+                    </Button>
+                    {authMethods.passwords && authMethods.magicLinks && (
+                      <div className="login-alt-actions">
+                        <button type="button" className="login-link-btn" onClick={() => void handleSendCode()} disabled={busy}>
+                          Forgot your password? Email me a sign-in code
+                        </button>
+                      </div>
+                    )}
+                  </form>
                 </>
               )}
             </>
