@@ -4,7 +4,11 @@ import { db } from '../db/client.js';
 import { loginCodes, sessions } from '../db/schema.js';
 
 const SESSION_COOKIE = 'session';
+// Sessions slide: each use pushes expiry back to a full SESSION_TTL_MS, so an account stays
+// signed in as long as it's used at least once per TTL. To spare a database write per request,
+// the expiry is only pushed back once it's more than SESSION_REFRESH_INTERVAL_MS old.
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1 day
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace -- standard Express request-augmentation pattern
@@ -54,8 +58,11 @@ export function getSessionToken(req: Request): string | null {
   return typeof token === 'string' && token.length > 0 ? token : null;
 }
 
-/** Resolves the session cookie to a userId and attaches it to the request, if valid. Never rejects. */
-export async function attachSession(req: Request, _res: Response, next: NextFunction): Promise<void> {
+/**
+ * Resolves the session cookie to a userId and attaches it to the request, if valid, sliding the
+ * session's expiry forward (see SESSION_TTL_MS). Never rejects.
+ */
+export async function attachSession(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const token = getSessionToken(req);
     if (!token) return next();
@@ -65,6 +72,13 @@ export async function attachSession(req: Request, _res: Response, next: NextFunc
     if (!session || session.expiresAt.getTime() < Date.now()) return next();
 
     req.userId = session.userId;
+
+    if (session.expiresAt.getTime() < Date.now() + SESSION_TTL_MS - SESSION_REFRESH_INTERVAL_MS) {
+      const expiresAt = sessionExpiry();
+      await db.update(sessions).set({ expiresAt }).where(eq(sessions.token, token));
+      // The cookie carries its own expiry, so it has to be reissued too.
+      setSessionCookie(res, token, expiresAt);
+    }
     next();
   } catch (err) {
     console.error('Session lookup failed:', err);
