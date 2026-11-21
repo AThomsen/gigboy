@@ -8,14 +8,10 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import { toPublicUser } from '../lib/user.js';
 import { resolveOrigin } from '../lib/http.js';
 import { getAuthConfig } from '../lib/authConfig.js';
+import { isUniqueViolation } from '../lib/dbErrors.js';
 
 const BCRYPT_ROUNDS = 12;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches band invites
-
-const UNIQUE_VIOLATION = '23505';
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === UNIQUE_VIOLATION;
-}
 
 /** Admin-only invite management, mounted at /api/admin/invites. */
 export const adminInvitesRouter = Router();

@@ -14,6 +14,7 @@ import {
   trashItems,
 } from '../db/schema.js';
 import { localStorageAdapter } from '../storage/localStorageAdapter.js';
+import { isUniqueViolation } from './dbErrors.js';
 
 /** Matches TrashListItem['itemType'] in src/components/TrashView.tsx, minus the not-built-in-self-host variants. */
 export type TrashItemType =
@@ -118,11 +119,6 @@ async function nextSortOrder(
 }
 
 export type RestoreResult = { ok: true } | { ok: false; status: number; error: string };
-
-const UNIQUE_VIOLATION = '23505';
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === UNIQUE_VIOLATION;
-}
 
 /**
  * Re-inserts a trashed row into its live table from `row.payload`, appending to the end of its
