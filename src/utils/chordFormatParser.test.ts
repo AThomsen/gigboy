@@ -23,6 +23,31 @@ E|--3--|[/tab]`);
     expect(parsed.chordpro).toContain('{start_of_tab}');
   });
 
+  it('merges UG chord rows into lyrics when UG wraps each pair in [tab]', () => {
+    // The shape of a real UG chords page: chord-only rows, and each chord row + lyric line
+    // wrapped in [tab]…[/tab]. Columns count with the [ch] tags taking no width. The song is
+    // "Amazing Grace" (John Newton, 1779), in the public domain.
+    const parsed = parsePastedSong([
+      '[Intro]',
+      '[ch]G[/ch]   [ch]C[/ch]   [ch]D[/ch]',
+      '',
+      '[Verse 1]',
+      '[tab][ch]G[/ch]       [ch]C[/ch]',
+      'Amazing grace, how sweet the sound[/tab]',
+      '[tab]             [ch]D[/ch]',
+      'That saved a wretch like me[/tab]',
+      '',
+      '[tab]e|---3---|',
+      'B|---3---|[/tab]',
+    ].join('\r\n'));
+
+    expect(parsed.chordpro).toContain('{comment: Intro}\n[G] [C] [D]');
+    expect(parsed.chordpro).toContain('{start_of_verse: Verse 1}\n[G]Amazing [C]grace, how sweet the sound\nThat saved a [D]wretch like me');
+    // Real tablature still becomes a tab block.
+    expect(parsed.chordpro).toContain('{start_of_tab}\ne|---3---|\nB|---3---|\n{end_of_tab}');
+    expect(parsed.chordpro).not.toMatch(/start_of_tab\}\n\[G\]/);
+  });
+
   it('parses Chordify-style chord rows with bar separators and metadata labels', () => {
     const parsed = parsePastedSong(`Wonderwall
 Artist: Oasis

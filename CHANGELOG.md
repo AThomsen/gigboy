@@ -35,6 +35,9 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   beat flash. Adds a database migration (applied automatically by the Docker image).
 
 ### Changed
+- Ultimate Guitar chord sheets import with each chord placed in its lyric line. UG wraps each
+  chord line and lyric line in a tab block, which used to come out as separate tab blocks; real
+  tablature also no longer gets wrapped twice.
 - Your own notes now show on a song without opening the Notes panel, and in concert mode
   (read-only there). Open Notes to edit them or to show bandmates' notes.
 - The concert-mode beat flash shows beat one of each bar in its own colour (amber by default),

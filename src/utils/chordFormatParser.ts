@@ -122,9 +122,42 @@ function normalizeLabeledMetadataLine(line: string): string {
 }
 
 // Pre-process common site-specific paste markup before parsing.
+const UG_CHORD_TAG_RE = /\[ch\]([^[]*?)\[\/ch\]/gi;
+
+/** A line of guitar tablature staff, like `e|--3--|` or `B|-----0-----`. */
+function hasTabStaff(text: string): boolean {
+  return /^\s*[A-Ga-g][#b]?\s*\|/m.test(text) || /-{4,}/.test(text.replace(UG_CHORD_TAG_RE, ''));
+}
+
+/**
+ * UG wraps each chord-row + lyric-line pair in `[tab]…[/tab]` too, not just tablature. Such a
+ * block (chords, no staff lines) is unwrapped so its rows merge like any chords-over-lyrics text.
+ */
+function unwrapUGChordLyricBlocks(text: string): string {
+  return text.replace(/\[tab\]([\s\S]*?)\[\/tab\]/gi, (block, content: string) =>
+    /\[ch\]/i.test(content) && !hasTabStaff(content) ? content : block,
+  );
+}
+
+/**
+ * A UG line holding only chords (`[ch]Em[/ch]   [ch]G[/ch]`) becomes plain chord names. UG lines
+ * them up with the tags taking no width, so dropping the tags keeps each chord above its syllable.
+ */
+function plainUGChordRows(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      if (!/\[ch\]/i.test(line)) return line;
+      const rest = line.replace(UG_CHORD_TAG_RE, '');
+      return /^[\s|x×\d()]*$/i.test(rest) ? line.replace(UG_CHORD_TAG_RE, (_, chord: string) => chord) : line;
+    })
+    .join('\n');
+}
+
 function preprocessSongText(text: string): string {
+  text = plainUGChordRows(unwrapUGChordLyricBlocks(text.replace(/\r\n?/g, '\n')));
   // UG inline chord tags: [ch]G[/ch] → [G]
-  text = text.replace(/\[ch\]([^[]*?)\[\/ch\]/gi, (_, chord) => `[${chord.trim()}]`);
+  text = text.replace(UG_CHORD_TAG_RE, (_, chord) => `[${chord.trim()}]`);
   // UG tab wrappers: [tab] ... [/tab] → ChordPro {start_of_tab} ... {end_of_tab}
   text = convertUGTabBlocks(text);
   // Some sites paste inline metadata in localized labels we can normalize up front.
@@ -415,10 +448,21 @@ export function parsePastedSong(text: string): ParsedImportResult {
 
   const out: string[] = [];
   let openSection: string | null = null; // currently open verse/chorus/bridge type
+  // Inside a tab block that preprocessing already made from UG's [tab]…[/tab]: copy it as-is,
+  // so its staff lines aren't wrapped in a second tab block.
+  let inExplicitTab = false;
 
   for (let i = 0; i < content.length; i += 1) {
     const current = content[i] ?? '';
     const next = i + 1 < content.length ? content[i + 1] ?? '' : '';
+
+    const directive = current.trim();
+    if (directive === '{start_of_tab}') inExplicitTab = true;
+    if (inExplicitTab) {
+      out.push(current.trimEnd());
+      if (directive === '{end_of_tab}') inExplicitTab = false;
+      continue;
+    }
 
     // Section marker: [Verse 1], [Chorus], Estribillo:, etc.
     const sectionLabel = parseSectionMarker(current);
