@@ -17,7 +17,7 @@ Concert mode is a clean performance view for the stage. It shows one song at a t
 - **Header** — the song's place in the setlist (1/4), its title and artist, the capo if there is one, and your setlist note for the song.
 - **The chart** — chords above the lyrics. Tap a chord to see its diagram, and tap again to dismiss it. Tabs and strumming patterns can be played right there too.
 - **Your notes** — the notes you've typed on the song (see Notes in Practice tools) are shown on the chart. Only your own notes are shown, and they can't be edited here.
-- **Up next** — in a setlist, the end of each song (its last page, or the bottom when scrolling) shows the next song. Tap it to go straight to that song.
+- **Next song cue** — in a setlist, the end of each song (its last page, or the bottom when scrolling) shows a small cue with the next song, its key and capo, and its setlist note. Tap it to go straight to that song.
 - **Previous / Next** buttons at the bottom, with the **− A / + A** text-size buttons between them. You can hide Previous and Next under Preferences on your profile page.
 
 ## Moving between pages and songs

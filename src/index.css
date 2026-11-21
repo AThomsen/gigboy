@@ -8504,55 +8504,96 @@ input, select, textarea { font: inherit; color: var(--text); }
   color: color-mix(in srgb, var(--text) 72%, var(--muted));
 }
 
-/* "Up next" card at the end of the song's running text (setlists only). */
+/* Page-turn cue for the next song (setlists only): right-aligned, in the chart's own type,
+   like the cue at the foot of a printed page. Scrolling, it ends the song's running text;
+   paged, it's laid over the bottom corner of the last page (--overlay). Sized off the
+   chart's font, so it follows the concert font-size control. */
 .concert-next-song {
+  --cue-size: calc(var(--text-md) * var(--concert-font-scale, 1));
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  margin: var(--space-xl) 0 var(--space-md);
-  padding: var(--space-md) var(--space-lg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .2em;
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-xl) 0 var(--space-md) auto;
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-md);
+  background: none;
+  border: none;
+  font-size: var(--cue-size);
   color: var(--text);
-  text-align: left;
+  text-align: right;
+  cursor: pointer;
 }
 
-.concert-next-song:hover {
-  background: var(--chord-bg);
+.concert-next-song--overlay {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  max-width: min(100%, 28em);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg) 0 0 0;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: -6px -6px 18px color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+/* Clear of the floating Previous/Next buttons, which sit over the bottom of the page. */
+.concert-next-song--above-nav {
+  bottom: 3rem;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.concert-next-song-line {
+  display: flex;
+  align-items: baseline;
+  gap: .5em;
+  max-width: 100%;
 }
 
 .concert-next-song-label {
   flex: 0 0 auto;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  color: var(--accent);
-}
-
-.concert-next-song-position {
-  flex: 0 0 auto;
-  font-size: var(--text-xs);
+  font-size: .8em;
+  font-style: italic;
   color: var(--muted);
 }
 
 .concert-next-song-title {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 1.1em;
 }
 
-.concert-next-song-artist {
-  color: var(--muted);
-}
-
-.concert-next-song svg {
+.concert-next-song-line svg {
   flex: 0 0 auto;
+  align-self: center;
+  width: 1.1em;
+  height: 1.1em;
+  color: var(--accent);
+  transition: transform .15s ease;
+}
+
+.concert-next-song:hover .concert-next-song-line svg {
+  transform: translateX(3px);
+}
+
+.concert-next-song-hints {
+  font-size: .85em;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.concert-next-song-note {
+  max-width: 30em;
+  font-size: .8em;
+  font-style: italic;
   color: var(--muted);
+  white-space: pre-wrap;
 }
 
 .concert-nav-footer {

@@ -35,7 +35,7 @@ import { createResumedAudioContext, resumeAudioContext, setAudioSessionType } fr
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
 import { loadSongHandNotes } from '../lib/songHandNotes';
 import { downbeatColorCss } from '../lib/userPreferences';
-import type { ChordNotation } from '../utils/chordParser';
+import { transposeChord, type ChordNotation } from '../utils/chordParser';
 import { getUserNoteColor } from '../lib/userColors';
 import { extractPinnedLineIds } from '../lib/lineAnchor';
 import { clampScrollSeconds } from '../lib/songScroll';
@@ -101,10 +101,6 @@ function computePageOffsets(contentEl: HTMLElement, viewportHeight: number): num
     }
   }
 
-  // The "Up next" card after the song, kept whole on a page.
-  const upNext = contentEl.querySelector('.concert-next-song');
-  if (upNext) processAtom(upNext);
-
   return offsets;
 }
 
@@ -124,7 +120,7 @@ const EMPTY_GEOMETRY: ScrollGeometry = { distance: 0, pauses: [] };
 /**
  * A song's scroll time maps linearly onto the chart: a marker a third of the way down the
  * chart fires a third of the way through the (moving) scroll. The chart ends at the bottom of
- * the notes stage; the "Up next" card after it just scrolls on at the same speed.
+ * the notes stage; the next-song cue after it just scrolls on at the same speed.
  */
 function measureScrollGeometry(viewport: HTMLElement, content: HTMLElement): ScrollGeometry {
   const viewportRect = viewport.getBoundingClientRect();
@@ -1400,26 +1396,35 @@ export default function ConcertModeView({
       );
     });
 
-  // The "Up next" line ending a song's text (so it lands on the last page / end of the scroll).
-  // Peeks get a copy too, so their pages break exactly like the real thing.
-  const renderUpNext = (index: number, peek = false) => {
+  // The cue for the next song. Scrolling, it ends the song's running text; paged, it's laid
+  // over the corner of the last page instead, so a chart that exactly fills its pages
+  // doesn't get an extra page holding nothing but the cue.
+  const renderUpNext = (index: number, overlay = false) => {
     const next = songs[index + 1];
     if (!next) return null;
+    // What to get ready for: the key it's played in (after this member's transpose), and the
+    // capo — including taking it off when this song has one and the next doesn't.
+    const nextTranspose = transposeBySongId?.[next.id] ?? next.preferredTranspose ?? 0;
+    const key = next.key?.trim() ? transposeChord(next.key.trim(), nextTranspose) : null;
+    const nextCapo = next.capo ?? 0;
+    const thisCapo = songs[index]?.capo ?? 0;
+    const capo = nextCapo > 0 ? `Capo ${nextCapo}` : thisCapo > 0 ? 'No capo' : null;
+    const hints = [key && `Key ${key}`, capo].filter(Boolean).join(' · ');
+    const note = songNotes?.[next.id]?.trim();
     return (
       <button
         type="button"
-        className="concert-next-song"
-        onClick={peek ? undefined : () => goToSong(index + 1)}
-        tabIndex={peek ? -1 : undefined}
+        className={`concert-next-song${overlay ? ' concert-next-song--overlay' : ''}${overlay && showNavButtons ? ' concert-next-song--above-nav' : ''}`}
+        onClick={() => goToSong(index + 1)}
         aria-label={`Next song: ${next.title}`}
       >
-        <span className="concert-next-song-label">Up next</span>
-        <span className="concert-next-song-position">{index + 2}/{songs.length}</span>
-        <span className="concert-next-song-title">
-          <strong>{next.title}</strong>
-          {next.artist && <span className="concert-next-song-artist"> · {next.artist}</span>}
+        <span className="concert-next-song-line">
+          <span className="concert-next-song-label">next {index + 2}/{songs.length}</span>
+          <strong className="concert-next-song-title">{next.title}</strong>
+          <ChevronRight size={16} aria-hidden="true" />
         </span>
-        <ChevronRight size={16} />
+        {hints && <span className="concert-next-song-hints">{hints}</span>}
+        {note && <span className="concert-next-song-note">{note}</span>}
       </button>
     );
   };
@@ -1651,9 +1656,10 @@ export default function ConcertModeView({
                     />
                   )}
                 </div>
-                {/* Part of the running text, so it lands on the last page / end of the scroll. */}
-                {renderUpNext(currentIndex)}
+                {/* Scrolling: part of the running text, so it comes at the end of the scroll. */}
+                {continuous && renderUpNext(currentIndex)}
               </div>
+              {!continuous && currentPageInSong === currentPageCount - 1 && renderUpNext(currentIndex, true)}
             </div>
           {tapFlash && (
             <div
@@ -1663,7 +1669,7 @@ export default function ConcertModeView({
               aria-hidden="true"
             />
           )}
-          {renderSwipePeeks((song, index) => {
+          {renderSwipePeeks((song) => {
             const myNotes = neighbourNotes[song.id] ?? [];
             return (
               <div className="concert-page-viewport">
@@ -1690,7 +1696,6 @@ export default function ConcertModeView({
                       onMyTextNotesChange={noop}
                     />
                   )}
-                  {renderUpNext(index, true)}
                 </div>
               </div>
             );
