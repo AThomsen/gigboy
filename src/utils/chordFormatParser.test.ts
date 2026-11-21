@@ -48,6 +48,40 @@ E|--3--|[/tab]`);
     expect(parsed.chordpro).not.toMatch(/start_of_tab\}\n\[G\]/);
   });
 
+  // Scandinavian/German sheets call B natural "H". Lyrics: "Der er et yndigt land"
+  // (Adam Oehlenschläger, 1819), in the public domain.
+  it('reads H chords as B in UG markup, keeping plain B as B natural', () => {
+    const parsed = parsePastedSong([
+      '[tab][ch]C[/ch]',
+      'Der er et yndigt land[/tab]',
+      '[tab]    [ch]G[/ch]              [ch]Hm[/ch]',
+      'det står med brede bøge[/tab]',
+      '[tab][ch]G/H[/ch] [ch]Am[/ch]     [ch]G/B[/ch]',
+      'nær salten østerstrand[/tab]',
+    ].join('\n'));
+
+    expect(parsed.chordpro).toContain('[C]Der er et yndigt land\ndet [G]står med brede [Bm]bøge\n[G/B]nær [Am]salten [G/B]østerstrand');
+  });
+
+  it('reads H chords as B in plain chord rows once a row mixes them with other chords', () => {
+    const parsed = parsePastedSong([
+      'C',
+      'Der er et yndigt land',
+      '    G              Hm',
+      'det står med brede bøge',
+      'Hm7',
+      'nær salten østerstrand',
+    ].join('\n'));
+
+    expect(parsed.chordpro).toContain('det [G]står med brede [Bm]bøge\n[Bm7]nær salten østerstrand');
+  });
+
+  it('leaves a lyric "Hm" alone in a song without H chords', () => {
+    const parsed = parsePastedSong(['G          D', 'Der er et yndigt land', 'Hm', 'det står med brede bøge'].join('\n'));
+    expect(parsed.chordpro).toContain('\nHm\n');
+    expect(parsed.chordpro).not.toContain('[Bm]');
+  });
+
   it('parses Chordify-style chord rows with bar separators and metadata labels', () => {
     const parsed = parsePastedSong(`Wonderwall
 Artist: Oasis

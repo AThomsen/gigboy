@@ -154,8 +154,47 @@ function plainUGChordRows(text: string): string {
     .join('\n');
 }
 
+/**
+ * Scandinavian/German chord names write B natural as H (`Hm`, `H7`, `G/H`). The rest of the app
+ * only knows A–G, so H becomes B. A plain `B` is left alone: these sheets use it for B natural too
+ * (`Hm7` next to `G/B`), not for B♭ as classical H notation would.
+ */
+function hChordToB(token: string): string {
+  const converted = token.replace(/^H/, 'B').replace(/\/H$/, '/B');
+  return converted !== token && CHORD_TOKEN_RE.test(converted) ? converted : token;
+}
+
+function hChordRowToB(line: string): string {
+  return line.replace(/\S+/g, hChordToB);
+}
+
+/**
+ * Converts H chords to B. Inside UG's `[ch]…[/ch]` tags always (the tag says it's a chord). In
+ * plain chord rows only once some row mixes an H chord with ordinary ones, so a lyric line like
+ * "Hm, hm" in a song without H chords is never touched.
+ */
+function convertHNotation(text: string): string {
+  text = text.replace(UG_CHORD_TAG_RE, (_, chord: string) => `[ch]${hChordToB(chord.trim())}[/ch]`);
+
+  const lines = text.split('\n');
+  const usesHNotation = lines.some((line) => {
+    const converted = hChordRowToB(line);
+    if (converted === line || !lineLooksLikeChordRow(converted)) return false;
+    return line.trim().split(/\s+/).some((token) => CHORD_TOKEN_RE.test(token));
+  });
+  if (!usesHNotation) return text;
+
+  return lines
+    .map((line) => {
+      const converted = hChordRowToB(line);
+      return converted !== line && lineLooksLikeChordRow(converted) ? converted : line;
+    })
+    .join('\n');
+}
+
 function preprocessSongText(text: string): string {
-  text = plainUGChordRows(unwrapUGChordLyricBlocks(text.replace(/\r\n?/g, '\n')));
+  text = convertHNotation(text.replace(/\r\n?/g, '\n'));
+  text = plainUGChordRows(unwrapUGChordLyricBlocks(text));
   // UG inline chord tags: [ch]G[/ch] → [G]
   text = text.replace(UG_CHORD_TAG_RE, (_, chord) => `[${chord.trim()}]`);
   // UG tab wrappers: [tab] ... [/tab] → ChordPro {start_of_tab} ... {end_of_tab}
