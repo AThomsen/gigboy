@@ -615,7 +615,7 @@ export default function Layout({ children }: Props) {
       </header>
 
       <div
-        className={`app-body${isNarrowViewport ? ' app-body--narrow' : ''}${sidebarPeek ? ' app-body--sidebar-peek' : ''}`}
+        className={`app-body${isNarrowViewport ? ' app-body--narrow' : ''}${isConcertRoute && !isNarrowViewport && !sidebarOpen ? ' app-body--sidebar-overlay' : ''}`}
         onPointerDown={(event) => {
           if (!isNarrowViewport || event.pointerType === 'mouse') return;
           swipeRef.current = {

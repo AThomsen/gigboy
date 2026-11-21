@@ -351,14 +351,18 @@ input, select, textarea { font: inherit; color: var(--text); }
 }
 
 /* Concert mode with a mouse at the left edge: the sidebar comes in over the song
-   rather than pushing it aside (which would re-paginate it). */
-.app-body--sidebar-peek .sidebar-anim {
+   rather than pushing it aside (which would re-paginate it). The overlay positioning
+   stays on while it is closed too, so the closing width transition doesn't reflow the song. */
+.app-body--sidebar-overlay .sidebar-anim {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   height: auto;
   z-index: 90;
+}
+
+.app-body--sidebar-overlay .sidebar-anim--open {
   box-shadow: var(--shadow-lg);
 }
 
