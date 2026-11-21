@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/session.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { getBandStorageKeys, getBandStorageUsageBytes, resolveStorageQuotaBytes } from '../lib/storageQuota.js';
 import { localStorageAdapter } from '../storage/localStorageAdapter.js';
+import { isUniqueViolation } from '../lib/dbErrors.js';
 
 /** Admin-only user management (listing + storage quota assignment), mounted at /api/admin/users. */
 export const adminUsersRouter = Router();
@@ -101,7 +102,7 @@ adminUsersRouter.patch('/:id/email', async (req, res) => {
         .where(eq(users.id, req.params.id))
         .returning();
     } catch (err) {
-      if (typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505') {
+      if (isUniqueViolation(err)) {
         res.status(409).json({ error: 'Another account already uses this email.' });
         return;
       }

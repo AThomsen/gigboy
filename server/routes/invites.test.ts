@@ -153,7 +153,9 @@ describe('user invites', () => {
     expect(first.json.error).toBeNull();
     expect(first.json.user).toMatchObject({ email: 'Pinned@X.com', role: 'admin' });
     expect(String(first.headers.get('set-cookie'))).toMatch(/^session=/);
-    expect(JSON.stringify(first.json)).not.toMatch(/password/i);
+    // Neither the password nor its hash leaks (the user's `hasPassword` flag is fine).
+    expect(JSON.stringify(first.json)).not.toMatch(/passwordHash|password_hash|\$2[aby]\$|password1/i);
+    expect(first.json.user).toMatchObject({ hasPassword: true });
     const second = await call('POST', `/api/invites/${id}/accept`, undefined, { username: 'again', password: 'password1' });
     expect(second.status).toBe(410);
   });
