@@ -2,6 +2,7 @@ import { useLocation, useParams, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useBands } from '../context/BandsContext';
 import AddSongForm from '../components/AddSongForm';
+import { useSongBand } from '../hooks/useSongBand';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { Song } from '../types';
 
@@ -15,13 +16,15 @@ type SongPageState = {
 export default function EditSongPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
-  const { bandSongsByBandId, bandSongListsByBandId, addSongToBandSongList, removeSongFromBandSongList, updateBandSong } = useBands();
+  const { bandSongListsByBandId, addSongToBandSongList, removeSongFromBandSongList, updateBandSong } = useBands();
   const pageState = location.state as SongPageState | null;
-  const scopedBandId = pageState?.bandId ?? null;
-  const bandSongs = scopedBandId ? (bandSongsByBandId[scopedBandId] ?? []) : [];
-  const song = bandSongs.find((s) => s.id === id);
+  const { bandId: scopedBandId, song, loading } = useSongBand(id);
 
   useDocumentTitle(song ? `Edit ${song.title}` : 'Edit Song');
+
+  if (loading) {
+    return <p className="bands-status">Loading song…</p>;
+  }
 
   if (!scopedBandId) {
     return <Navigate to="/" replace />;

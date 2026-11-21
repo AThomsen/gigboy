@@ -1,7 +1,7 @@
 import { useLocation, useParams, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { useBands } from '../context/BandsContext';
 import SongView from '../components/SongView';
+import { useSongBand } from '../hooks/useSongBand';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 type SongPageState = {
@@ -13,18 +13,14 @@ type SongPageState = {
 export default function SongPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
-  const { bandSongsByBandId } = useBands();
   const pageState = location.state as SongPageState | null;
-  const searchParams = new URLSearchParams(location.search);
-  const bandIdFromQuery = searchParams.get('bandId')?.trim() || null;
-  const inferredBandId = id
-    ? (Object.entries(bandSongsByBandId).find(([, bandSongs]) => bandSongs.some((song) => song.id === id))?.[0] ?? null)
-    : null;
-  const bandId = pageState?.bandId ?? bandIdFromQuery ?? inferredBandId ?? null;
-  const bandSongs = bandId ? (bandSongsByBandId[bandId] ?? []) : [];
-  const song = bandSongs.find((s) => s.id === id);
+  const { bandId, song, loading } = useSongBand(id);
 
-  useDocumentTitle(song ? song.title : 'Song not found');
+  useDocumentTitle(song ? song.title : loading ? 'Loading song' : 'Song not found');
+
+  if (loading) {
+    return <p className="bands-status">Loading song…</p>;
+  }
 
   if (!bandId) {
     return <Navigate to="/" replace />;
