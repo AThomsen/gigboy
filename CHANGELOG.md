@@ -43,6 +43,8 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   beat flash. Adds a database migration (applied automatically by the Docker image).
 
 ### Changed
+- Imported chord sheets that use Scandinavian/German chord names read H as B (`Hm` → `Bm`,
+  `G/H` → `G/B`), so they transpose and show diagrams like any other chord.
 - Ultimate Guitar chord sheets import with each chord placed in its lyric line. UG wraps each
   chord line and lyric line in a tab block, which used to come out as separate tab blocks; real
   tablature also no longer gets wrapped twice.
