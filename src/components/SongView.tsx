@@ -74,6 +74,8 @@ type SongPageState = {
   backTo?: string;
   backLabel?: string;
   bandId?: string;
+  /** Set when the song was opened from a setlist: Concert starts that setlist from this song. */
+  setlistConcertRoute?: string;
 };
 
 function notationStorageKey(songId: string): string {
@@ -593,7 +595,15 @@ export default function SongView({ song, accentColor, bandId }: Props) {
               <button
                 type="button"
                 className="song-toolbar-tool-btn song-toolbar-tool-btn--concert"
-                onClick={() => navigate(`/songs/${song.id}/concert`, { state: { backTo: location.pathname, bandId } })}
+                onClick={() => {
+                  if (pageState?.setlistConcertRoute) {
+                    navigate(pageState.setlistConcertRoute, {
+                      state: { concertSongId: song.id, returnTo: { path: location.pathname, state: pageState } },
+                    });
+                  } else {
+                    navigate(`/songs/${song.id}/concert`, { state: { backTo: location.pathname, bandId } });
+                  }
+                }}
                 title="Open in concert mode"
                 aria-label="Open in concert mode"
               >

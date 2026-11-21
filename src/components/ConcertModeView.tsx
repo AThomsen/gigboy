@@ -195,6 +195,8 @@ interface Props {
   /** Accessible label for the concert view. Pass setlist name for setlist mode, or empty string to omit. */
   title: string;
   backRoute: string;
+  /** Router state to pass along when leaving concert mode via backRoute. */
+  backState?: unknown;
   /** Per-song notes keyed by song ID (from setlist) */
   songNotes?: Record<string, string>;
   bandId?: string;
@@ -211,6 +213,7 @@ export default function ConcertModeView({
   songs,
   title,
   backRoute,
+  backState,
   songNotes,
   bandId,
   canUseMetronome,
@@ -593,8 +596,8 @@ export default function ConcertModeView({
       return;
     }
     if (confirmStopTimeoutRef.current) clearTimeout(confirmStopTimeoutRef.current);
-    navigate(backRoute);
-  }, [confirmingStop, navigate, backRoute]);
+    navigate(backRoute, { state: backState });
+  }, [confirmingStop, navigate, backRoute, backState]);
 
   const updateScrollEdge = useCallback(() => {
     const viewport = viewportRef.current;
@@ -1280,7 +1283,7 @@ export default function ConcertModeView({
       if (event.key === 'Escape') {
         if (event.defaultPrevented || quickMenu || showSettings || activeChord || showIntro) return;
         if (showSongNavigator) setShowSongNavigator(false);
-        else navigate(backRoute);
+        else navigate(backRoute, { state: backState });
         return;
       }
 
@@ -1324,7 +1327,7 @@ export default function ConcertModeView({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     goToNextPage, goToPrevPage, toggleScrolling, isMultiSong, autoscroll, continuous,
-    quickMenu, showSettings, activeChord, showIntro, showSongNavigator, navigate, backRoute,
+    quickMenu, showSettings, activeChord, showIntro, showSongNavigator, navigate, backRoute, backState,
   ]);
 
   // Close the settings popover on outside press or Escape.

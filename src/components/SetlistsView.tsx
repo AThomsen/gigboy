@@ -550,7 +550,7 @@ export default function SetlistsView({
 
                   <Link
                     to={`/songs/${song.id}`}
-                    state={{ backTo: pathname, backLabel: setlistName, bandId }}
+                    state={{ backTo: pathname, backLabel: setlistName, bandId, setlistConcertRoute: effectiveConcertRoute }}
                     className="setlist-song-link"
                   >
                     <div className="setlist-song-info">

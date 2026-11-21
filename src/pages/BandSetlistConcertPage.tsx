@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useBands } from '../context/BandsContext';
 import type { Song } from '../types';
@@ -44,9 +44,14 @@ export default function BandSetlistConcertPage() {
     }
   }, [bandId, bandSetlists.length, bandSongs.length, refreshBandSetlists, refreshBandSongs]);
 
-  const backRoute = bandId && setlistId
+  // Started from a song page ("Concert" on a song opened from this setlist): leaving
+  // concert mode returns to that song, with its own page state.
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: { path: string; state?: unknown } } | null)?.returnTo;
+  const setlistRoute = bandId && setlistId
     ? `/bands/${bandId}/setlists/${setlistId}`
     : `/bands`;
+  const backRoute = returnTo?.path ?? setlistRoute;
 
   const transposeBySongId = useBandTransposePrefs(bandId);
   const { user } = useAuth();
@@ -58,7 +63,7 @@ export default function BandSetlistConcertPage() {
     return (
       <div className="not-found">
         <p>Setlist not found.</p>
-        <Link to={backRoute} className="back-link"><ArrowLeft size={16} /> Back to setlist</Link>
+        <Link to={setlistRoute} className="back-link"><ArrowLeft size={16} /> Back to setlist</Link>
       </div>
     );
   }
@@ -67,7 +72,7 @@ export default function BandSetlistConcertPage() {
     return (
       <div className="not-found">
         <p>This setlist has no songs yet.</p>
-        <button type="button" className="btn btn--primary" onClick={() => navigate(backRoute)}>Back to setlist</button>
+        <button type="button" className="btn btn--primary" onClick={() => navigate(setlistRoute)}>Back to setlist</button>
       </div>
     );
   }
@@ -77,6 +82,7 @@ export default function BandSetlistConcertPage() {
       songs={setlistSongs}
       title={setlist.name}
       backRoute={backRoute}
+      backState={returnTo?.state}
       songNotes={setlist.songNotes}
       bandId={bandId}
       canUseMetronome={true}
