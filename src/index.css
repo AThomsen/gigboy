@@ -1004,7 +1004,19 @@ input, select, textarea { font: inherit; color: var(--text); }
   gap: var(--space-sm);
 }
 
+/* Column layout so the footer sits at the bottom of the viewport on short
+   pages instead of right under the content. Concert mode hides the footer. */
+.main-content:not(.main-content--concert) {
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content:not(.main-content--concert) > * {
+  flex-shrink: 0;
+}
+
 .footer {
+  margin-top: auto;
   text-align: center;
   padding: var(--space-xl);
   font-size: var(--text-xs);
