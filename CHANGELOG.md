@@ -13,6 +13,14 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   files into a timestamped folder (`KEEP=N` prunes old ones), and `restore` puts them back. A
   failed run never leaves a half-written backup. See SELFHOSTING.md.
   
+- **Import from Ultimate Guitar.** Search Ultimate Guitar or paste a link from the song form
+  (or the new guitar button in the Library); the song opens in the form with its title,
+  artist, key, capo and chords filled in. Songs shared from the UG app on iPhone (Share → Save
+  to Files, a file called `lyrics_tmp`) import with **Import file**. That's also the way in for
+  Pro/Official versions you have a license for. See Help → Songs. The server caches UG's
+  answers and sends it at most 60 requests an hour (`ULTIMATE_GUITAR_MAX_REQUESTS_PER_HOUR`);
+  `ULTIMATE_GUITAR_SEARCH=false` turns search and link import off.
+  
 - **Passwordless sign-in.** Two new sign-in methods alongside passwords, each switched on in
   `.env`: **emailed sign-in** (`AUTH_MAGIC_LINKS`, a one-time link plus a 6-digit code to type
   into the installed app; needs SMTP) and **passkeys** (`AUTH_PASSKEYS`, needs HTTPS).

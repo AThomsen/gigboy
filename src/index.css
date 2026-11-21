@@ -13470,3 +13470,71 @@ input.stageplot-legend-number:focus {
 .passkey-actions { display: flex; gap: var(--space-2xs); flex-shrink: 0; }
 .passkey-rename { display: flex; flex-wrap: wrap; gap: var(--space-xs); width: 100%; }
 .passkey-rename input { flex: 1; min-width: 10rem; }
+
+/* ─── Ultimate Guitar import ───────────────────────────────────────────────── */
+.ug-import-modal { width: min(96vw, 560px); }
+.ug-import-body { display: flex; flex-direction: column; gap: var(--space-md); }
+.ug-import-row { display: flex; gap: var(--space-sm); }
+.ug-import-row input { flex: 1; min-width: 0; }
+.ug-import-row .btn { flex-shrink: 0; }
+.ug-import-error,
+.ug-import-notice {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.ug-import-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+.ug-import-notice {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.ug-import-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.ug-import-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ug-import-results li + li { border-top: 1px solid var(--border); }
+.ug-import-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ug-import-result:hover:not(:disabled) { background: var(--bg); }
+.ug-import-result:disabled { cursor: default; }
+.ug-import-result--paid { color: var(--muted); }
+.ug-import-result-main { display: flex; flex-direction: column; min-width: 0; }
+.ug-import-result-main strong,
+.ug-import-result-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ug-import-result-main span { color: var(--muted); font-size: var(--text-sm); }
+.ug-import-result-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2xs) var(--space-sm);
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.ug-import-rating { display: inline-flex; align-items: center; gap: 2px; }
+.ug-import-more { align-self: center; }
+.ug-import-footnote { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }

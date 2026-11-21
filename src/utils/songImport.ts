@@ -41,6 +41,18 @@ function fileNameToTitle(fileName: string): string {
   return normalized || 'Imported song';
 }
 
+/**
+ * Ultimate Guitar's iOS app shares a song as a file named `lyrics_tmp` (no extension): just the
+ * chords-over-lyrics body, with no title, artist or key.
+ */
+export function isUltimateGuitarShareFile(fileName: string): boolean {
+  const base = (fileName.split('/').pop() ?? fileName).toLowerCase();
+  return base === 'lyrics_tmp' || base.startsWith('lyrics_tmp.');
+}
+
+/** Title for a song saved without review (bulk import) whose content and file name give none. */
+const UNTITLED_SONG = 'Untitled song';
+
 function hasTextSongExtension(fileName: string): boolean {
   return SONG_TEXT_EXTENSIONS.includes(getFileExtension(fileName) as typeof SONG_TEXT_EXTENSIONS[number]);
 }
@@ -48,6 +60,19 @@ function hasTextSongExtension(fileName: string): boolean {
 function supportsTextImport(file: File): boolean {
   if (file.type.startsWith('text/')) return true;
   return hasTextSongExtension(file.name);
+}
+
+/** A file with neither a type nor an extension (like UG's `lyrics_tmp`) is tried as text. */
+function isUntypedFile(file: File): boolean {
+  return !file.type && getFileExtension(file.name.split('/').pop() ?? file.name) === '';
+}
+
+/** Rejects content that is clearly not text: NUL bytes, or many undecodable characters. */
+function looksLikeText(raw: string): boolean {
+  const sample = raw.slice(0, 8192);
+  if (sample.includes('\u0000')) return false;
+  const replacementChars = sample.split('\uFFFD').length - 1;
+  return replacementChars <= Math.max(2, sample.length / 100);
 }
 
 function isZipFile(file: File): boolean {
@@ -79,7 +104,9 @@ export function parseImportedSongText(fileName: string, raw: string): ImportedSo
     throw new Error('This file is empty.');
   }
 
-  const fallbackTitle = fileNameToTitle(fileName);
+  // UG's share file is named `lyrics_tmp`; that's no song title, so leave it for the user to type.
+  const fromUltimateGuitarApp = isUltimateGuitarShareFile(fileName);
+  const fallbackTitle = fromUltimateGuitarApp ? '' : fileNameToTitle(fileName);
   const hasFrontmatter = raw.trimStart().startsWith('---');
 
   if (hasFrontmatter) {
@@ -110,15 +137,22 @@ export function parseImportedSongText(fileName: string, raw: string): ImportedSo
     tempo: parsed.tempo,
     chordpro: parsed.chordpro,
     warnings: parsed.warnings,
-    detectedSource: parsed.detectedSource,
+    detectedSource: parsed.detectedSource ?? (fromUltimateGuitarApp ? 'Ultimate Guitar' : undefined),
   };
 }
 
+const UNSUPPORTED_FILE_MESSAGE =
+  'Only text song files are supported here (.txt, .md, .chordpro, .pro, .cho, .crd, .lyrics, .onsong).';
+
 export async function parseImportedSongFile(file: File): Promise<ImportedSongDraft> {
-  if (!supportsTextImport(file)) {
-    throw new Error('Only text song files are supported here (.txt, .md, .chordpro, .pro, .cho, .crd, .lyrics, .onsong).');
+  if (supportsTextImport(file)) {
+    return parseImportedSongText(file.name, await file.text());
   }
-  return parseImportedSongText(file.name, await file.text());
+  if (isUntypedFile(file)) {
+    const raw = await file.text();
+    if (looksLikeText(raw)) return parseImportedSongText(file.name, raw);
+  }
+  throw new Error(UNSUPPORTED_FILE_MESSAGE);
 }
 
 export interface ExpandedSongImport {
@@ -218,7 +252,10 @@ export async function expandSongImportSelection(files: File[] | FileList): Promi
       continue;
     }
     try {
-      result.items.push({ name: file.name, draft: await parseImportedSongFile(file) });
+      const draft = await parseImportedSongFile(file);
+      // Bulk import saves without a review step, so a song needs some title.
+      if (!draft.title) draft.title = UNTITLED_SONG;
+      result.items.push({ name: file.name, draft });
     } catch (err) {
       result.errors.push({ name: file.name, message: err instanceof Error ? err.message : 'Failed to parse.' });
     }

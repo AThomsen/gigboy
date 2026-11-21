@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import toast from '../utils/anchoredToast';
-import { FolderInput, Plus, Search, Settings, Upload, X } from 'lucide-react';
+import { FolderInput, Guitar, Plus, Search, Settings, Upload, X } from 'lucide-react';
 import { useBands } from '../context/BandsContext';
 import { generateId } from '../lib/uuid';
 import { useAuth } from '../context/AuthContext';
@@ -18,11 +18,13 @@ import { expandSongImportSelection, SONG_IMPORT_ACCEPT } from '../utils/songImpo
 import { parseImportedSongListFile, SONGLIST_JSON_IMPORT_ACCEPT } from '../utils/songListImport';
 import { parseImportedSetlistFile, SETLIST_JSON_IMPORT_ACCEPT } from '../utils/setlistImport';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useUltimateGuitarSearch } from '../hooks/useUltimateGuitarSearch';
 
 export default function BandDetailPage() {
   const { id } = useParams();
   const { pathname, state } = useLocation();
   const navigate = useNavigate();
+  const ultimateGuitarSearch = useUltimateGuitarSearch();
   const { user } = useAuth();
   const {
     bands,
@@ -770,6 +772,17 @@ export default function BandDetailPage() {
                 disabled={isImportingSongs}
               >
                 <Upload size={14} />
+              </button>
+            )}
+            {canEditBand && ultimateGuitarSearch && (
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => navigate('/songs/new', { state: { addSongScope: { kind: 'band', bandId: band.id }, openUltimateGuitar: true } })}
+                title="Import a song from Ultimate Guitar"
+                aria-label="Import a song from Ultimate Guitar"
+              >
+                <Guitar size={14} />
               </button>
             )}
             <button

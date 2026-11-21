@@ -29,6 +29,9 @@ import type {
   PublicRider,
   PublicRidersClient,
   UserInvite,
+  UltimateGuitarClient,
+  UltimateGuitarSearchResult,
+  UltimateGuitarTab,
 } from './types';
 
 /**
@@ -558,6 +561,22 @@ const adminUsersClient: AdminUsersClient = {
   },
 };
 
+const ultimateGuitarClient: UltimateGuitarClient = {
+  getStatus() {
+    return apiFetch<{ searchEnabled: boolean }>('/ultimate-guitar/status');
+  },
+  search(query, page = 1) {
+    const params = new URLSearchParams({ q: query, page: String(page) });
+    return apiFetch<{ results: UltimateGuitarSearchResult[]; page: number; totalPages: number }>(
+      `/ultimate-guitar/search?${params.toString()}`,
+    );
+  },
+  async getTab(url) {
+    const data = await apiFetch<{ tab: UltimateGuitarTab }>(`/ultimate-guitar/tab?${new URLSearchParams({ url }).toString()}`);
+    return data.tab;
+  },
+};
+
 export const apiClient: DataClient = {
   auth: authClient,
   bands: bandsClient,
@@ -577,4 +596,5 @@ export const apiClient: DataClient = {
   publicPressKits: publicPressKitsClient,
   adminInvites: adminInvitesClient,
   adminUsers: adminUsersClient,
+  ultimateGuitar: ultimateGuitarClient,
 };

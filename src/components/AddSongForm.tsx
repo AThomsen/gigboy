@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeforeUnload, useLocation, useNavigate, useBlocker } from 'react-router-dom';
 import { flushSync } from 'react-dom';
-import { ChevronDown, FileUp, Minus, Plus, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
+import { ChevronDown, FileUp, Guitar, Minus, Plus, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
 import toast from '../utils/anchoredToast';
 import { generateId } from '../lib/uuid';
 import type { Song } from '../types';
@@ -19,7 +19,10 @@ import StrumEditorModal from './StrumEditorModal';
 import StrumDisplay from './StrumDisplay';
 import { extractStrumBlocks, replaceNthStrumBlock, serializeStrumBar, uniqueChords, type StrumBlock } from '../utils/strumParser';
 import { parseSongMedia } from '../utils/songMedia';
-import { parseImportedSongFile, SONG_TEXT_IMPORT_ACCEPT } from '../utils/songImport';
+import { parseImportedSongFile, parseImportedSongText } from '../utils/songImport';
+import UltimateGuitarImportModal from './UltimateGuitarImportModal';
+import { useUltimateGuitarSearch } from '../hooks/useUltimateGuitarSearch';
+import type { UltimateGuitarTab } from '../lib/dataClient/types';
 import { formatDuration, parseDuration } from '../utils/duration';
 
 interface Props {
@@ -36,7 +39,12 @@ interface Props {
     /** Where to go after saving instead of the song page (e.g. back into concert mode). */
     returnTo?: { path: string; state?: unknown };
   };
+  /** Open the Ultimate Guitar import dialog right away (from the Library's import menu). */
+  openUltimateGuitarOnMount?: boolean;
 }
+
+const UG_SHARE_FILE_TITLE_HINT =
+  'Imported from Ultimate Guitar. Its shared file doesn’t include the song’s title or artist — type them in above.';
 
 const PLACEHOLDER = `{title: My Song}
 {artist: Artist Name}
@@ -82,6 +90,7 @@ export default function AddSongForm({
   initialSongListId,
   onSongListChange,
   songPageState,
+  openUltimateGuitarOnMount = false,
 }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -117,6 +126,11 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
   const [metadataOpen, setMetadataOpen] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const ultimateGuitarSearch = useUltimateGuitarSearch();
+  const [showUltimateGuitar, setShowUltimateGuitar] = useState(openUltimateGuitarOnMount);
+  // The form has no capo field; an import's capo is carried into the saved song.
+  const [importedCapo, setImportedCapo] = useState<number | undefined>(undefined);
   const autosaveTimerRef = useRef<number | null>(null);
   const saveGenerationRef = useRef(0);
   const tabBlocks = useMemo(() => extractTabBlocks(chordpro), [chordpro]);
@@ -291,7 +305,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       key: values.key.trim() || undefined,
       preferredTranspose: values.transpose || undefined,
       // Not edited here, but the save replaces the whole song, so carry them over.
-      capo: initialSong?.capo,
+      capo: importedCapo ?? initialSong?.capo,
       secondaryLanguages: initialSong?.secondaryLanguages,
       tempo: values.tempo && !Number.isNaN(parseInt(values.tempo, 10)) ? parseInt(values.tempo, 10) : undefined,
       timeSignature: values.timeSignature.trim() || undefined,
@@ -301,7 +315,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       createdAt: initialSong?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-  }, [initialSong?.id, initialSong?.createdAt, initialSong?.capo, initialSong?.secondaryLanguages]);
+  }, [initialSong?.id, initialSong?.createdAt, initialSong?.capo, initialSong?.secondaryLanguages, importedCapo]);
 
   function applyParsedSong(rawText: string, source: 'manual' | 'paste') {
     const parsed = parsePastedSong(rawText);
@@ -325,8 +339,11 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     setIsImportingFile(true);
     try {
       const imported = await parseImportedSongFile(file);
-      setTitle(imported.title);
-      setArtist(imported.artist ?? '');
+      // UG's share file has no title or artist: keep whatever is already typed in.
+      if (imported.title) {
+        setTitle(imported.title);
+        setArtist(imported.artist ?? '');
+      }
       if (imported.author !== undefined) {
         setAuthor(imported.author ?? '');
       }
@@ -338,12 +355,18 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       setTranspose(imported.preferredTranspose ?? 0);
       setTempo(typeof imported.tempo === 'number' ? String(imported.tempo) : '');
       setTimeSignature(imported.timeSignature ?? '');
+      if (imported.capo !== undefined) setImportedCapo(imported.capo);
       setChordpro(imported.chordpro);
       setParseWarnings(imported.warnings);
       setDetectedSource(imported.detectedSource ?? null);
-      setParseStatus(`${mode === 'edit' ? 'Updated' : 'Imported'} from ${file.name}.`);
       setPreview(false);
       setErrors([]);
+      if (imported.title) {
+        setParseStatus(`${mode === 'edit' ? 'Updated' : 'Imported'} from ${file.name}.`);
+      } else {
+        setParseStatus(UG_SHARE_FILE_TITLE_HINT);
+        if (!title.trim()) window.setTimeout(() => titleInputRef.current?.focus(), 0);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import this file.';
       setErrors([message]);
@@ -354,6 +377,25 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
         importInputRef.current.value = '';
       }
     }
+  }
+
+  function applyUltimateGuitarTab(tab: UltimateGuitarTab) {
+    const draft = parseImportedSongText(tab.title || 'Ultimate Guitar', tab.content);
+    // UG's own metadata beats anything guessed from the text.
+    setTitle(tab.title || draft.title);
+    setArtist(tab.artist || draft.artist || '');
+    setKey(tab.key ?? draft.key ?? '');
+    setImportedCapo(tab.capo ?? draft.capo ?? undefined);
+    if (typeof draft.tempo === 'number') setTempo(String(draft.tempo));
+    setChordpro(draft.chordpro);
+    setParseWarnings(draft.warnings);
+    setDetectedSource('Ultimate Guitar');
+    setParseStatus(
+      `Imported ${tab.type.toLowerCase()} from Ultimate Guitar${tab.capo ? ` (capo ${tab.capo})` : ''}. Check it over before saving.`,
+    );
+    setPreview(false);
+    setErrors([]);
+    setShowUltimateGuitar(false);
   }
 
   function handleParsePasted() {
@@ -651,6 +693,9 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
         onClose={() => setEditingStrumIdx(null)}
       />
     )}
+    {showUltimateGuitar && (
+      <UltimateGuitarImportModal onImport={applyUltimateGuitarTab} onClose={() => setShowUltimateGuitar(false)} />
+    )}
     <div className="add-song-page">
       <h1>{mode === 'edit' ? 'Edit Song' : 'Add Song'}</h1>
       <form onSubmit={mode === 'edit' ? (e) => e.preventDefault() : handleSubmit} className="add-song-form">
@@ -683,7 +728,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
               <div className="form-row">
                 <div className="form-field">
                   <label>Title *</label>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" />
+                  <input ref={titleInputRef} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" />
                 </div>
                 <div className="form-field">
                   <label>Artist</label>
@@ -812,6 +857,11 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
               >
                 <FileUp size={14} /> {isImportingFile ? 'Importing…' : mode === 'edit' ? 'Update from file' : 'Import file'}
               </button>
+              {ultimateGuitarSearch && (
+                <button type="button" className="preview-toggle" onClick={() => setShowUltimateGuitar(true)}>
+                  <Guitar size={14} /> Ultimate Guitar
+                </button>
+              )}
               {mode === 'add' && (
                 <button type="button" className="preview-toggle" onClick={handleParsePasted}>
                   <Wand2 size={14} /> Parse
@@ -878,7 +928,8 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
           <input
             ref={importInputRef}
             type="file"
-            accept={SONG_TEXT_IMPORT_ACCEPT}
+            // No accept filter: Ultimate Guitar's iOS share file (`lyrics_tmp`) has no extension,
+            // and iOS greys out files a filter doesn't match. The file is checked after picking.
             onChange={(event) => {
               void handleSongFileImport(event.target.files);
             }}

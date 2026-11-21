@@ -12,6 +12,12 @@ import { authRateLimit } from './middleware/rateLimit.js';
 import { authRouter } from './routes/auth.js';
 import { magicLinkRouter } from './routes/magicLinks.js';
 import { passkeysRouter } from './routes/passkeys.js';
+import { createUltimateGuitarRouter } from './routes/ultimateGuitar.js';
+import {
+  createUltimateGuitarService,
+  readUltimateGuitarMaxRequestsPerHour,
+  readUltimateGuitarSearchEnabled,
+} from './lib/ultimateGuitar.js';
 import { getAuthConfig } from './lib/authConfig.js';
 import { checkMailerAtStartup } from './lib/mailer.js';
 import { adminInvitesRouter, publicInvitesRouter } from './routes/invites.js';
@@ -60,6 +66,12 @@ console.log(
   `Sign-in methods: ${[authConfig.passwords && 'password', authConfig.magicLinks && 'email link/code', authConfig.passkeys && 'passkey'].filter(Boolean).join(', ')}`,
 );
 if (authConfig.magicLinks) checkMailerAtStartup();
+// Validated here so a bad ULTIMATE_GUITAR_* value stops startup instead of a request.
+const ultimateGuitarSearch = readUltimateGuitarSearchEnabled();
+const ultimateGuitarMaxRequestsPerHour = readUltimateGuitarMaxRequestsPerHour();
+console.log(
+  `Ultimate Guitar search: ${ultimateGuitarSearch ? `on, at most ${ultimateGuitarMaxRequestsPerHour} requests to UG per hour` : 'off'}`,
+);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 6168;
@@ -99,6 +111,11 @@ app.use('/api/auth', authRateLimit, authRouter);
 app.use('/api/admin/invites', adminInvitesRouter);
 app.use('/api/admin/users', adminUsersRouter);
 app.use('/api/invites', authRateLimit, publicInvitesRouter);
+// Rate-limited like auth: each request makes an outbound request to Ultimate Guitar.
+app.use('/api/ultimate-guitar', authRateLimit, createUltimateGuitarRouter({
+  enabled: ultimateGuitarSearch,
+  service: createUltimateGuitarService({ maxRequestsPerHour: ultimateGuitarMaxRequestsPerHour }),
+}));
 app.use('/api/storage-usage', storageUsageRouter);
 app.use('/api/song-badges', songBadgesRouter);
 app.use('/api/bands/:bandId/songs/:songId/attachments', bandAttachmentsRouter);
