@@ -35,6 +35,42 @@ export interface DataClient {
   publicPressKits: PublicPressKitsClient;
   adminInvites: AdminInvitesClient;
   adminUsers: AdminUsersClient;
+  ultimateGuitar: UltimateGuitarClient;
+}
+
+/** A search hit on Ultimate Guitar (`GET /api/ultimate-guitar/search`). */
+export interface UltimateGuitarSearchResult {
+  title: string;
+  artist: string;
+  /** "Chords", "Tabs", "Ukulele Chords", "Bass Tabs", or "Official"/"Pro" for paid versions. */
+  type: string;
+  version: number | null;
+  rating: number | null;
+  votes: number | null;
+  url: string;
+  /** Paid versions are listed but can't be imported here — only from the UG app's share file. */
+  paid: boolean;
+}
+
+/** A song read from Ultimate Guitar (`GET /api/ultimate-guitar/tab`). */
+export interface UltimateGuitarTab {
+  title: string;
+  artist: string;
+  key: string | null;
+  capo: number | null;
+  type: string;
+  /** UG markup ([ch]…[/ch], [tab]…[/tab]); run it through the song import parser. */
+  content: string;
+  url: string;
+}
+
+/** Song search and import from Ultimate Guitar, fetched by the server. Errors are user-facing. */
+export interface UltimateGuitarClient {
+  /** Whether this server has search and link import turned on (`ULTIMATE_GUITAR_SEARCH`). */
+  getStatus(): Promise<{ searchEnabled: boolean }>;
+  search(query: string, page?: number): Promise<{ results: UltimateGuitarSearchResult[]; page: number; totalPages: number }>;
+  /** Accepts any link to a UG song page. */
+  getTab(url: string): Promise<UltimateGuitarTab>;
 }
 
 /** Result of looking up an invite token, mirroring `GET /api/invites/:token`'s success body. */

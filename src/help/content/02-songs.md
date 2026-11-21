@@ -21,13 +21,25 @@ The **Library** is every song your band owns. Click a song to open it. The list/
 
 ## Adding songs
 
-You have three ways to get a song in:
+You have four ways to get a song in:
 
 - **Write it** — press the round **+** button in the Library and fill in the form (see [Writing a song](#writing-a-song)).
 - **Import files** — use the upload button at the top of the Library ("Import song files or a zip backup"). Drop in ChordPro or OnSong files, or a whole `.zip` backup or SongbookPro backup (`.sbpbackup`), and Gigboy converts them.
 - **Paste a chart** — paste a chord sheet from Ultimate Guitar, Chordify or CifraClub into the lyrics box and Gigboy converts it to ChordPro. Chords written in solfège (Do Re Mi) are recognised too.
+- **From Ultimate Guitar** — see [below](#from-ultimate-guitar).
 
 > **Tip:** Choose a list under **Save to song list** on the form, or add the song while you are looking at a songlist, to file it straight away.
+
+## From Ultimate Guitar
+
+Press the guitar button at the top of the Library, or **Ultimate Guitar** above the lyrics box on the song form. (If you don't see them, whoever runs your Gigboy has turned Ultimate Guitar search off. Importing from the app, below, still works.)
+
+- **Search** for a song or artist and pick a version. The list shows each version's type and rating, best-rated first. Gigboy fills in the title, artist, key, capo and chords. Check them over, then save.
+- **Paste a link** to a song on ultimate-guitar.com instead, if you've already found the one you want.
+
+**From the Ultimate Guitar app on iPhone or iPad:** open the song, press **Share** and choose **Save to Files**. The app saves it as a file called `lyrics_tmp`. In Gigboy, open the song form, press **Import file** and pick that file. The file has no title or artist, so type those in.
+
+**Pro and Official versions** need an Ultimate Guitar license, so they show in the search with a lock and can't be imported from there. If you have a license, use the app's **Share → Save to Files** as above. It shares whatever your license lets you see.
 
 ## Reading a song
 

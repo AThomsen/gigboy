@@ -2,6 +2,7 @@ import type { Gig, InputList, PressKit, Setlist, Song, SongList, Tour } from '..
 import type {
   AdminInvitesClient,
   AdminUsersClient,
+  UltimateGuitarClient,
   AuthClient,
   BandAttachmentsClient,
   BandScopedCrudClient,
@@ -199,6 +200,16 @@ const adminUsersClient: AdminUsersClient = {
   },
 };
 
+const ultimateGuitarClient: UltimateGuitarClient = {
+  getStatus: () => delay({ searchEnabled: false }),
+  search: async () => {
+    throw new Error('Importing from Ultimate Guitar is not available in the demo.');
+  },
+  getTab: async () => {
+    throw new Error('Importing from Ultimate Guitar is not available in the demo.');
+  },
+};
+
 export const demoClient: DataClient = {
   auth: authClient,
   bands: bandsClient,
@@ -218,4 +229,5 @@ export const demoClient: DataClient = {
   publicPressKits: publicPressKitsClient,
   adminInvites: adminInvitesClient,
   adminUsers: adminUsersClient,
+  ultimateGuitar: ultimateGuitarClient,
 };

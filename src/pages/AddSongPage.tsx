@@ -10,6 +10,8 @@ type AddSongScopeState = {
     bandId?: string;
   };
   initialSongListId?: string;
+  /** Open the Ultimate Guitar import dialog on arrival (the Library's Ultimate Guitar button). */
+  openUltimateGuitar?: boolean;
 };
 
 export default function AddSongPage() {
@@ -62,6 +64,7 @@ export default function AddSongPage() {
       initialSongListId={initialSongListId}
       onSongListChange={handleSongListChange}
       songPageState={songPageState}
+      openUltimateGuitarOnMount={pageState?.openUltimateGuitar === true}
     />
   );
 }

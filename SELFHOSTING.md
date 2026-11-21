@@ -159,6 +159,21 @@ Mixing is fine. With all three on, the login screen offers a password field, an 
 fallback and a passkey button. Accounts created without a password can set one from their profile
 whenever passwords are on.
 
+## Ultimate Guitar search
+
+The song form can search Ultimate Guitar and import a song from a link. Ultimate Guitar can't be
+read from the browser, so **your server** makes these requests. To keep that to a trickle, answers
+are cached (searches for a day, songs for 30 days) and the server sends Ultimate Guitar at most
+`ULTIMATE_GUITAR_MAX_REQUESTS_PER_HOUR` requests an hour (default 60), after which users are asked
+to try again later.
+
+Set `ULTIMATE_GUITAR_SEARCH=false` to turn search and link import off, for example if you'd rather
+your server never contacts Ultimate Guitar. Importing a file shared from the Ultimate Guitar app
+(`lyrics_tmp`) never contacts it and works either way.
+
+If Ultimate Guitar blocks your server (most likely on a data-centre IP), users see a message saying
+so, and the file import and pasting chords into the song form still work.
+
 ## Data persistence
 
 Postgres data lives in `./data/postgres`, and uploaded song attachments live in

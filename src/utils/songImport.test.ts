@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { expandSongImportSelection, parseImportedSongText } from './songImport';
+import { expandSongImportSelection, parseImportedSongFile, parseImportedSongText } from './songImport';
 
 // jsdom's File doesn't implement text()/arrayBuffer(), so build minimal stand-ins that
 // satisfy the parts of the File interface songImport actually touches.
@@ -32,6 +32,52 @@ describe('parseImportedSongText', () => {
     expect(draft.title).toBe('Test Song');
     expect(draft.artist).toBe('Someone');
     expect(draft.detectedSource).toBe('Frontmatter');
+  });
+});
+
+// Same shape as the file Ultimate Guitar's iOS app shares (named `lyrics_tmp`, no extension):
+// only the body, as section headers and chord rows above lyric lines. The song is "Amazing
+// Grace" (John Newton, 1779), which is in the public domain.
+const UG_SHARE_FILE = [
+  '[Intro]',
+  'G C G D',
+  '',
+  '',
+  '[Verse 1]',
+  'G              C             G',
+  'Amazing grace, how sweet the sound',
+  'G            D',
+  'That saved a wretch like me',
+  '',
+  '[Verse 2]',
+  'Em7              D7sus4',
+  "'Twas grace that taught my heart to fear",
+].join('\n');
+
+describe('Ultimate Guitar share file (lyrics_tmp)', () => {
+  it('imports the body, leaving the title for the user', async () => {
+    const draft = await parseImportedSongFile(textFile('lyrics_tmp', UG_SHARE_FILE, ''));
+    expect(draft.title).toBe('');
+    expect(draft.detectedSource).toBe('Ultimate Guitar');
+    expect(draft.chordpro).toContain('{comment: Intro}\n[G] [C] [G] [D]');
+    expect(draft.chordpro).toContain(
+      '{start_of_verse: Verse 1}\n[G]Amazing grace, [C]how sweet the [G]sound\n[G]That saved a [D]wretch like me',
+    );
+    expect(draft.chordpro).toContain("{start_of_verse: Verse 2}\n[Em7]'Twas grace that [D7sus4]taught my heart to fear");
+  });
+
+  it('gets a placeholder title in bulk import, which saves without review', async () => {
+    const result = await expandSongImportSelection([textFile('lyrics_tmp', UG_SHARE_FILE, '')]);
+    expect(result.errors).toHaveLength(0);
+    expect(result.items[0].draft.title).toBe('Untitled song');
+  });
+
+  it('still rejects an extensionless file that is not text', async () => {
+    await expect(parseImportedSongFile(textFile('blob', 'PK\u0003\u0004\u0000\u0000binary', ''))).rejects.toThrow(/Only text song files/);
+  });
+
+  it('keeps rejecting unsupported extensions', async () => {
+    await expect(parseImportedSongFile(textFile('photo.jpg', 'x', 'image/jpeg'))).rejects.toThrow(/Only text song files/);
   });
 });
 
