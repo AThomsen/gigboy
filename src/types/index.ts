@@ -208,6 +208,9 @@ export interface Song {
   date?: string;
   /** Play length in seconds, used to estimate a setlist's total duration. */
   durationSeconds?: number;
+  /** How long autoscroll takes to scroll through the whole chart (pauses included), in
+   * seconds. Shared by the band, saved from Concert Mode. */
+  scrollSeconds?: number;
   createdAt?: string;
   updatedAt?: string;
 }

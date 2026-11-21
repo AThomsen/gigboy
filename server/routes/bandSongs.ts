@@ -25,11 +25,14 @@ export function toApi(row: SongRow) {
     sortOrder: row.sortOrder,
     date: row.date,
     durationSeconds: row.durationSeconds,
+    scrollSeconds: row.scrollSeconds,
     createdAt: row.createdAt?.toISOString(),
     updatedAt: row.updatedAt?.toISOString(),
   });
 }
 
+// scrollSeconds is deliberately absent: it's saved through songScroll.ts, so a song-form save
+// (a full replace) leaves it alone.
 function fromBody(body: Record<string, unknown>, id: string, bandId: string) {
   return {
     id,

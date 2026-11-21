@@ -38,6 +38,9 @@ import { downbeatColorCss } from '../lib/userPreferences';
 import type { ChordNotation } from '../utils/chordParser';
 import { getUserNoteColor } from '../lib/userColors';
 import { extractPinnedLineIds } from '../lib/lineAnchor';
+import { clampScrollSeconds } from '../lib/songScroll';
+import { describePause, parsePause, pauseSeconds } from '../utils/scrollPause';
+import { formatDuration } from '../utils/duration';
 
 const noop = () => {};
 // Space between a song and the next/previous one peeking in while swiping (see .concert-swipe-peek).
@@ -105,10 +108,50 @@ function computePageOffsets(contentEl: HTMLElement, viewportHeight: number): num
   return offsets;
 }
 
+/**
+ * What autoscroll needs to know about the chart's layout, measured with the pagination:
+ * how far it scrolls to bring the chart's end into view, and where its pauses fire.
+ */
+interface ScrollGeometry {
+  /** Scroll distance (px) from the top until the chart's last line reaches the bottom. */
+  distance: number;
+  /** Each {pause} marker: the raw directive value, and the scrollTop at which it fires. */
+  pauses: { value: string; trigger: number }[];
+}
+
+const EMPTY_GEOMETRY: ScrollGeometry = { distance: 0, pauses: [] };
+
+/**
+ * A song's scroll time maps linearly onto the chart: a marker a third of the way down the
+ * chart fires a third of the way through the (moving) scroll. The chart ends at the bottom of
+ * the notes stage; the "Up next" card after it just scrolls on at the same speed.
+ */
+function measureScrollGeometry(viewport: HTMLElement, content: HTMLElement): ScrollGeometry {
+  const viewportRect = viewport.getBoundingClientRect();
+  const contentRect = content.getBoundingClientRect();
+  const contentTop = contentRect.top - viewportRect.top + viewport.scrollTop;
+  const stage = content.querySelector('.song-notes-stage') ?? content;
+  const chartEnd = stage.getBoundingClientRect().bottom - contentRect.top + contentTop;
+  const distance = Math.max(0, chartEnd - viewport.clientHeight);
+  const pauses = Array.from(content.querySelectorAll<HTMLElement>('[data-scroll-pause]')).map((el) => {
+    const y = el.getBoundingClientRect().top - contentRect.top + contentTop;
+    return { value: el.dataset.scrollPause ?? '', trigger: chartEnd > 0 ? (y * distance) / chartEnd : 0 };
+  });
+  return { distance, pauses };
+}
+
+function sameGeometry(a: ScrollGeometry, b: ScrollGeometry): boolean {
+  return Math.abs(a.distance - b.distance) < 0.5
+    && a.pauses.length === b.pauses.length
+    && a.pauses.every((p, i) => p.value === b.pauses[i].value && Math.abs(p.trigger - b.pauses[i].trigger) < 0.5);
+}
+
 const FONT_SCALE_KEY = 'gigboy.concert.fontScale';
 const PAGINATION_KEY = 'gigboy.concert.pagination';
 const PULSE_KEY = 'gigboy.concert.pulse';
 const AUTOSCROLL_KEY = 'gigboy.concert.autoscroll';
+// The px/s speed from before speeds were saved per song: still the starting speed for a song
+// with neither a scroll time nor a play length. No longer written.
 const SCROLL_SPEED_KEY = 'gigboy.concert.scrollSpeed';
 const QUICK_MENU_INTRO_KEY = 'gigboy.concert.quickMenuIntroSeen';
 const SCROLL_SPEED_MIN = 5;
@@ -177,7 +220,7 @@ export default function ConcertModeView({
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { bands } = useBands();
+  const { bands, saveBandSongScrollSeconds } = useBands();
   const band = bandId ? (bands ?? []).find((b) => b.id === bandId) ?? null : null;
   const canEditSongs = Boolean(bandId) && (!user || !band || band.memberRoles?.[user.id] !== 'viewer');
 
@@ -200,10 +243,20 @@ export default function ConcertModeView({
   // scrolling, so the two toggles are mutually exclusive.
   const [pagination, setPagination] = useState(() => readStoredFlag(PAGINATION_KEY, true));
   const [autoscroll, setAutoscroll] = useState(() => readStoredFlag(AUTOSCROLL_KEY, false));
-  const [scrollSpeed, setScrollSpeed] = useState(readStoredScrollSpeed);
-  // Read by the autoscroll loop, so a speed change applies at once without restarting it.
-  const scrollSpeedRef = useRef(scrollSpeed);
-  scrollSpeedRef.current = scrollSpeed;
+  const [legacyScrollSpeed] = useState(readStoredScrollSpeed);
+  const [scrollGeometry, setScrollGeometry] = useState<ScrollGeometry>(EMPTY_GEOMETRY);
+  // A speed change in concert mode applies at once, but stays unsaved until "Save" in the bar
+  // at the bottom. Moving to another song drops it.
+  const [scrollAdjust, setScrollAdjust] = useState<{ songId: string; seconds: number } | null>(null);
+  const [scrollSaveState, setScrollSaveState] = useState<{ saving: boolean; error: string | null }>({ saving: false, error: null });
+  // Set further down from the song's scroll time; read by the autoscroll loop, so a speed
+  // change applies at once without restarting it.
+  const scrollSpeedRef = useRef(legacyScrollSpeed);
+  // The scroll pause autoscroll is holding at, if any: which marker, and when it ends
+  // (performance.now() time; null waits for a tap).
+  const [activePause, setActivePause] = useState<{ index: number; endsAt: number | null } | null>(null);
+  const activePauseRef = useRef(activePause);
+  const scrollPausesRef = useRef<{ trigger: number; seconds: number | null }[]>([]);
   // One finger moving on the chart: autoscroll holds still while the user scrolls by hand.
   // A finger merely resting there (steadying the tablet) doesn't count.
   const touchingRef = useRef(false);
@@ -229,6 +282,45 @@ export default function ConcertModeView({
 
   const isMultiSong = songs.length > 1;
   const activeSong = songs[currentIndex] ?? null;
+
+  // Autoscroll speed. A song stores how long the chart takes to scroll through (pauses
+  // included); px/s follows from this screen's layout, so it's right at any text size.
+  const scrollPauseSeconds = useMemo(
+    () => scrollGeometry.pauses.map((p) => pauseSeconds(parsePause(p.value), activeSong?.tempo, activeSong?.timeSignature)),
+    [scrollGeometry.pauses, activeSong?.tempo, activeSong?.timeSignature],
+  );
+  scrollPausesRef.current = scrollGeometry.pauses.map((p, i) => ({ trigger: p.trigger, seconds: scrollPauseSeconds[i] }));
+  const scrollPauseTotal = scrollPauseSeconds.reduce<number>((sum, s) => sum + (s ?? 0), 0);
+  const scrollDistance = scrollGeometry.distance;
+  const storedScrollSeconds = activeSong?.scrollSeconds ?? activeSong?.durationSeconds ?? null;
+  const adjustedScrollSeconds = scrollAdjust && scrollAdjust.songId === activeSong?.id ? scrollAdjust.seconds : null;
+  const scrollSeconds = adjustedScrollSeconds ?? storedScrollSeconds;
+  const scrollPxPerSecond = scrollSeconds !== null && scrollDistance > 0
+    ? Math.min(SCROLL_SPEED_MAX * 2, scrollDistance / Math.max(1, scrollSeconds - scrollPauseTotal))
+    : legacyScrollSpeed;
+  scrollSpeedRef.current = scrollPxPerSecond;
+  const pxToScrollSeconds = (px: number) => scrollDistance / px + scrollPauseTotal;
+  // Shown while adjusting: the whole song's scroll time.
+  const shownScrollSeconds = scrollDistance > 0 ? (scrollSeconds ?? pxToScrollSeconds(legacyScrollSpeed)) : null;
+  const scrollAdjustUnsaved = adjustedScrollSeconds !== null && Math.round(adjustedScrollSeconds) !== storedScrollSeconds;
+
+  const changeScrollSpeed = (px: number, done: boolean) => {
+    if (!activeSong || scrollDistance <= 0) return;
+    const seconds = pxToScrollSeconds(px);
+    setScrollAdjust({ songId: activeSong.id, seconds: done ? clampScrollSeconds(seconds) : seconds });
+    setScrollSaveState({ saving: false, error: null });
+  };
+
+  const canSaveScrollSpeed = canEditSongs && Boolean(bandId);
+  const saveScrollSpeed = async () => {
+    if (!bandId || !scrollAdjust || scrollSaveState.saving) return;
+    const { songId, seconds } = scrollAdjust;
+    setScrollSaveState({ saving: true, error: null });
+    const error = await saveBandSongScrollSeconds(bandId, songId, seconds);
+    setScrollSaveState({ saving: false, error });
+    if (!error) setScrollAdjust((current) => (current?.songId === songId ? null : current));
+  };
+
   const handNotes = useSongHandNotes({
     bandId: bandId ?? null,
     songId: activeSong?.id ?? '',
@@ -303,6 +395,9 @@ export default function ConcertModeView({
     targetPageRef.current = 0;
     setScrolling(false);
     setActiveChord(null);
+    // An unsaved speed change belongs to the song it was made on.
+    setScrollAdjust(null);
+    setScrollSaveState({ saving: false, error: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
 
@@ -353,6 +448,8 @@ export default function ConcertModeView({
 
       contentScrollHeightRef.current = content.scrollHeight;
       const offsets = computePageOffsets(content, vh);
+      const geometry = measureScrollGeometry(viewport, content);
+      setScrollGeometry((prev) => (sameGeometry(prev, geometry) ? prev : geometry));
 
       content.style.transition = prevTransition;
       content.style.transform = prevTransform;
@@ -516,24 +613,61 @@ export default function ConcertModeView({
     setRewinding(pxPerSecond > 0);
   }, []);
 
-  // Autoscroll loop. scrollTop can round to whole pixels, so keep the fractional position
-  // ourselves; slow speeds would otherwise never advance. While the user scrolls by hand
+  const startPause = useCallback((pause: { index: number; endsAt: number | null } | null) => {
+    activePauseRef.current = pause;
+    setActivePause(pause);
+  }, []);
+
+  // Start/pause autoscroll. Holding at a scroll pause, it ends the pause instead and scrolls on.
+  const toggleScrolling = useCallback(() => {
+    if (activePauseRef.current) {
+      startPause(null);
+      return;
+    }
+    setScrolling((v) => !v);
+  }, [startPause]);
+
+  // Autoscroll loop. scrollTop rounds to whole (device) pixels, so keep the fractional position
+  // ourselves; slow speeds would otherwise never advance. Typical speeds move less than a pixel
+  // a frame, which scrollTop alone shows as a step every few frames: the leftover fraction goes
+  // into a translateY on the content instead, so the chart glides. While the user scrolls by hand
   // (a finger down, or the scroll still moving from a drag, wheel or button), it holds
   // still and then carries on from wherever that left it.
+  // Scrolling down past a {pause} marker's trigger holds still there for the pause's length
+  // (or until tapped). Scrolling by hand or rewinding cancels a pause; one that was scrolled
+  // past by hand doesn't fire, and one scrolled back above fires again.
   useEffect(() => {
     const viewport = viewportRef.current;
     if ((!scrolling && !rewinding) || !autoscroll || !continuous || !viewport) return;
+    const content = contentRef.current;
     let raf = 0;
     let last = performance.now();
     let pos = viewport.scrollTop;
+    // The scrollTop as the browser took it the last time this loop set it: anything else moved
+    // the scroll since.
+    let written = viewport.scrollTop;
     let movedByOthersAt = -Infinity;
+    let applied = '';
+    const shift = (px: number) => {
+      applied = px > 0.01 ? `translateY(${-px}px)` : '';
+      if (content) content.style.transform = applied;
+    };
+    const scrollTo = (target: number) => {
+      const dpr = window.devicePixelRatio || 1;
+      viewport.scrollTop = Math.floor(target * dpr) / dpr;
+      written = viewport.scrollTop;
+      // Past the end scrollTop stops short; never shift the chart further than a pixel.
+      shift(Math.min(1, Math.max(0, target - written)));
+    };
+    if (content) content.style.willChange = 'transform';
     const tick = (now: number) => {
       const dt = Math.min(now - last, 100) / 1000;
       last = now;
       if (rewindRef.current > 0) {
-        if (Math.abs(viewport.scrollTop - pos) > 2) pos = viewport.scrollTop;
+        if (activePauseRef.current) startPause(null);
+        if (Math.abs(viewport.scrollTop - written) > 2) pos = viewport.scrollTop;
         pos = Math.max(0, pos - rewindRef.current * dt);
-        viewport.scrollTop = pos;
+        scrollTo(pos);
         raf = requestAnimationFrame(tick);
         return;
       }
@@ -541,14 +675,32 @@ export default function ConcertModeView({
       // Something else moved the scroll (a drag, its momentum, the wheel, a button). While
       // already holding, even a slow drift counts, so it's followed to the very end.
       const holding = touchingRef.current || now - movedByOthersAt < 250;
-      if (Math.abs(viewport.scrollTop - pos) > (holding ? 0.5 : 2)) movedByOthersAt = now;
+      if (Math.abs(viewport.scrollTop - written) > (holding ? 0.5 : 2)) movedByOthersAt = now;
       if (touchingRef.current || now - movedByOthersAt < 250) {
+        if (activePauseRef.current) startPause(null);
+        shift(0);
         pos = viewport.scrollTop;
+        written = pos;
         raf = requestAnimationFrame(tick);
         return;
       }
-      pos += scrollSpeedRef.current * dt;
-      viewport.scrollTop = pos;
+      const pause = activePauseRef.current;
+      if (pause) {
+        if (pause.endsAt === null || now < pause.endsAt) {
+          raf = requestAnimationFrame(tick);
+          return;
+        }
+        startPause(null);
+      }
+      let next = pos + scrollSpeedRef.current * dt;
+      const hit = scrollPausesRef.current.findIndex((p) => pos < p.trigger && p.trigger <= next);
+      if (hit !== -1) {
+        next = scrollPausesRef.current[hit].trigger;
+        const seconds = scrollPausesRef.current[hit].seconds;
+        startPause({ index: hit, endsAt: seconds === null ? null : now + seconds * 1000 });
+      }
+      pos = next;
+      scrollTo(pos);
       if (viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 1) {
         setScrolling(false);
         return;
@@ -556,8 +708,50 @@ export default function ConcertModeView({
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [scrolling, rewinding, autoscroll, continuous]);
+    return () => {
+      cancelAnimationFrame(raf);
+      // Stopped: the fraction is dropped (under a pixel), back to plain scrolling. Only our own
+      // shift is cleared: switching to pages has already put the page's transform there.
+      if (content) {
+        if (content.style.transform === applied) content.style.transform = '';
+        content.style.willChange = '';
+      }
+      if (activePauseRef.current) startPause(null);
+    };
+  }, [scrolling, rewinding, autoscroll, continuous, startPause]);
+
+  // The unsaved-speed bar's height, to lift the floating footer clear of it.
+  const scrollSaveBarRef = useRef<HTMLDivElement>(null);
+  const [scrollSaveBarHeight, setScrollSaveBarHeight] = useState(0);
+  // Editors only: for view-only members a speed change just lasts until they leave the song.
+  // There's no discard: leaving the song (or dragging back) does that.
+  const showScrollSaveBar = autoscroll && continuous && scrollAdjustUnsaved && canSaveScrollSpeed;
+  useLayoutEffect(() => {
+    const bar = scrollSaveBarRef.current;
+    if (!showScrollSaveBar || !bar) {
+      setScrollSaveBarHeight(0);
+      return;
+    }
+    const update = () => setScrollSaveBarHeight(bar.offsetHeight);
+    const observer = new ResizeObserver(update);
+    observer.observe(bar);
+    update();
+    return () => observer.disconnect();
+  }, [showScrollSaveBar]);
+
+  // While holding at a pause: its marker lights up, and the countdown ticks.
+  const [pauseNow, setPauseNow] = useState(() => performance.now());
+  useEffect(() => {
+    if (!activePause) return;
+    const marker = contentRef.current?.querySelectorAll<HTMLElement>('[data-scroll-pause]')[activePause.index];
+    marker?.classList.add('is-active');
+    setPauseNow(performance.now());
+    const timer = activePause.endsAt === null ? 0 : window.setInterval(() => setPauseNow(performance.now()), 250);
+    return () => {
+      window.clearInterval(timer);
+      marker?.classList.remove('is-active');
+    };
+  }, [activePause]);
 
   // How a song is shown: one choice of three, stored as the two (exclusive) flags it's made of.
   const viewMode = pagination ? 'pages' : autoscroll ? 'autoscroll' : 'scroll';
@@ -604,11 +798,6 @@ export default function ConcertModeView({
 
   useEffect(() => () => {
     void clickAudioRef.current?.close();
-  }, []);
-
-  const changeScrollSpeed = useCallback((value: number) => {
-    setScrollSpeed(value);
-    storeValue(SCROLL_SPEED_KEY, String(value));
   }, []);
 
   // When a drag, swipe or multi-finger gesture last ended: the click that follows isn't a tap.
@@ -1044,7 +1233,7 @@ export default function ConcertModeView({
 
   const handleSurfaceTap = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, label, select, [role="button"]')) return;
+    if (target.closest('button, a, input, label, select, [role="button"], .concert-scroll-save-bar')) return;
     // A drag, a swipe or a multi-finger gesture is not a tap.
     const press = pressRef.current;
     if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) return;
@@ -1056,7 +1245,7 @@ export default function ConcertModeView({
     }
     if (autoscroll && continuous) {
       // Tap anywhere to start/pause autoscroll.
-      setScrolling((v) => !v);
+      toggleScrolling();
       return;
     }
     // A personal preference: taps can be kept from turning pages / scrolling.
@@ -1071,7 +1260,7 @@ export default function ConcertModeView({
     else goToNextPage();
     const side = continuous ? (back ? 'top' : 'bottom') : (back ? 'left' : 'right');
     setTapFlash((flash) => ({ side, n: (flash?.n ?? 0) + 1 }));
-  }, [activeChord, autoscroll, continuous, goToNextPage, goToPrevPage, user?.preferences?.concertTapToNavigate]);
+  }, [activeChord, autoscroll, continuous, goToNextPage, goToPrevPage, toggleScrolling, user?.preferences?.concertTapToNavigate]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1110,7 +1299,7 @@ export default function ConcertModeView({
         event.preventDefault();
         if (target instanceof HTMLElement && target !== document.body) target.blur();
         if (event.repeat) return;
-        if (autoscroll && continuous) setScrolling((v) => !v);
+        if (autoscroll && continuous) toggleScrolling();
         else goToNextPage();
       }
 
@@ -1134,7 +1323,7 @@ export default function ConcertModeView({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    goToNextPage, goToPrevPage, isMultiSong, autoscroll, continuous,
+    goToNextPage, goToPrevPage, toggleScrolling, isMultiSong, autoscroll, continuous,
     quickMenu, showSettings, activeChord, showIntro, showSongNavigator, navigate, backRoute,
   ]);
 
@@ -1505,16 +1694,47 @@ export default function ConcertModeView({
           })}
           </div>
 
+          {showScrollSaveBar && (
+            <div className="concert-scroll-save-bar" role="region" aria-label="Unsaved scroll speed" ref={scrollSaveBarRef}>
+              <span className="concert-scroll-save-bar-text">
+                {scrollSaveState.error
+                  ? `Couldn't save: ${scrollSaveState.error}`
+                  : 'Scroll speed adjusted. Save changes?'}
+              </span>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={() => { void saveScrollSpeed(); }}
+                disabled={scrollSaveState.saving}
+              >
+                {scrollSaveState.saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+
           {autoscroll && continuous && (
             <ConcertAutoscrollButton
               scrolling={scrolling}
-              speed={scrollSpeed}
+              speed={Math.min(SCROLL_SPEED_MAX, Math.max(SCROLL_SPEED_MIN, Math.round(scrollPxPerSecond)))}
+              speedLabel={shownScrollSeconds !== null ? formatDuration(shownScrollSeconds) : undefined}
               min={SCROLL_SPEED_MIN}
               max={SCROLL_SPEED_MAX}
-              onToggle={() => setScrolling((v) => !v)}
-              onSpeedChange={(value, done) => (done ? changeScrollSpeed(value) : setScrollSpeed(value))}
+              onToggle={toggleScrolling}
+              onSpeedChange={changeScrollSpeed}
               onRewind={changeRewind}
             />
+          )}
+
+          {autoscroll && continuous && activePause && (
+            <div className="concert-scroll-pause-status" role="status">
+              <Pause size={14} aria-hidden />
+              <span>{describePause(parsePause(scrollGeometry.pauses[activePause.index]?.value))}</span>
+              <span className="concert-scroll-pause-status-time">
+                {activePause.endsAt === null
+                  ? 'Tap to continue'
+                  : formatDuration(Math.ceil(Math.max(0, activePause.endsAt - pauseNow) / 1000))}
+              </span>
+            </div>
           )}
         </article>
 
@@ -1556,7 +1776,11 @@ export default function ConcertModeView({
         )}
       </div>
 
-      <footer className={`concert-nav-footer${showNavButtons ? '' : ' concert-nav-footer--no-nav'}`}>
+      <footer
+        className={`concert-nav-footer${showNavButtons ? '' : ' concert-nav-footer--no-nav'}`}
+        // Lifted clear of the unsaved-speed bar while it's shown.
+        style={scrollSaveBarHeight ? { bottom: `calc(.95rem + ${scrollSaveBarHeight}px)` } : undefined}
+      >
         {showNavButtons && (
           <button
             type="button"
@@ -1693,7 +1917,7 @@ export default function ConcertModeView({
                   type="button"
                   role="menuitem"
                   className={`concert-quick-tile${scrolling ? ' is-on' : ''}`}
-                  onClick={() => { setScrolling((v) => !v); setQuickMenu(false); }}
+                  onClick={() => { toggleScrolling(); setQuickMenu(false); }}
                 >
                   {scrolling ? <Pause size={20} /> : <Play size={20} style={{ transform: 'rotate(90deg)' }} />}
                   <span>{scrolling ? 'Pause' : 'Autoscroll'}</span>

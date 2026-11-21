@@ -3836,6 +3836,29 @@ input, select, textarea { font: inherit; color: var(--text); }
   font-family: inherit;
 }
 
+/* A scroll pause ({pause: 16 bars, Solo}): Concert Mode's autoscroll holds still here. */
+.scroll-pause-marker {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+  padding: var(--space-3xs) var(--space-sm);
+  margin: var(--space-sm) 0;
+}
+
+.scroll-pause-marker.is-active {
+  color: var(--media-play);
+  border-color: var(--media-play);
+  border-style: solid;
+}
+
 @media (max-width: 900px) {
   .song-view .chord-display {
     overflow-x: hidden;
@@ -7816,6 +7839,50 @@ input, select, textarea { font: inherit; color: var(--text); }
     color-mix(in srgb, var(--media-play) 70%, transparent) 0 6px,
     transparent 6px 12px
   );
+}
+
+/* A speed change in concert mode stays unsaved until confirmed here. In the surface's flex
+   column under the chart, so it shortens the chart instead of covering its last lines. */
+.concert-scroll-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+.concert-scroll-save-bar-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+/* Holding at a scroll pause: what it is and how long is left, under the autoscroll button. */
+.concert-scroll-pause-status {
+  position: absolute;
+  z-index: 3;
+  top: calc(50% + 2rem);
+  right: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--media-play);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.concert-scroll-pause-status-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 @keyframes concert-autoscroll-track-in {

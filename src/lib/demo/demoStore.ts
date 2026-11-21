@@ -843,7 +843,9 @@ export const songsCrud = {
     return created;
   },
   update(bandId: string, item: Song): Song {
-    const updated = rawSongsCrud.update(bandId, item);
+    // Like the server, a song save leaves the scroll time alone (see setSongScrollSeconds).
+    const existing = state.songs.find((s) => s.id === item.id);
+    const updated = rawSongsCrud.update(bandId, { ...item, scrollSeconds: existing?.scrollSeconds });
     recordDemoSongRevision(updated);
     return updated;
   },
@@ -1307,6 +1309,17 @@ export function clearSongTranspose(bandId: string, songId: string): void {
 export function listBandTransposePrefs(bandId: string): Record<string, number> {
   assertBand(bandId);
   return { ...(state.songTranspose ?? {}) };
+}
+
+// ---- Band scroll time ----
+
+export function setSongScrollSeconds(bandId: string, songId: string, scrollSeconds: number): number {
+  assertBand(bandId);
+  const song = state.songs.find((s) => s.id === songId);
+  if (!song) throw new Error('Song not found.');
+  song.scrollSeconds = scrollSeconds;
+  persist();
+  return scrollSeconds;
 }
 
 // ---- Band chord voicings ----

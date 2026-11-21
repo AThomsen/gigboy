@@ -9,6 +9,15 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 ## [Unreleased]
 
 ### Added
+- **Autoscroll speed per song, shared by the band.** The speed is now stored with each song as
+  the time it takes to scroll through (shown as e.g. 3:20 while adjusting), so it fits any
+  screen and text size. A song without one starts from its duration. Changing it in concert
+  mode shows a "Save changes?" bar; editors can save it for the band, and moving to another
+  song discards it. See Help → Concert mode.
+- **Scroll pauses.** `{pause: 16 bars, Guitar solo}` in a chart makes autoscroll hold still
+  there for that long, timed by the song's BPM and time signature, with a countdown.
+  `{pause: 20s}` gives seconds; `{pause}` waits for a tap.
+
 - **`scripts/backup.sh` for self-hosters.** One command backs up the database and the attachment
   files into a timestamped folder (`KEEP=N` prunes old ones), and `restore` puts them back. A
   failed run never leaves a half-written backup. See SELFHOSTING.md.
@@ -43,6 +52,8 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   beat flash. Adds a database migration (applied automatically by the Docker image).
 
 ### Changed
+- **Smoother autoscroll.** The chart now moves a fraction of a pixel every frame instead of
+  stepping a whole pixel every few frames, so slow scrolling no longer looks jerky.
 - Imported chord sheets that use Scandinavian/German chord names read H as B (`Hm` → `Bm`,
   `G/H` → `G/B`), so they transpose and show diagrams like any other chord.
 - Ultimate Guitar chord sheets import with each chord placed in its lyric line. UG wraps each

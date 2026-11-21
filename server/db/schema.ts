@@ -132,6 +132,9 @@ export const songs = pgTable(
     date: text('date'),
     /** Play length in seconds, used to estimate a setlist's total duration. */
     durationSeconds: integer('duration_seconds'),
+    /** How long autoscroll takes to scroll through the whole chart, pauses included. Shared by
+     * the band and saved from Concert Mode, not the song form (so not part of song revisions). */
+    scrollSeconds: integer('scroll_seconds'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

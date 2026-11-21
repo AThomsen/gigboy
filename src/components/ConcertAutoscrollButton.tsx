@@ -3,7 +3,10 @@ import { ChevronsDown, ChevronsUp, Pause } from 'lucide-react';
 
 interface Props {
   scrolling: boolean;
+  /** In px/s, for the drag track. */
   speed: number;
+  /** Shown on the handle while adjusting instead of the raw speed, e.g. the song's scroll time. */
+  speedLabel?: string;
   min: number;
   max: number;
   onToggle: () => void;
@@ -32,7 +35,7 @@ const REWIND_MAX_PX_PER_S = 400;
  * Dragged on up past the track's top (the slowest end), it scrolls the chart back instead,
  * faster the further up: for when the song ran ahead. Back on the track, autoscroll carries on.
  */
-export default function ConcertAutoscrollButton({ scrolling, speed, min, max, onToggle, onSpeedChange, onRewind }: Props) {
+export default function ConcertAutoscrollButton({ scrolling, speed, speedLabel, min, max, onToggle, onSpeedChange, onRewind }: Props) {
   const [adjusting, setAdjusting] = useState(false);
   // How far the handle is above the track (0 = on it).
   const [overshoot, setOvershoot] = useState(0);
@@ -136,7 +139,15 @@ export default function ConcertAutoscrollButton({ scrolling, speed, min, max, on
         {adjusting && overshoot > 0
           ? <ChevronsUp size={22} aria-label="Scrolling back" />
           : adjusting
-            ? <span className="concert-autoscroll-speed" role="status" aria-label={`Autoscroll speed ${speed}`}>{speed}</span>
+            ? (
+              <span
+                className="concert-autoscroll-speed"
+                role="status"
+                aria-label={speedLabel ? `Scrolls through in ${speedLabel}` : `Autoscroll speed ${speed}`}
+              >
+                {speedLabel ?? speed}
+              </span>
+            )
             : scrolling
               ? <Pause size={18} fill="currentColor" />
               : <ChevronsDown size={20} />}

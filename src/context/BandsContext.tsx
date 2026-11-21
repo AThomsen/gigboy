@@ -29,6 +29,7 @@ import { dataClient } from '../lib/dataClient';
 import { selectBandLogo, uploadBandLogoAsset } from '../lib/bandLogos';
 import { toUploadableImage } from '../utils/imageThumbnail';
 import { compareBands } from '../lib/bandUtils';
+import { saveSongScrollSeconds } from '../lib/songScroll';
 
 /** Strip keys with undefined values so the API doesn't choke on them. */
 function stripUndefinedFields<T extends object>(obj: T): T {
@@ -130,6 +131,8 @@ interface BandsContextValue {
   refreshBandTrash: (bandId: string) => Promise<void>;
   addSongToBandLibrary: (bandId: string, song: Song) => Promise<string | null>;
   updateBandSong: (bandId: string, song: Song) => Promise<string | null>;
+  /** Saves a song's autoscroll time for the band (editors only). Not a song edit: no revision. */
+  saveBandSongScrollSeconds: (bandId: string, songId: string, scrollSeconds: number) => Promise<string | null>;
   removeSongFromBandLibrary: (bandId: string, songId: string) => Promise<string | null>;
   moveBandSong: (bandId: string, songId: string, beforeSongId: string | null) => Promise<string | null>;
   addBandSongList: (
@@ -876,6 +879,8 @@ export function BandsProvider({ children }: { children: ReactNode }) {
 
     const nextSong: Song = {
       ...song,
+      // Saved separately (saveBandSongScrollSeconds); the song form never touches it.
+      scrollSeconds: existingSong.scrollSeconds,
       sortOrder: song.sortOrder ?? existingSong.sortOrder,
       createdAt: existingSong.createdAt ?? song.createdAt,
       updatedAt: new Date().toISOString(),
@@ -898,6 +903,19 @@ export function BandsProvider({ children }: { children: ReactNode }) {
       return error instanceof Error ? error.message : 'Failed to update band song.';
     }
   }, [bandSongsByBandId, bands, userId]);
+
+  const saveBandSongScrollSeconds = useCallback(async (bandId: string, songId: string, scrollSeconds: number) => {
+    try {
+      const saved = await saveSongScrollSeconds(bandId, songId, scrollSeconds);
+      setBandSongsByBandId((prev) => ({
+        ...prev,
+        [bandId]: (prev[bandId] ?? []).map((entry) => (entry.id === songId ? { ...entry, scrollSeconds: saved } : entry)),
+      }));
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Failed to save the scroll speed.';
+    }
+  }, []);
 
   const removeSongFromBandLibrary = useCallback(async (bandId: string, songId: string) => {
     if (!userId) {
@@ -2176,6 +2194,7 @@ export function BandsProvider({ children }: { children: ReactNode }) {
     refreshBandTrash,
     addSongToBandLibrary,
     updateBandSong,
+    saveBandSongScrollSeconds,
     removeSongFromBandLibrary,
     updateBandLibraryAppearance,
     updateBandLogo,
@@ -2219,6 +2238,7 @@ export function BandsProvider({ children }: { children: ReactNode }) {
     addSongToBandSongList,
     addSongToBandLibrary,
     updateBandSong,
+    saveBandSongScrollSeconds,
     bandSetlistsByBandId,
     bandSongListsByBandId,
     bandSongsByBandId,

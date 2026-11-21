@@ -141,6 +141,13 @@
       "when": 1794985597437,
       "tag": "0019_passwordless_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795260929656,
+      "tag": "0020_song_scroll_seconds",
+      "breakpoints": true
     }
   ]
 }

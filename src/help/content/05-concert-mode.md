@@ -72,6 +72,12 @@ With autoscroll on, a round button (a double down arrow) sits at the right of th
 
 - **Drag with one finger** (or use the mouse wheel) to scroll by hand, to look ahead or go back a bit. Autoscroll holds still while you do, then carries on from where you left it.
 
+**The speed belongs to the song.** While you drag, the button shows how long the whole song takes to scroll through, like **3:20**. That time is the same on every screen and at every text size: a phone and a tablet both reach the end together. A song without a saved speed starts from its **Duration**, if it has one.
+
+When you change the speed, a bar at the bottom asks **Scroll speed adjusted. Save changes?** **Save** keeps it for everyone in the band; moving on to another song without saving goes back to the saved speed. Only members who can edit songs can save it, so viewers don't get the bar: for them the change lasts until they leave the song.
+
+**Pauses.** Put `{pause: 16 bars}` in a song where autoscroll should stop for a while, say for a solo. When it gets there, it holds still for that long and counts down by the button, then carries on. Bars are timed by the song's BPM and time signature (4/4 if none is set). You can also give seconds, `{pause: 20s}`, add a name after a comma, `{pause: 16 bars, Guitar solo}`, or write just `{pause}` to wait until you tap. A pause in bars on a song with no BPM waits for a tap too. Tapping during a pause ends it early. The song's scroll time includes its pauses.
+
 ## The song list
 
 Press the list button to open the **Setlist Songs** panel and jump straight to any song in the setlist. Tap anywhere outside the panel to close it; that tap does nothing else, so it won't turn a page or start autoscroll.

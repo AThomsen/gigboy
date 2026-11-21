@@ -1,0 +1,1 @@
+ALTER TABLE "songs" ADD COLUMN "scroll_seconds" integer;
