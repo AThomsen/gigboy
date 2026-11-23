@@ -38,7 +38,7 @@ If stray taps turn pages when you don't want them to, switch off **Tap to turn p
 
 ## Text size
 
-**− A** and **+ A** make the text smaller or larger. Your size is remembered on this device.
+**− A** and **+ A** make the whole chart smaller or larger: lyrics, chords and section names together. To make the chords bigger or smaller than the lyrics, use **Chord size** under the cog (see [Settings](#settings)). Your sizes are remembered on this device.
 
 ## Quick actions
 
@@ -62,9 +62,14 @@ Press the cog in the top right.
   - **Pages** (the default) — split into pages that you turn.
   - **Scroll** — one long page that you scroll yourself.
   - **Autoscroll** — one long page that scrolls by itself, with its own button to set the speed (see [Autoscroll](#autoscroll)).
+- **Show** — what the chart shows:
+  - **Both** (the default) — the lyrics with the chords above them.
+  - **Lyrics** — just the lyrics, for a singer who doesn't need the chords. Tabs and strumming patterns are hidden too.
+  - **Chords** — just the chords of each line, in a row, for a player who knows the words. Lines without chords are left out.
+- **Chord size** — how big the chords are next to the lyrics, from 60% to 200%. It adds to the text size, so **− A / + A** still makes everything bigger or smaller together.
 - **Solo / Follow / Lead** — see [Playing together](#playing-together).
 
-All settings are remembered per device.
+All settings are remembered per device, so the singer's phone and the guitarist's tablet can each show the song their own way.
 
 ### Autoscroll
 

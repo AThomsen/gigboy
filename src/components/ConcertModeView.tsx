@@ -143,6 +143,8 @@ function sameGeometry(a: ScrollGeometry, b: ScrollGeometry): boolean {
 }
 
 const FONT_SCALE_KEY = 'gigboy.concert.fontScale';
+const CHORD_SCALE_KEY = 'gigboy.concert.chordScale';
+const CHART_CONTENT_KEY = 'gigboy.concert.chartContent';
 const PAGINATION_KEY = 'gigboy.concert.pagination';
 const PULSE_KEY = 'gigboy.concert.pulse';
 const AUTOSCROLL_KEY = 'gigboy.concert.autoscroll';
@@ -156,6 +158,35 @@ const SCROLL_SPEED_DEFAULT = 25;
 const FONT_SCALE_MIN = 0.7;
 const FONT_SCALE_MAX = 1.6;
 const FONT_SCALE_STEP = 0.1;
+// Chord size relative to the lyrics (on top of the text size).
+const CHORD_SCALE_MIN = 0.6;
+const CHORD_SCALE_MAX = 2;
+const CHORD_SCALE_STEP = 0.1;
+
+/** What the chart shows: a lead singer may want just the lyrics, a guitarist just the chords. */
+type ChartContent = 'both' | 'lyrics' | 'chords';
+const CHART_CONTENT_OPTIONS: { value: ChartContent; label: string; title: string }[] = [
+  { value: 'both', label: 'Both', title: 'Lyrics with the chords above them' },
+  { value: 'lyrics', label: 'Lyrics', title: 'Just the lyrics, without chords, tabs or strumming' },
+  { value: 'chords', label: 'Chords', title: 'Just the chords of each line, without lyrics' },
+];
+
+function readStoredChartContent(): ChartContent {
+  try {
+    const raw = localStorage.getItem(CHART_CONTENT_KEY);
+    if (raw === 'both' || raw === 'lyrics' || raw === 'chords') return raw;
+  } catch { /* storage unavailable */ }
+  return 'both';
+}
+
+function readStoredChordScale(): number {
+  try {
+    const raw = localStorage.getItem(CHORD_SCALE_KEY);
+    const value = Number(raw);
+    if (raw !== null && Number.isFinite(value) && value >= CHORD_SCALE_MIN && value <= CHORD_SCALE_MAX) return value;
+  } catch { /* storage unavailable */ }
+  return 1;
+}
 
 function readStoredFlag(key: string, fallback: boolean): boolean {
   try {
@@ -233,8 +264,9 @@ export default function ConcertModeView({
   const [pageOffsets, setPageOffsets] = useState<number[]>([0]);
   const currentPageCount = pageOffsets.length;
   const [transpose, setTranspose] = useState(0);
-  // Display prefs are fixed in concert mode — they're set up beforehand in SongView.
-  const showChords = true;
+  const [chartContent, setChartContent] = useState(readStoredChartContent);
+  const showChords = chartContent !== 'lyrics';
+  const showLyrics = chartContent !== 'chords';
   const chordInstrument: DiagramInstrument = 'guitar';
   const chordNotation: ChordNotation = 'anglo';
   const [activeChord, setActiveChord] = useState<ActiveChord | null>(null);
@@ -268,6 +300,7 @@ export default function ConcertModeView({
   const [showSongNavigator, setShowSongNavigator] = useState(false);
   const songNavigatorRef = useRef<HTMLElement>(null);
   const [fontScale, setFontScale] = useState(readStoredFontScale);
+  const [chordScale, setChordScale] = useState(readStoredChordScale);
   const chordVoicings = useBandChordVoicings(bandId, false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -277,7 +310,6 @@ export default function ConcertModeView({
   const surfaceRef = useRef<HTMLElement>(null);
   const titleLaneRef = useRef<HTMLDivElement>(null);
   const targetPageRef = useRef(0);
-  const contentScrollHeightRef = useRef(0);
 
   const isMultiSong = songs.length > 1;
   const activeSong = songs[currentIndex] ?? null;
@@ -445,7 +477,6 @@ export default function ConcertModeView({
       content.style.transform = 'translateY(0px)';
       content.style.clipPath = '';
 
-      contentScrollHeightRef.current = content.scrollHeight;
       const offsets = computePageOffsets(content, vh);
       const geometry = measureScrollGeometry(viewport, content);
       setScrollGeometry((prev) => (sameGeometry(prev, geometry) ? prev : geometry));
@@ -480,8 +511,11 @@ export default function ConcertModeView({
       cancelled = true;
       observer.disconnect();
     };
+    // Anything that changes what the chart shows or how big it is re-measures here, in the
+    // same commit, rather than waiting for the ResizeObserver: the first render after such a
+    // change clips against the old page breaks, which can hide the whole page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, transpose, continuous]);
+  }, [currentIndex, transpose, continuous, chartContent, fontScale, chordScale]);
 
   // Leaving continuous mode: the viewport goes back to overflow:hidden, but would keep
   // its old scrollTop and show the song offset by that amount underneath the page transform.
@@ -493,19 +527,17 @@ export default function ConcertModeView({
   // its bottom, so the next page's first lines don't peek in.
   const pageStyle = useCallback((page: number) => {
     const offsetY = pageOffsets[page] ?? 0;
-    // Read the content's *live* height rather than trusting the cached
-    // snapshot from the last measurement pass. Content can shrink after that
-    // snapshot was taken (e.g. hand-note data arriving and un-pinning lines
-    // that were temporarily forced to single-row layout) without a resize
-    // event ever re-running measure() — clipping against a stale, too-tall
-    // snapshot can clip away an entire page's visible content.
-    const liveScrollHeight = contentRef.current?.scrollHeight ?? contentScrollHeightRef.current;
-    const nextOffsetY = pageOffsets[page + 1] ?? liveScrollHeight;
-    // Guard against a broken/non-monotonic offset pair (e.g. a stale page
-    // index read against a different song's offsets) ever clipping away an
-    // entire page — better to show unclipped content than render nothing.
-    const bottomClip = nextOffsetY > offsetY ? Math.max(0, liveScrollHeight - nextOffsetY) : 0;
-    return { transform: `translateY(${-offsetY}px)`, clipPath: `inset(0 0 ${bottomClip}px 0)` };
+    const nextOffsetY = pageOffsets[page + 1];
+    // Clip below the next page's top, measured against the content's own height (100%) by
+    // the browser. Reading that height here instead (scrollHeight, during render) can see
+    // the DOM before the change being rendered: switching the chart to lyrics only then
+    // clipped against the full chart's height, and hid the whole page.
+    // No clip on the last page, or for a broken/non-monotonic offset pair (e.g. a stale page
+    // index read against a different song's offsets): better unclipped than nothing.
+    const clipPath = nextOffsetY !== undefined && nextOffsetY > offsetY
+      ? `inset(0 0 max(0px, calc(100% - ${nextOffsetY}px)) 0)`
+      : 'inset(0 0 0 0)';
+    return { transform: `translateY(${-offsetY}px)`, clipPath };
   }, [pageOffsets]);
 
   // A static copy of the content showing `page`, placed exactly over the real content.
@@ -1371,6 +1403,20 @@ export default function ConcertModeView({
     });
   }, []);
 
+  const changeChordScale = useCallback((delta: number) => {
+    setChordScale((prev) => {
+      const next = Math.round(Math.min(CHORD_SCALE_MAX, Math.max(CHORD_SCALE_MIN, prev + delta)) * 10) / 10;
+      storeValue(CHORD_SCALE_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  const changeChartContent = useCallback((content: ChartContent) => {
+    setChartContent(content);
+    setActiveChord(null);
+    storeValue(CHART_CONTENT_KEY, content);
+  }, []);
+
   if (songs.length === 0) {
     return (
       <div className="not-found">
@@ -1476,7 +1522,7 @@ export default function ConcertModeView({
     <section
       className="concert-mode"
       aria-label={title || undefined}
-      style={{ '--concert-font-scale': fontScale } as React.CSSProperties}
+      style={{ '--concert-font-scale': fontScale, '--concert-chord-scale': chordScale } as React.CSSProperties}
     >
       {session?.error && <p className="concert-session-error">{session.error}</p>}
       {canUseMetronome && (
@@ -1578,6 +1624,46 @@ export default function ConcertModeView({
                       </button>
                     ))}
                   </div>
+                  <span className="concert-settings-caption" id="concert-settings-content">Show</span>
+                  <div className="concert-session-toggle" role="radiogroup" aria-labelledby="concert-settings-content">
+                    {CHART_CONTENT_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={chartContent === option.value}
+                        className={chartContent === option.value ? 'is-active' : ''}
+                        onClick={() => changeChartContent(option.value)}
+                        title={option.title}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  {showChords && (
+                    <>
+                      <span className="concert-settings-caption" id="concert-settings-chord-size">Chord size</span>
+                      <div className="concert-settings-stepper" role="group" aria-labelledby="concert-settings-chord-size">
+                        <button
+                          type="button"
+                          onClick={() => changeChordScale(-CHORD_SCALE_STEP)}
+                          disabled={chordScale <= CHORD_SCALE_MIN}
+                          aria-label="Smaller chords"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="concert-settings-stepper-value" aria-live="polite">{Math.round(chordScale * 100)}%</span>
+                        <button
+                          type="button"
+                          onClick={() => changeChordScale(CHORD_SCALE_STEP)}
+                          disabled={chordScale >= CHORD_SCALE_MAX}
+                          aria-label="Larger chords"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </>
+                  )}
                   {session && (
                     <span className="concert-settings-caption" id="concert-settings-sync">Setlist sync</span>
                   )}
@@ -1634,6 +1720,7 @@ export default function ConcertModeView({
                     chordpro={currentSong.chordpro}
                     transpose={transpose}
                     showChords={showChords}
+                    showLyrics={showLyrics}
                     notation={chordNotation}
                     bpm={currentSong.tempo}
                     timeSignature={currentSong.timeSignature}
@@ -1695,6 +1782,7 @@ export default function ConcertModeView({
                     chordpro={song.chordpro}
                     transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
                     showChords={showChords}
+                    showLyrics={showLyrics}
                     notation={chordNotation}
                     bpm={song.tempo}
                     timeSignature={song.timeSignature}

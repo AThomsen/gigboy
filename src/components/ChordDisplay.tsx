@@ -24,6 +24,11 @@ interface Props {
   chordpro: string;
   transpose?: number;
   showChords?: boolean;
+  /**
+   * Show the lyrics. Off leaves a chord chart: each line's chords in a row, with lines that
+   * have no chords left out. (Off together with showChords off shows lyrics anyway.)
+   */
+  showLyrics?: boolean;
   notation?: ChordNotation;
   bpm?: number;
   timeSignature?: string;
@@ -47,6 +52,7 @@ export default function ChordDisplay({
   chordpro,
   transpose = 0,
   showChords = true,
+  showLyrics: showLyricsProp = true,
   notation = 'anglo',
   bpm,
   timeSignature,
@@ -56,15 +62,18 @@ export default function ChordDisplay({
 }: Props) {
   const lines = useMemo(() => assignLineIds(parseChordPro(chordpro)), [chordpro]);
   const strumChords = useMemo(() => uniqueChords(chordpro), [chordpro]);
+  const showLyrics = showLyricsProp || !showChords;
+  const modeClass = !showLyrics ? ' chord-display--chords-only' : !showChords ? ' chord-display--lyrics-only' : '';
 
   return (
-    <div className="chord-display">
+    <div className={`chord-display${modeClass}`}>
       {lines.map((line, i) => (
         <LineRenderer
           key={i}
           line={line}
           transpose={transpose}
           showChords={showChords}
+          showLyrics={showLyrics}
           notation={notation}
           bpm={bpm}
           timeSignature={timeSignature}
@@ -116,6 +125,7 @@ interface LineRendererProps {
   line: ParsedLine;
   transpose: number;
   showChords: boolean;
+  showLyrics: boolean;
   notation: ChordNotation;
   bpm?: number;
   timeSignature?: string;
@@ -129,6 +139,7 @@ function LineRenderer({
   line,
   transpose,
   showChords,
+  showLyrics,
   notation,
   bpm,
   timeSignature,
@@ -141,7 +152,9 @@ function LineRenderer({
     return <div className="chord-line chord-line--empty" data-line-id={line.lineId} />;
   }
 
+  // Tabs and strumming patterns are for whoever plays the chords.
   if (line.type === 'tab') {
+    if (!showChords) return null;
     return (
       <TabDisplay
         tabLines={line.tabLines ?? []}
@@ -153,6 +166,7 @@ function LineRenderer({
   }
 
   if (line.type === 'strum') {
+    if (!showChords) return null;
     return (
       <StrumDisplay
         strumLines={line.strumLines ?? []}
@@ -176,6 +190,7 @@ function LineRenderer({
             line={subline}
             transpose={transpose}
             showChords={showChords}
+            showLyrics={showLyrics}
             notation={notation}
             bpm={bpm}
             timeSignature={timeSignature}
@@ -221,7 +236,12 @@ function LineRenderer({
   // Chord-lyric line
   const segments = line.segments ?? [];
   const hasChords = showChords && lineHasChords(line);
-  const isChordOnly = hasChords && segments.every(seg => !seg.lyric.trim());
+  const isChordOnly = hasChords && (!showLyrics || segments.every(seg => !seg.lyric.trim()));
+  // Nothing to show on this line: lyrics without chords in a chord chart, or a chords-only
+  // line (an intro riff, say) with chords hidden.
+  if (showLyrics ? !showChords && lineHasChords(line) && segments.every(seg => !seg.lyric.trim()) : !hasChords) {
+    return null;
+  }
   const isPinned = line.lineId !== undefined && pinnedLineIds?.has(line.lineId);
 
   return (
@@ -234,6 +254,8 @@ function LineRenderer({
         return segments.map((seg, idx) => {
           const occurrenceIndex = chordOccurrenceIndex;
           if (seg.chord) chordOccurrenceIndex++;
+          // A chord chart lists just the chords, without the room their lyrics took.
+          if (!showLyrics && !seg.chord) return null;
           return (
             <span key={idx} className="chord-segment">
               {hasChords && (
@@ -260,7 +282,9 @@ function LineRenderer({
                   )}
                 </span>
               )}
-              <span className="lyric-text">{seg.lyric || (showChords && seg.chord ? ' ' : '')}</span>
+              {showLyrics && (
+                <span className="lyric-text">{seg.lyric || (showChords && seg.chord ? ' ' : '')}</span>
+              )}
             </span>
           );
         });

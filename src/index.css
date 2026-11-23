@@ -8329,6 +8329,42 @@ input, select, textarea { font: inherit; color: var(--text); }
   padding-inline: var(--space-sm);
 }
 
+/* A − value + stepper (chord size), as wide as the switches above it. */
+.concert-settings-stepper {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.concert-settings-stepper button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs) var(--space-lg);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.concert-settings-stepper button:hover:not(:disabled) {
+  background: var(--chord-bg);
+  color: var(--accent);
+}
+
+.concert-settings-stepper button:disabled {
+  opacity: .4;
+}
+
+.concert-settings-stepper-value {
+  flex: 1;
+  text-align: center;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
 /* First-visit coach mark introducing the quick-actions menu. */
 .concert-intro {
   position: fixed;
@@ -8571,6 +8607,23 @@ input, select, textarea { font: inherit; color: var(--text); }
 
 .concert-song-surface .chord-name-btn {
   white-space: normal;
+  font-size: inherit;
+}
+
+/* Everything on the chart follows the text size (em of the chart's font), keeping the song
+   view's proportions; chords also follow the chord size. In a chord chart the chords are
+   the text, so they start at its full size. */
+.concert-song-surface .chord-name {
+  font-size: calc(.78em * var(--concert-chord-scale, 1)) /* --text-sm against --text-md */;
+}
+
+.concert-song-surface .chord-display--chords-only .chord-name {
+  font-size: calc(1em * var(--concert-chord-scale, 1));
+}
+
+.concert-song-surface .section-label,
+.concert-song-surface .scroll-pause-marker {
+  font-size: .67em /* --text-2xs against --text-md */;
 }
 
 .concert-song-surface .chord-line.chord-line--pinned {
