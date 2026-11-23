@@ -8412,6 +8412,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   margin: 0;
   padding: var(--space-sm);
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);

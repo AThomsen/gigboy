@@ -1062,6 +1062,23 @@ export default function ConcertModeView({
     return () => surface.removeEventListener('touchmove', onTouchMove);
   }, []);
 
+  // The song list floats over the chart on narrow screens, and iOS hands a drag on it that
+  // the list can't scroll at all (on its header, or a list that fits) to the chart underneath.
+  // Keep those drags on the list. Past either end of a scrolling list, overscroll-behavior
+  // keeps the drag there instead, with the rubber-band bounce intact.
+  useEffect(() => {
+    const panel = songNavigatorRef.current;
+    if (!panel || !showSongNavigator || !isMultiSong) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || !e.cancelable) return;
+      const list = panel.querySelector('ol');
+      const onList = !!list && e.target instanceof Node && list.contains(e.target);
+      if (!onList || list.scrollHeight <= list.clientHeight) e.preventDefault();
+    };
+    panel.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => panel.removeEventListener('touchmove', onTouchMove);
+  }, [showSongNavigator, isMultiSong]);
+
   // No pinch-zoom on stage (the text-size buttons set the size). touch-action covers most of
   // it; Safari also zooms on its own gesture events, so those are blocked while here.
   useEffect(() => {
