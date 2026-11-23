@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Gauge, KeyRound, StickyNote, Paperclip, Mic, Calendar, Clock, Guitar } from 'lucide-react';
+import { Gauge, KeyRound, StickyNote, Paperclip, Mic, Calendar, Clock, Guitar, Layers } from 'lucide-react';
 import type { Song } from '../types';
 import type { SongBadgeCounts } from '../hooks/useSongListBadges';
 import { formatDuration } from '../utils/duration';
@@ -18,7 +18,7 @@ export default function SongMetaBadges({ song, counts, pulseTempo = false }: Pro
 
   const hasAny =
     hasTabs || song.tempo || song.key || song.date || song.durationSeconds
-    || (counts && (counts.notes > 0 || counts.attachments > 0 || counts.recordings > 0));
+    || (counts && (counts.notes > 0 || counts.attachments > 0 || counts.recordings > 0 || (counts.stems ?? 0) > 0));
 
   if (!hasAny) return null;
 
@@ -79,6 +79,11 @@ export default function SongMetaBadges({ song, counts, pulseTempo = false }: Pro
       {counts && counts.recordings > 0 && (
         <span className="song-meta-badge" title={`${counts.recordings} recording${counts.recordings === 1 ? '' : 's'}`}>
           <Mic size={11} /> {counts.recordings}
+        </span>
+      )}
+      {counts && (counts.stems ?? 0) > 0 && (
+        <span className="song-meta-badge" title={`${counts.stems} stem${counts.stems === 1 ? '' : 's'}`}>
+          <Layers size={11} /> Stems
         </span>
       )}
     </>

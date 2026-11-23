@@ -15,6 +15,7 @@ import {
   Trash2,
   Play,
   Mic,
+  Layers,
   Paperclip,
   AudioLines,
   Metronome,
@@ -38,6 +39,7 @@ import { useBands } from '../context/BandsContext';
 import { useAuth } from '../context/AuthContext';
 import { useSongHandNotes } from '../hooks/useSongHandNotes';
 import { useSongRecordings } from '../hooks/useSongRecordings';
+import { useSongStems } from '../hooks/useSongStems';
 import { useSongAttachments } from '../hooks/useSongAttachments';
 import { useSongTranspose } from '../hooks/useSongTranspose';
 import { useBandChordVoicings } from '../hooks/useBandChordVoicings';
@@ -51,6 +53,7 @@ import LyricHandNotesOverlay from './LyricHandNotesOverlay';
 import SongTextNotesOverlay from './SongTextNotesOverlay';
 import SongMediaPlayer from './SongMediaPlayer';
 import SongRecorder from './SongRecorder';
+import SongStems from './SongStems';
 import SongAttachments from './SongAttachments';
 import ChordFinder from './ChordFinder';
 import { parseSongMedia } from '../utils/songMedia';
@@ -139,6 +142,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
   const [showTuner, setShowTuner] = useState(false);
   const [showMediaPlayer, setShowMediaPlayer] = useState(false);
   const [showRecorder, setShowRecorder] = useState(false);
+  const [showStems, setShowStems] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
   const [showChordFinder, setShowChordFinder] = useState(false);
   const [autoPlayMediaOnOpen, setAutoPlayMediaOnOpen] = useState(false);
@@ -182,14 +186,20 @@ export default function SongView({ song, accentColor, bandId }: Props) {
     bandId,
     songId: user ? song.id : '',
   });
+  const stemsState = useSongStems({
+    bandId,
+    songId: user ? song.id : '',
+  });
   const hasRecordings = recordings.length > 0;
+  const hasStems = stemsState.stems.length > 0;
   const hasAttachments = attachments.length > 0;
 
   const badgeCounts = useMemo(() => ({
     notes: handNotes.notes.filter((note) => note.strokes.length > 0 || (note.textNotes?.length ?? 0) > 0).length,
     attachments: attachments.length,
     recordings: recordings.length,
-  }), [handNotes.notes, attachments.length, recordings.length]);
+    stems: stemsState.stems.length,
+  }), [handNotes.notes, attachments.length, recordings.length, stemsState.stems.length]);
 
   const handleClearNotes = useCallback(async () => {
     await handNotes.clearMyNotes();
@@ -230,6 +240,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
     setShowTuner(false);
     setShowMediaPlayer(false);
     setShowRecorder(false);
+    setShowStems(false);
     setAutoPlayMediaOnOpen(false);
     setShowNotes(false);
     setShowChordFinder(false);
@@ -690,6 +701,19 @@ export default function SongView({ song, accentColor, bandId }: Props) {
               {user && (
                 <button
                   type="button"
+                  className={`song-toolbar-tool-btn${showStems ? ' song-toolbar-tool-btn--active' : ''}${hasStems ? ' song-toolbar-tool-btn--has-content' : ''}`}
+                  onClick={() => setShowStems((prev) => !prev)}
+                  title={showStems ? 'Hide stems' : 'Show stems'}
+                  aria-label={showStems ? 'Hide stems' : 'Show stems'}
+                >
+                  <Layers size={14} />
+                  Stems
+                </button>
+              )}
+
+              {user && (
+                <button
+                  type="button"
                   className={`song-toolbar-tool-btn${showAttachments ? ' song-toolbar-tool-btn--active' : ''}${hasAttachments ? ' song-toolbar-tool-btn--has-content' : ''}`}
                   onClick={() => setShowAttachments((prev) => !prev)}
                   title={showAttachments ? 'Hide attachments' : 'Show attachments'}
@@ -713,7 +737,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
 
             </div>
 
-            {(showMetronome || showTuner || (media && showMediaPlayer && song.playbackUrl) || (user && showNotes) || (user && showRecorder) || (user && showAttachments) || showChordFinder || (user && showHistory)) && (
+            {(showMetronome || showTuner || (media && showMediaPlayer && song.playbackUrl) || (user && showNotes) || (user && showRecorder) || (user && showStems) || (user && showAttachments) || showChordFinder || (user && showHistory)) && (
               <div className={`song-toolbar-tools-grid${!toolbarVisible ? ' song-toolbar-tools-grid--floating' : ''}`}>
                 {showTuner && (
                   <div className="song-toolbar-tool-card">
@@ -840,6 +864,19 @@ export default function SongView({ song, accentColor, bandId }: Props) {
                       <button className="floating-tool-close" onClick={() => setShowRecorder(false)} aria-label="Close recorder"><X size={14} /></button>
                     </div>
                     <SongRecorder song={song} user={user} bandId={bandId} />
+                  </div>
+                )}
+
+                {user && showStems && (
+                  <div className="song-toolbar-tool-card song-toolbar-tool-card--stems">
+                    <div className="song-toolbar-tool-card-header">
+                      <span className="song-toolbar-tool-card-title">
+                        <Layers size={13} />
+                        Stems
+                      </span>
+                      <button className="floating-tool-close" onClick={() => setShowStems(false)} aria-label="Close stems"><X size={14} /></button>
+                    </div>
+                    <SongStems stemsState={stemsState} canEdit={canEditBand} />
                   </div>
                 )}
 

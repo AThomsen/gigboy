@@ -12,6 +12,7 @@ const POLL_INTERVAL_MS = 20000;
 interface UsageState {
   usedBytes: number;
   recordingBytes: number;
+  stemBytes: number;
   imageBytes: number;
   attachmentBytes: number;
   quotaBytes: number;
@@ -20,6 +21,7 @@ interface UsageState {
 
 interface StorageUsageResponse {
   recordingBytes: number;
+  stemBytes: number;
   attachmentBytes: number;
   imageBytes: number;
   quotaBytes: number;
@@ -45,6 +47,7 @@ export function useStorageUsage(userId: string | null | undefined, planQuotaByte
   const [state, setState] = useState<UsageState>({
     usedBytes: 0,
     recordingBytes: 0,
+    stemBytes: 0,
     imageBytes: 0,
     attachmentBytes: 0,
     quotaBytes: planQuotaBytes ?? DEFAULT_STORAGE_QUOTA_BYTES,
@@ -56,6 +59,7 @@ export function useStorageUsage(userId: string | null | undefined, planQuotaByte
       setState({
         usedBytes: 0,
         recordingBytes: 0,
+        stemBytes: 0,
         imageBytes: 0,
         attachmentBytes: 0,
         quotaBytes: planQuotaBytes ?? DEFAULT_STORAGE_QUOTA_BYTES,
@@ -74,8 +78,9 @@ export function useStorageUsage(userId: string | null | undefined, planQuotaByte
         if (cancelled) return;
         const quotaBytes = planQuotaBytes !== undefined ? Math.max(usage.quotaBytes, planQuotaBytes) : usage.quotaBytes;
         setState({
-          usedBytes: usage.recordingBytes + usage.imageBytes + usage.attachmentBytes,
+          usedBytes: usage.recordingBytes + usage.stemBytes + usage.imageBytes + usage.attachmentBytes,
           recordingBytes: usage.recordingBytes,
+          stemBytes: usage.stemBytes,
           imageBytes: usage.imageBytes,
           attachmentBytes: usage.attachmentBytes,
           quotaBytes,

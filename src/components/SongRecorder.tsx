@@ -10,8 +10,8 @@ import { showConfirmToast } from '../utils/toastDialogs';
 import { markReloadUnsafe } from '../lib/reloadGuard';
 import { getMicrophoneUnavailableReason } from '../lib/mediaAccess';
 import { createResumedAudioContext, pickRecordingMimeType, setAudioSessionType } from '../lib/webAudio';
+import { computeWaveformPeaks, computeWaveformPeaksFromBlob, WAVEFORM_SAMPLES } from '../utils/waveform';
 
-const WAVEFORM_SAMPLES = 100;
 
 interface Props {
   song: Song;
@@ -58,49 +58,6 @@ interface WaveformProgressProps {
   ariaLabel: string;
   className?: string;
   waveformBars?: number[];
-}
-
-function computeWaveformPeaks(channelData: Float32Array, samples = WAVEFORM_SAMPLES): number[] {
-  if (channelData.length === 0) {
-    return Array.from({ length: samples }, () => 0.12);
-  }
-
-  const blockSize = Math.max(1, Math.floor(channelData.length / samples));
-  const peaks = Array.from({ length: samples }, (_, index) => {
-    const start = index * blockSize;
-    const end = Math.min(channelData.length, start + blockSize);
-    let peak = 0;
-
-    for (let cursor = start; cursor < end; cursor += 1) {
-      const amplitude = Math.abs(channelData[cursor]);
-      if (amplitude > peak) peak = amplitude;
-    }
-
-    return peak;
-  });
-
-  const maxPeak = Math.max(...peaks, 0.01);
-
-  return peaks.map((peak) => {
-    const normalized = peak / maxPeak;
-    // Power curve < 1 expands quiet parts upward; > 1 exaggerates dynamics.
-    // 0.5 (sqrt) compresses — we want the opposite: use power > 1 so loud
-    // peaks stay tall and quiet parts shrink toward the floor.
-    const exaggerated = Math.pow(normalized, 1.8);
-    return Math.max(0.04, exaggerated * 0.96);
-  });
-}
-
-async function computeWaveformPeaksFromBlob(blob: Blob, samples = WAVEFORM_SAMPLES): Promise<number[]> {
-  const arrayBuffer = await blob.arrayBuffer();
-  const audioContext = new AudioContext();
-
-  try {
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    return computeWaveformPeaks(audioBuffer.getChannelData(0), samples);
-  } finally {
-    void audioContext.close();
-  }
 }
 
 // Minimum pixel span (bar + gap) a bar needs to stay visible instead of

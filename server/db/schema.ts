@@ -312,6 +312,33 @@ export const songRecordings = pgTable(
 );
 
 /**
+ * Stems of a song — a set of time-aligned audio files (vocals, drums, bass, …) from a source
+ * separator, played together in the song view's multitrack player. One row per stem name, so
+ * importing again replaces a stem in place.
+ */
+export const songStems = pgTable(
+  'song_stems',
+  {
+    id: text('id').primaryKey(),
+    songId: text('song_id').notNull().references(() => songs.id, { onDelete: 'cascade' }),
+    bandId: text('band_id').notNull().references(() => bands.id, { onDelete: 'cascade' }),
+    /** Stem key such as `vocals` or `drums` (lowercase, `[a-z0-9_-]`). */
+    name: text('name').notNull(),
+    storageKey: text('storage_key').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    mimeType: text('mime_type').notNull(),
+    durationMs: integer('duration_ms').notNull().default(0),
+    waveformBars: jsonb('waveform_bars').$type<number[]>(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    uploaderUserId: text('uploader_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('song_stems_song_name_unique').on(table.songId, table.name),
+  ],
+);
+
+/**
  * Per-band chord voicing overrides — the fingering a band actually plays for a given chord
  * name, replacing the built-in diagram in `src/data/{guitar,ukulele}Chords.ts` (and filling
  * gaps where there's no built-in). `frets` uses the same shape as those tables: one entry

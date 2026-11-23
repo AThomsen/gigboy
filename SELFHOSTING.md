@@ -9,7 +9,7 @@ uploaded files.
 > [Sign-in methods](#sign-in-methods)) with full profile management (email/username/avatar/
 > full name/password changes, account deletion); personal and band-owned songs, songlists, and
 > setlists; bands with invite-link membership; band technical riders/stage plots with public
-> share links; song PDF attachments (20MB cap); song hand notes and recordings; band logo
+> share links; song PDF attachments (20MB cap); song hand notes, recordings and stems; band logo
 > upload; OG-tag social previews; per-resource collaboration invites; trash/soft-delete with
 > 30-day retention; and band press kits (rich text, images, video/presave links, public share
 > links) — all with full feature access (no plan gating).
@@ -121,8 +121,8 @@ else first.
 
 **Managing storage quotas** — the "Users" tab next to Invites (`/admin/users`) lists every
 account with the storage used across bands they own, and lets an admin set (or reset to the
-5GB default) each user's storage quota. Uploads (attachments, recordings, press kit images,
-band logos) that would push a band's total usage past the uploading user's quota are rejected
+5GB default) each user's storage quota. Uploads (attachments, recordings, stems, press kit
+images, band logos) that would push a band's total usage past the uploading user's quota are rejected
 server-side.
 
 ## Sign-in methods
@@ -173,6 +173,27 @@ your server never contacts Ultimate Guitar. Importing a file shared from the Ult
 
 If Ultimate Guitar blocks your server (most likely on a data-centre IP), users see a message saying
 so, and the file import and pasting chords into the song form still work.
+
+## Stems
+
+A song can carry **stems**: separate, time-aligned audio files for vocals, drums, bass and so on,
+which the band plays together in the song's **Stems** tool. Each stem can be muted, soloed and
+given its own volume, and an A–B loop helps when practising a passage.
+
+Gigboy doesn't separate songs itself. Use any source separator, for example
+[StemDeck](https://github.com/stemdeckapp/stemdeck), Demucs or a DAW, export the stems, and as a band editor choose
+**Import stems…** in the song. You can pick a ZIP of stems or several MP3 or WAV files (up to 50MB
+per stem, all at the same sample rate). The stem name comes from the end of each file name
+(`My_Song_vocals.mp3` becomes `vocals`), and importing a stem with the same name again replaces it.
+Export all stems of a song together, so they have exactly the same length.
+
+The player keeps the stems sample-locked: it decodes a few seconds of each stem at a time in a
+worker and mixes them in one AudioWorklet, so even long songs with many stems fit in a phone's
+memory. Stem files are kept in the browser's Cache Storage after the first play, so a song plays
+without a network connection once it has been opened. Stems count toward the band's storage quota.
+
+MP3 decoding uses [mpg123-decoder](https://github.com/eshaz/wasm-audio-decoders), a WebAssembly
+build of mpg123 (LGPL-2.1), loaded as a separate script.
 
 ## Data persistence
 
@@ -230,7 +251,8 @@ tar xzf attachments-backup.tar.gz -C data/attachments
 
 If you put a reverse proxy in front of the container (not part of the default Compose setup,
 which exposes `PORT` directly), make sure its own request body size limit allows uploads up
-to 20MB — Express itself already accepts them.
+to 50MB (recordings and stems go up to 50MB each) — Express itself already accepts them, e.g.
+nginx `client_max_body_size 50m;`.
 
 The setlist "now playing" sync uses Server-Sent Events on
 `/api/bands/*/setlists/*/session/stream`. If your proxy buffers responses (nginx does by

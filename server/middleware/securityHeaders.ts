@@ -20,7 +20,12 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
       "default-src 'self'",
       // index.html ships one first-party inline bootstrap snippet (the ?p= redirect decoder),
       // hence 'unsafe-inline' for scripts; the app loads no third-party script origins.
-      "script-src 'self' 'unsafe-inline'",
+      // 'wasm-unsafe-eval' lets the stem player's MP3 decoder (WebAssembly, bundled with the
+      // app) compile; it allows WebAssembly only, not JavaScript eval(). A worker runs under the
+      // CSP of its own script response, and the PWA precache keeps hashed assets with the headers
+      // they were first fetched with, so a policy change for workers only reaches clients once
+      // the worker's file name (content hash) changes too.
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
       // Tone.js schedules audio via a Worker constructed from a blob: URL; without this,
       // worker-src falls back to script-src (no blob:) and the browser blocks it outright,
       // silently killing tab/tuner/metronome playback.

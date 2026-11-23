@@ -107,6 +107,9 @@ via `VITE_DEV_ORIGIN` in [package.json](package.json), or the port with `PORT=�
 ### Rehearsal tools that live where the songs do
 - **Browser-based audio recorder** — capture a take straight from the song page, no separate app;
   leave timestamped comments on a take ("fix the turnaround at 1:12") that jump the player to that spot
+- **Stems** — import a song's separated stems (a ZIP from StemDeck or any source separator, or
+  MP3/WAV files) and play along with per-stem volume, mute and solo, waveforms and a gapless A–B
+  loop; the stems stay in sync to the exact sample, even on a phone, and play offline once opened
 - **Visual metronome & tuner** — no more digging for a physical tuner mid-rehearsal
 - **Typed notes** — drop text notes right on the song sheet, anchored where you put them; each band member keeps their own, and you can show or hide whose you see
 - **Custom chord voicings** — pin the fingering your band actually plays for a chord; it replaces

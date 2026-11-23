@@ -5,6 +5,8 @@ export interface SongBadgeCounts {
   notes: number;
   attachments: number;
   recordings: number;
+  /** Absent from older servers/demo mode. */
+  stems?: number;
 }
 
 const BATCH_SIZE = 100;

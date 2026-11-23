@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { attachments, bandMembers, handNotes, songRecordings, songs } from '../db/schema.js';
+import { attachments, bandMembers, handNotes, songRecordings, songStems, songs } from '../db/schema.js';
 import { requireAuth } from '../middleware/session.js';
 
 export interface SongBadgeCounts {
   notes: number;
   attachments: number;
   recordings: number;
+  stems: number;
 }
 
 function tally(rows: Array<{ songId: string }>): Record<string, number> {
@@ -18,7 +19,7 @@ function tally(rows: Array<{ songId: string }>): Record<string, number> {
   return counts;
 }
 
-/** Best-effort badge counts (notes/attachments/recordings) for a set of songs, used by song-list cards. */
+/** Best-effort badge counts (notes/attachments/recordings/stems) for a set of songs, used by song-list cards. */
 export const songBadgesRouter = Router();
 songBadgesRouter.use(requireAuth);
 
@@ -49,15 +50,17 @@ songBadgesRouter.get('/', async (req, res) => {
       return;
     }
 
-    const [noteRows, attachmentRows, recordingRows] = await Promise.all([
+    const [noteRows, attachmentRows, recordingRows, stemRows] = await Promise.all([
       db.select({ songId: handNotes.songId }).from(handNotes).where(inArray(handNotes.songId, songIds)),
       db.select({ songId: attachments.songId }).from(attachments).where(inArray(attachments.songId, songIds)),
       db.select({ songId: songRecordings.songId }).from(songRecordings).where(inArray(songRecordings.songId, songIds)),
+      db.select({ songId: songStems.songId }).from(songStems).where(inArray(songStems.songId, songIds)),
     ]);
 
     const noteCounts = tally(noteRows);
     const attachmentCounts = tally(attachmentRows);
     const recordingCounts = tally(recordingRows);
+    const stemCounts = tally(stemRows);
 
     const badges: Record<string, SongBadgeCounts> = {};
     for (const songId of songIds) {
@@ -65,6 +68,7 @@ songBadgesRouter.get('/', async (req, res) => {
         notes: noteCounts[songId] ?? 0,
         attachments: attachmentCounts[songId] ?? 0,
         recordings: recordingCounts[songId] ?? 0,
+        stems: stemCounts[songId] ?? 0,
       };
     }
 

@@ -40,6 +40,7 @@
     "express": "^4.21.2",
     "jszip": "^3.10.1",
     "lucide-react": "^1.73.0",
+    "mpg123-decoder": "^1.0.3",
     "multer": "^2.2.0",
     "nodemailer": "^10.6.0",
     "pg": "^8.13.1",

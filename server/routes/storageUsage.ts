@@ -28,12 +28,13 @@ storageUsageRouter.get('/', async (req, res) => {
       return;
     }
 
-    const { recordingBytes, attachmentBytes, imageBytes } = await getBandStorageBreakdown(bandId);
+    const { recordingBytes, stemBytes, attachmentBytes, imageBytes } = await getBandStorageBreakdown(bandId);
 
     const quotaBytes = await getUserStorageQuotaBytes(userId);
 
     res.json({
       recordingBytes,
+      stemBytes,
       attachmentBytes,
       imageBytes,
       quotaBytes,

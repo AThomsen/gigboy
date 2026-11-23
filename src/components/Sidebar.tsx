@@ -716,6 +716,20 @@ export default function Sidebar({ open, mobile = false, onNavigate }: Props) {
                   style={{ width: `${storageUsage.quotaBytes > 0 ? Math.min(100, (storageUsage.recordingBytes / storageUsage.quotaBytes) * 100) : 0}%` }}
                 />
               </div>
+              {storageUsage.stemBytes > 0 && (
+                <>
+                  <div className="sidebar-storage-popup-row">
+                    <span className="sidebar-storage-popup-label">Stems</span>
+                    <span className="sidebar-storage-popup-value">{formatStorageBytes(storageUsage.stemBytes)}</span>
+                  </div>
+                  <div className="sidebar-storage-popup-bar">
+                    <span
+                      className="sidebar-storage-popup-bar-fill"
+                      style={{ width: `${storageUsage.quotaBytes > 0 ? Math.min(100, (storageUsage.stemBytes / storageUsage.quotaBytes) * 100) : 0}%` }}
+                    />
+                  </div>
+                </>
+              )}
               <div className="sidebar-storage-popup-row">
                 <span className="sidebar-storage-popup-label">Images</span>
                 <span className="sidebar-storage-popup-value">{formatStorageBytes(storageUsage.imageBytes)}</span>

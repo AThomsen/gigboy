@@ -36,6 +36,9 @@ export function extensionForAudioMimeType(mimeType: string): string {
       return 'webm';
     case 'audio/ogg':
       return 'ogg';
+    case 'audio/wave':
+    case 'audio/vnd.wave':
+      return 'wav';
     case 'audio/mpeg':
       return 'mp3';
     case 'audio/mp4':
@@ -108,16 +111,30 @@ export async function streamSongRecording(
   storageAdapter: typeof localStorageAdapter,
   row: SongRecordingRow,
 ): Promise<void> {
-  const head = await storageAdapter.read(row.storageKey);
+  await streamStoredAudio(req, res, storageAdapter, row, 'Recording file not found.');
+}
+
+/**
+ * Streams a stored audio file (recording, stem, …) to the response, honouring HTTP Range
+ * requests so players can seek, or 404s when the file is gone.
+ */
+export async function streamStoredAudio(
+  req: Request,
+  res: Response,
+  storageAdapter: typeof localStorageAdapter,
+  file: { storageKey: string; mimeType: string },
+  notFoundMessage = 'File not found.',
+): Promise<void> {
+  const head = await storageAdapter.read(file.storageKey);
   if (!head) {
-    res.status(404).json({ error: 'Recording file not found.' });
+    res.status(404).json({ error: notFoundMessage });
     return;
   }
   const size = head.sizeBytes;
   // We only needed the size here; discard the unread stream.
   (head.stream as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.();
 
-  res.setHeader('Content-Type', row.mimeType);
+  res.setHeader('Content-Type', file.mimeType);
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
 
@@ -129,9 +146,9 @@ export async function streamSongRecording(
   }
 
   if (range) {
-    const slice = await storageAdapter.read(row.storageKey, range);
+    const slice = await storageAdapter.read(file.storageKey, range);
     if (!slice) {
-      res.status(404).json({ error: 'Recording file not found.' });
+      res.status(404).json({ error: notFoundMessage });
       return;
     }
     res.status(206);
@@ -141,9 +158,9 @@ export async function streamSongRecording(
     return;
   }
 
-  const full = await storageAdapter.read(row.storageKey);
+  const full = await storageAdapter.read(file.storageKey);
   if (!full) {
-    res.status(404).json({ error: 'Recording file not found.' });
+    res.status(404).json({ error: notFoundMessage });
     return;
   }
   res.setHeader('Content-Length', String(size));

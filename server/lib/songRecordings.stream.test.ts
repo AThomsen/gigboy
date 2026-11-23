@@ -2,7 +2,7 @@ import { Readable, Writable } from 'node:stream';
 import { once } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import type { Request, Response } from 'express';
-import { streamSongRecording } from './songRecordings.js';
+import { streamSongRecording, streamStoredAudio } from './songRecordings.js';
 
 const CONTENT = Buffer.from('0123456789abcdefghijABCDEFGHIJ'); // 30 bytes
 
@@ -80,5 +80,25 @@ describe('streamSongRecording range support', () => {
     await streamSongRecording(makeReq('bytes=999-1099'), r.res, adapter as never, row);
     expect(r.status).toBe(416);
     expect(r.headers['content-range']).toBe('bytes */30');
+  });
+});
+
+describe('streamStoredAudio', () => {
+  it('serves any stored audio file with its own content type and supports ranges', async () => {
+    const r = makeRes();
+    await streamStoredAudio(makeReq('bytes=0-3'), r.res, adapter as never, { storageKey: 'stem', mimeType: 'audio/flac' });
+    await r.done();
+    expect(r.status).toBe(206);
+    expect(r.headers['content-type']).toBe('audio/flac');
+    expect(r.body()).toBe('0123');
+  });
+
+  it('404s with the given message when the file is missing', async () => {
+    const r = makeRes();
+    const missing = { ...adapter, read: async () => null };
+    await streamStoredAudio(makeReq(), r.res, missing as never, { storageKey: 'gone', mimeType: 'audio/mpeg' }, 'Stem file not found.');
+    await r.done();
+    expect(r.status).toBe(404);
+    expect(r.body()).toContain('Stem file not found.');
   });
 });

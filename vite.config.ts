@@ -138,7 +138,7 @@ export default defineConfig(({ command }) => ({
         runtimeCaching: [
           {
             // Cache regular JSON API GETs, but never the SSE session stream (an infinite
-            // text/event-stream Workbox would try to clone and buffer) or recording
+            // text/event-stream Workbox would try to clone and buffer) or recording/stem
             // downloads (Range / 206 partial responses must not be cached or reassembled
             // by the service worker). Both misbehave badly in the installed PWA.
             urlPattern: ({ url, request }) =>
@@ -147,7 +147,7 @@ export default defineConfig(({ command }) => ({
               && !url.pathname.endsWith('/session/stream')
               // A stale (or service-worker-delayed) clock reading would put the shared beat off.
               && url.pathname !== '/api/time'
-              && !/\/recordings\/[^/]+\/download$/.test(url.pathname),
+              && !/\/(recordings|stems)\/[^/]+\/download$/.test(url.pathname),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',

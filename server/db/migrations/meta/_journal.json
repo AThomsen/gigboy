@@ -148,6 +148,13 @@
       "when": 1795260929656,
       "tag": "0020_song_scroll_seconds",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795462550067,
+      "tag": "0021_song_stems",
+      "breakpoints": true
     }
   ]
 }

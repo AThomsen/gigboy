@@ -5,6 +5,7 @@ import {
   bandLogos,
   pressKitImages,
   songRecordings,
+  songStems,
   songs,
   users,
 } from '../db/schema.js';
@@ -29,18 +30,20 @@ function sumBytes(rows: Array<{ sizeBytes: number }>): number {
 
 export interface BandStorageBreakdown {
   recordingBytes: number;
+  stemBytes: number;
   attachmentBytes: number;
   /** Press kit images and band logos, thumbnails included. */
   imageBytes: number;
 }
 
-/** Bytes currently stored for a band, split by kind: song attachments, recordings, press kit images and logos. */
+/** Bytes currently stored for a band, split by kind: song attachments, recordings, stems, press kit images and logos. */
 export async function getBandStorageBreakdown(bandId: string): Promise<BandStorageBreakdown> {
   const bandSongRows = await db.select({ id: songs.id }).from(songs).where(eq(songs.bandId, bandId));
   const bandSongIds = bandSongRows.map((row) => row.id);
 
-  const [recordingRows, attachmentRows, imageRows, logoRows] = await Promise.all([
+  const [recordingRows, stemRows, attachmentRows, imageRows, logoRows] = await Promise.all([
     db.select({ sizeBytes: songRecordings.sizeBytes }).from(songRecordings).where(eq(songRecordings.bandId, bandId)),
+    db.select({ sizeBytes: songStems.sizeBytes }).from(songStems).where(eq(songStems.bandId, bandId)),
     bandSongIds.length
       ? db.select({ sizeBytes: attachments.sizeBytes }).from(attachments).where(inArray(attachments.songId, bandSongIds))
       : Promise.resolve([]),
@@ -50,6 +53,7 @@ export async function getBandStorageBreakdown(bandId: string): Promise<BandStora
 
   return {
     recordingBytes: sumBytes(recordingRows),
+    stemBytes: sumBytes(stemRows),
     attachmentBytes: sumBytes(attachmentRows),
     imageBytes:
       sumBytes(imageRows.map((r) => ({ sizeBytes: r.sizeBytes + r.thumbSizeBytes })))
@@ -59,12 +63,12 @@ export async function getBandStorageBreakdown(bandId: string): Promise<BandStora
 
 /** Total bytes currently stored for a band across every kind. */
 export async function getBandStorageUsageBytes(bandId: string): Promise<number> {
-  const { recordingBytes, attachmentBytes, imageBytes } = await getBandStorageBreakdown(bandId);
-  return recordingBytes + attachmentBytes + imageBytes;
+  const { recordingBytes, stemBytes, attachmentBytes, imageBytes } = await getBandStorageBreakdown(bandId);
+  return recordingBytes + stemBytes + attachmentBytes + imageBytes;
 }
 
 /**
- * Every storage key physically backing a band's files: song attachments, recordings, press kit
+ * Every storage key physically backing a band's files: song attachments, recordings, stems, press kit
  * images (+ thumbs), and band logos (+ thumbs). Used to clean up disk when a band's owner is
  * deleted (see adminUsers.ts) — the DB rows disappear via FK cascade, but the underlying files
  * in ATTACHMENTS_DIR don't unless explicitly removed.
@@ -73,8 +77,9 @@ export async function getBandStorageKeys(bandId: string): Promise<string[]> {
   const bandSongRows = await db.select({ id: songs.id }).from(songs).where(eq(songs.bandId, bandId));
   const bandSongIds = bandSongRows.map((row) => row.id);
 
-  const [recordingRows, attachmentRows, imageRows, logoRows] = await Promise.all([
+  const [recordingRows, stemRows, attachmentRows, imageRows, logoRows] = await Promise.all([
     db.select({ storageKey: songRecordings.storageKey }).from(songRecordings).where(eq(songRecordings.bandId, bandId)),
+    db.select({ storageKey: songStems.storageKey }).from(songStems).where(eq(songStems.bandId, bandId)),
     bandSongIds.length
       ? db.select({ storageKey: attachments.storageKey }).from(attachments).where(inArray(attachments.songId, bandSongIds))
       : Promise.resolve([]),
@@ -84,6 +89,7 @@ export async function getBandStorageKeys(bandId: string): Promise<string[]> {
 
   return [
     ...recordingRows.map((r) => r.storageKey),
+    ...stemRows.map((r) => r.storageKey),
     ...attachmentRows.map((r) => r.storageKey),
     ...imageRows.flatMap((r) => [r.storageKey, r.thumbStorageKey]),
     ...logoRows.flatMap((r) => [r.storageKey, r.thumbStorageKey]),

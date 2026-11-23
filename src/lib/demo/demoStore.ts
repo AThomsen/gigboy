@@ -34,6 +34,7 @@ import {
 } from './demoSeedData';
 import type { BandLogoAsset } from '../bandLogos';
 import type { SongRecording } from '../songRecordings';
+import type { SongStem } from '../songStems';
 
 const STORAGE_KEY = 'gigboy-demo-store';
 /** Bump when the seeded sample data changes, so returning visitors get the new content. */
@@ -110,6 +111,8 @@ interface DemoState {
   bandLogos: BandLogoAsset[];
   attachments: Record<string, SongAttachment[]>;
   recordings: Record<string, SongRecording[]>;
+  /** Song stems, keyed by song id. Object-URL backed, so they only last for the session. */
+  stems: Record<string, SongStem[]>;
   handNotes: Record<string, LyricNoteDocument[]>;
   /** Per-song personal transpose override for the demo user, keyed by song id. */
   songTranspose: Record<string, number>;
@@ -722,6 +725,7 @@ function seed(): DemoState {
     bandLogos: [logoAsset],
     attachments: {},
     recordings: {},
+    stems: {},
     handNotes: {},
     songTranspose: {},
     chordVoicings: [],
@@ -742,6 +746,7 @@ function load(): DemoState {
     // The demo's sample content grows over time; a store saved by an older version is re-seeded.
     if (parsed.seedVersion !== SEED_VERSION) return seed();
     parsed.pressKitShares ??= [];
+    parsed.stems ??= {};
     return parsed;
   } catch {
     return seed();
@@ -1227,6 +1232,54 @@ export function renameRecording(bandId: string, songId: string, recordingId: str
   persist();
 }
 
+// ---- Stems ----
+
+export function listStems(bandId: string, songId: string): SongStem[] {
+  assertBand(bandId);
+  return [...(state.stems[songId] ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+}
+
+export function putStem(
+  bandId: string,
+  songId: string,
+  name: string,
+  file: Blob,
+  meta: { durationMs: number; waveformBars?: number[]; sortOrder: number },
+): SongStem {
+  assertBand(bandId);
+  const existing = (state.stems[songId] ?? []).find((s) => s.name === name);
+  if (existing) URL.revokeObjectURL(existing.downloadUrl);
+  const stem: SongStem = {
+    id: existing?.id ?? genId('stem'),
+    name,
+    downloadUrl: URL.createObjectURL(file),
+    durationMs: meta.durationMs,
+    sizeBytes: file.size,
+    mimeType: file.type || 'audio/mpeg',
+    sortOrder: meta.sortOrder,
+    createdAt: now(),
+    waveformBars: meta.waveformBars,
+  };
+  state.stems[songId] = [...(state.stems[songId] ?? []).filter((s) => s.name !== name), stem];
+  persist();
+  return stem;
+}
+
+export function removeStem(bandId: string, songId: string, stemId: string): void {
+  assertBand(bandId);
+  const list = state.stems[songId] ?? [];
+  list.filter((s) => s.id === stemId).forEach((s) => URL.revokeObjectURL(s.downloadUrl));
+  state.stems[songId] = list.filter((s) => s.id !== stemId);
+  persist();
+}
+
+export function removeAllStems(bandId: string, songId: string): void {
+  assertBand(bandId);
+  (state.stems[songId] ?? []).forEach((s) => URL.revokeObjectURL(s.downloadUrl));
+  state.stems[songId] = [];
+  persist();
+}
+
 // ---- Hand notes ----
 
 export function listHandNotes(bandId: string, songId: string): LyricNoteDocument[] {
@@ -1450,10 +1503,11 @@ export function restoreSongRevision(bandId: string, songId: string, id: string):
 
 // ---- Storage usage ----
 
-export function getStorageUsage(): { recordingBytes: number; attachmentBytes: number; imageBytes: number; quotaBytes: number } {
+export function getStorageUsage(): { recordingBytes: number; stemBytes: number; attachmentBytes: number; imageBytes: number; quotaBytes: number } {
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
   const recordingBytes = sum(Object.values(state.recordings).flat().map((r) => r.sizeBytes));
+  const stemBytes = sum(Object.values(state.stems).flat().map((s) => s.sizeBytes));
   const attachmentBytes = sum(Object.values(state.attachments).flat().map((a) => a.sizeBytes));
   const imageBytes = sum(state.pressKitImages.map((i) => i.sizeBytes + i.thumbSizeBytes)) + sum(state.bandLogos.map((l) => l.sizeBytes));
-  return { recordingBytes, attachmentBytes, imageBytes, quotaBytes: state.user.storageQuotaBytes };
+  return { recordingBytes, stemBytes, attachmentBytes, imageBytes, quotaBytes: state.user.storageQuotaBytes };
 }

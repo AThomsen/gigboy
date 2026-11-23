@@ -9,6 +9,16 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 ## [Unreleased]
 
 ### Added
+- **Stems.** A song can carry stems — separate vocals, drums, bass and so on, e.g. exported
+  from StemDeck or another source separator. Editors choose **Import stems…** in the song's new
+  Stems tool and pick a stem ZIP or MP3/WAV files; the stem names come from the file names.
+  The band plays them together with volume, mute and solo per stem, a waveform to seek on and a
+  gapless A–B loop. Playback stays in sync to the exact sample and fits in a phone's memory: a
+  few seconds of each stem are decoded at a time, and stems are kept in the browser after the
+  first play, so a song you've opened plays without a network connection. Stems count toward
+  the band's storage. Adds a database migration (applied automatically by the Docker image).
+  See SELFHOSTING.md → Stems.
+
 - **Autoscroll speed per song, shared by the band.** The speed is now stored with each song as
   the time it takes to scroll through (shown as e.g. 3:20 while adjusting), so it fits any
   screen and text size. A song without one starts from its duration. Changing it in concert
