@@ -9,12 +9,18 @@ export interface SetlistSessionHost {
 export interface SetlistSessionState {
   songIndex: number;
   pageIndex: number;
+  /** The chart line at the top of the leader's page (null: unknown, or scrolling). Page
+   * breaks differ between screens, so followers turn to the page holding this line. */
+  lineId: number | null;
+  /** The last chart line on the leader's page: a follower whose pages hold less can tell
+   * that the leader's page carries on past its own. */
+  lastLineId: number | null;
   transpose: number;
   hostUserId: string | null;
   host: SetlistSessionHost | null;
 }
 
-export type SessionPatch = Partial<Pick<SetlistSessionState, 'songIndex' | 'pageIndex' | 'transpose'>>;
+export type SessionPatch = Partial<Pick<SetlistSessionState, 'songIndex' | 'pageIndex' | 'lineId' | 'lastLineId' | 'transpose'>>;
 
 const API_BASE = '/api';
 
@@ -64,7 +70,7 @@ function demoReadState(setlistId: string): SetlistSessionState {
   } catch {
     // ignore
   }
-  return withDemoLeader({ songIndex: 0, pageIndex: 0, transpose: 0, hostUserId: null, host: null });
+  return withDemoLeader({ songIndex: 0, pageIndex: 0, lineId: null, lastLineId: null, transpose: 0, hostUserId: null, host: null });
 }
 
 function demoWriteState(setlistId: string, state: SetlistSessionState): void {

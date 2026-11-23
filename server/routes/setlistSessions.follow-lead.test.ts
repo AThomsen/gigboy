@@ -35,6 +35,7 @@ vi.mock('../db/client.js', async () => {
         created_at timestamptz default now(), updated_at timestamptz default now());
       CREATE TABLE setlist_sessions (setlist_id text primary key, band_id text,
         song_index integer not null default 0, page_index integer not null default 0,
+        line_id integer, last_line_id integer,
         transpose integer not null default 0, updated_at timestamptz default now());
     `);
     await pool.exec(`
@@ -145,16 +146,20 @@ describe('solo / follow lead', () => {
     const follower = openStream('s1', 'follower');
     await Promise.all([leader.response(), follower.response()]);
     await leader.next();
-    expect(await follower.next()).toMatchObject({ songIndex: 0, pageIndex: 0, transpose: 0, hostUserId: null });
+    expect(await follower.next()).toMatchObject({ songIndex: 0, pageIndex: 0, lineId: null, transpose: 0, hostUserId: null });
 
     const claim = await post('s1', '/claim', 'leader');
     expect(claim.status).toBe(200);
     expect(await claim.json()).toMatchObject({ hostUserId: 'leader' });
     expect(await follower.next()).toMatchObject({ hostUserId: 'leader' });
 
-    const move = await post('s1', '/', 'leader', { songIndex: 3, pageIndex: 2, transpose: 5 });
+    const move = await post('s1', '/', 'leader', { songIndex: 3, pageIndex: 2, lineId: 41, lastLineId: 63, transpose: 5 });
     expect(move.status).toBe(200);
-    expect(await follower.next()).toMatchObject({ songIndex: 3, pageIndex: 2, transpose: 5, hostUserId: 'leader' });
+    expect(await follower.next()).toMatchObject({ songIndex: 3, pageIndex: 2, lineId: 41, lastLineId: 63, transpose: 5, hostUserId: 'leader' });
+
+    // Scrolling (no page): the line is cleared, not kept from the last page.
+    await post('s1', '/', 'leader', { lineId: null, lastLineId: null });
+    expect(await follower.next()).toMatchObject({ songIndex: 3, lineId: null, lastLineId: null });
 
     leader.close();
     follower.close();

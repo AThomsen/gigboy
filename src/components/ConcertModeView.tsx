@@ -104,6 +104,48 @@ function computePageOffsets(contentEl: HTMLElement, viewportHeight: number): num
   return offsets;
 }
 
+// Page breaks depend on each screen's size and text size, so a shared session names a page
+// by the chart line at its top (data-line-id, the same on every screen showing the song).
+
+/** Tops of the chart's lines, relative to the content's own top, in chart order. */
+function chartLineTops(contentEl: HTMLElement): { id: number; top: number }[] {
+  const contentTop = contentEl.getBoundingClientRect().top;
+  const lines: { id: number; top: number }[] = [];
+  contentEl.querySelectorAll<HTMLElement>('.chord-display [data-line-id]').forEach((el) => {
+    const id = Number(el.dataset.lineId);
+    if (Number.isFinite(id)) lines.push({ id, top: el.getBoundingClientRect().top - contentTop });
+  });
+  return lines;
+}
+
+/** The first and last chart lines on the page from `pageTop` to `nextPageTop` (none: the last page). */
+function pageLineRange(
+  contentEl: HTMLElement,
+  pageTop: number,
+  nextPageTop: number | undefined,
+): { first: number; last: number } | null {
+  const onPage = chartLineTops(contentEl).filter((line) =>
+    line.top >= pageTop - 1 && (nextPageTop === undefined || line.top < nextPageTop - 1));
+  return onPage.length ? { first: onPage[0].id, last: onPage[onPage.length - 1].id } : null;
+}
+
+/**
+ * The page (of `offsets`) showing line `lineId`. A line this screen doesn't show (lyrics or
+ * chords only) is stood in for by the next one it does.
+ */
+function pageOfLineId(contentEl: HTMLElement, offsets: number[], lineId: number): number | null {
+  const lines = chartLineTops(contentEl);
+  if (lines.length === 0) return null;
+  const line = lines.find((l) => l.id === lineId)
+    ?? lines.find((l) => l.id > lineId)
+    ?? lines[lines.length - 1];
+  let page = 0;
+  offsets.forEach((offset, i) => {
+    if (offset <= line.top + 1) page = i;
+  });
+  return page;
+}
+
 /**
  * What autoscroll needs to know about the chart's layout, measured with the pagination:
  * how far it scrolls to bring the chart's end into view, and where its pauses fire.
@@ -263,6 +305,11 @@ export default function ConcertModeView({
   const [currentPageInSong, setCurrentPageInSong] = useState(0);
   const [pageOffsets, setPageOffsets] = useState<number[]>([0]);
   const currentPageCount = pageOffsets.length;
+  // For effects that run on the leader's updates, not on this screen's layout.
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+  const pageOffsetsRef = useRef(pageOffsets);
+  pageOffsetsRef.current = pageOffsets;
   const [transpose, setTranspose] = useState(0);
   const [chartContent, setChartContent] = useState(readStoredChartContent);
   const showChords = chartContent !== 'lyrics';
@@ -310,6 +357,32 @@ export default function ConcertModeView({
   const surfaceRef = useRef<HTMLElement>(null);
   const titleLaneRef = useRef<HTMLDivElement>(null);
   const targetPageRef = useRef(0);
+  // Following: the leader's page, as the line at its top, until this screen turns a page of
+  // its own. Kept so a re-measure here (the font loading, a resize) stays on that line.
+  const followAnchorRef = useRef<{
+    songIndex: number;
+    lineId: number;
+    lastLineId: number | null;
+    page: number | null;
+  } | null>(null);
+  // Following a leader whose page holds more than this screen's: the last of this screen's
+  // pages that the leader's page reaches, so a cue can say the next turn is this screen's own.
+  const [leaderPageEnd, setLeaderPageEnd] = useState<{ songIndex: number; page: number } | null>(null);
+  // Turns to this screen's page holding the leader's top line (and notes where the leader's
+  // page ends here). False when the chart has no lines to go by.
+  const resolveFollowAnchor = useCallback((content: HTMLElement, offsets: number[]): boolean => {
+    const anchor = followAnchorRef.current;
+    if (!anchor) return false;
+    const page = pageOfLineId(content, offsets, anchor.lineId);
+    if (page === null) return false;
+    anchor.page = page;
+    setCurrentPageInSong(page);
+    const endPage = anchor.lastLineId === null ? null : pageOfLineId(content, offsets, anchor.lastLineId);
+    setLeaderPageEnd(endPage !== null && endPage > page ? { songIndex: anchor.songIndex, page: endPage } : null);
+    return true;
+  }, []);
+  const currentPageRef = useRef(currentPageInSong);
+  currentPageRef.current = currentPageInSong;
 
   const isMultiSong = songs.length > 1;
   const activeSong = songs[currentIndex] ?? null;
@@ -449,18 +522,56 @@ export default function ConcertModeView({
   // Follow mode: the leader's position — and transpose — drive this screen.
   useEffect(() => {
     if (sessionMode !== 'follow' || !sessionState) return;
+    const songIndex = Math.min(Math.max(sessionState.songIndex, 0), Math.max(0, songs.length - 1));
+    // The leader's page number is only a fallback: this screen may break the song elsewhere.
     targetPageRef.current = sessionState.pageIndex;
-    setCurrentIndex(Math.min(Math.max(sessionState.songIndex, 0), Math.max(0, songs.length - 1)));
+    followAnchorRef.current = sessionState.lineId == null
+      ? null
+      : { songIndex, lineId: sessionState.lineId, lastLineId: sessionState.lastLineId ?? null, page: null };
+    setLeaderPageEnd(null);
+    setCurrentIndex(songIndex);
     setCurrentPageInSong(sessionState.pageIndex);
     setTranspose(sessionState.transpose);
-  }, [sessionMode, sessionState, songs.length]);
+    // Same song: its pages are already measured, so turn to the line's page now. A new song
+    // is resolved once it's measured (see the pagination layout effect).
+    const content = contentRef.current;
+    if (content && songIndex === currentIndexRef.current) resolveFollowAnchor(content, pageOffsetsRef.current);
+  }, [sessionMode, sessionState, songs.length, resolveFollowAnchor]);
 
-  // Lead mode: broadcast local navigation to followers.
-  const sessionPush = session?.push;
   useEffect(() => {
-    if (sessionMode !== 'lead' || !sessionPush) return;
-    sessionPush({ songIndex: currentIndex, pageIndex: currentPageInSong, transpose });
-  }, [sessionMode, sessionPush, currentIndex, currentPageInSong, transpose]);
+    if (sessionMode !== 'follow') {
+      followAnchorRef.current = null;
+      setLeaderPageEnd(null);
+    }
+  }, [sessionMode]);
+
+  // Lead mode: broadcast local navigation to followers, the page as the line at its top.
+  const sessionPush = session?.push;
+  const lastPushRef = useRef('');
+  useEffect(() => {
+    if (sessionMode !== 'lead' || !sessionPush) {
+      lastPushRef.current = '';
+      return;
+    }
+    const content = contentRef.current;
+    const pageTop = pageOffsets[currentPageInSong];
+    const lines = !continuous && content && pageTop !== undefined
+      ? pageLineRange(content, pageTop, pageOffsets[currentPageInSong + 1])
+      : null;
+    const patch = {
+      songIndex: currentIndex,
+      pageIndex: currentPageInSong,
+      lineId: lines?.first ?? null,
+      lastLineId: lines?.last ?? null,
+      transpose,
+    };
+    // Re-measuring (which this also follows, as it can move the page's top line) mostly
+    // changes nothing worth sending.
+    const key = JSON.stringify(patch);
+    if (key === lastPushRef.current) return;
+    lastPushRef.current = key;
+    sessionPush(patch);
+  }, [sessionMode, sessionPush, currentIndex, currentPageInSong, transpose, pageOffsets, continuous]);
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -487,7 +598,13 @@ export default function ConcertModeView({
 
       setPageOffsets(offsets);
       updateScrollEdge();
-      setCurrentPageInSong((p) => Math.min(p, offsets.length - 1));
+      // Following: land on this screen's page holding the leader's line, unless a page has
+      // been turned here since.
+      const anchor = followAnchorRef.current;
+      const resolved = anchor !== null && anchor.songIndex === currentIndexRef.current
+        && (anchor.page === null || anchor.page === currentPageRef.current)
+        && resolveFollowAnchor(content, offsets);
+      if (!resolved) setCurrentPageInSong((p) => Math.min(p, offsets.length - 1));
     };
 
     const observer = new ResizeObserver(measure);
@@ -1764,6 +1881,21 @@ export default function ConcertModeView({
                 {continuous && renderUpNext(currentIndex)}
               </div>
               {!continuous && currentPageInSong === currentPageCount - 1 && renderUpNext(currentIndex, true)}
+              {!continuous && sessionMode === 'follow' && leaderPageEnd?.songIndex === currentIndex
+                && currentPageInSong < leaderPageEnd.page && (
+                <button
+                  type="button"
+                  className={`concert-next-song concert-next-song--overlay concert-leader-continues${showNavButtons ? ' concert-next-song--above-nav' : ''}`}
+                  onClick={goToNextPage}
+                  aria-label="Next page: the leader's page continues there"
+                >
+                  <span className="concert-next-song-line">
+                    <span className="concert-next-song-label">turn yourself</span>
+                    <strong className="concert-next-song-title">Leader's page continues</strong>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </span>
+                </button>
+              )}
             </div>
           {tapFlash && (
             <div

@@ -32,6 +32,8 @@ function getRoom(setlistId: string): Room {
 interface SessionState {
   songIndex: number;
   pageIndex: number;
+  lineId: number | null;
+  lastLineId: number | null;
   transpose: number;
   hostUserId: string | null;
   host: SessionHost | null;
@@ -63,6 +65,8 @@ async function loadState(setlistId: string, hostUserId: string | null): Promise<
   return {
     songIndex: row?.songIndex ?? 0,
     pageIndex: row?.pageIndex ?? 0,
+    lineId: row?.lineId ?? null,
+    lastLineId: row?.lastLineId ?? null,
     transpose: row?.transpose ?? 0,
     hostUserId,
     host: await loadHost(hostUserId),
@@ -191,9 +195,15 @@ bandSetlistSessionRouter.post('/', async (req, res) => {
   };
 
   const current = await loadState(setlistId, room.hostUserId);
+  const lineField = (key: 'lineId' | 'lastLineId'): number | null => {
+    if (!(key in body)) return current[key];
+    return body[key] === null ? null : clampInt(body[key], 0, 1_000_000, current[key] ?? 0);
+  };
   const next = {
     songIndex: 'songIndex' in body ? clampInt(body.songIndex, 0, 9999, current.songIndex) : current.songIndex,
     pageIndex: 'pageIndex' in body ? clampInt(body.pageIndex, 0, 9999, current.pageIndex) : current.pageIndex,
+    lineId: lineField('lineId'),
+    lastLineId: lineField('lastLineId'),
     transpose: 'transpose' in body ? clampInt(body.transpose, -11, 11, current.transpose) : current.transpose,
   };
 

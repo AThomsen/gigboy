@@ -419,6 +419,12 @@ export const setlistSessions = pgTable('setlist_sessions', {
   bandId: text('band_id').notNull().references(() => bands.id, { onDelete: 'cascade' }),
   songIndex: integer('song_index').notNull().default(0),
   pageIndex: integer('page_index').notNull().default(0),
+  /** The chart line at the top of the leader's page. Page breaks depend on each screen's
+   * size and text size, so followers turn to the page holding this line, not to pageIndex. */
+  lineId: integer('line_id'),
+  /** The last chart line on the leader's page, so a follower with smaller pages knows the
+   * leader's page carries on past its own. */
+  lastLineId: integer('last_line_id'),
   transpose: integer('transpose').notNull().default(0),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
