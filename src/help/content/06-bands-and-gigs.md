@@ -18,7 +18,18 @@ The band owner opens **Band settings** with the cog at the top of the Library. T
 
 ### Inviting people
 
-Press **Create invite link**, then copy it or share it straight from your phone. Anyone who opens it can create an account (or log in) and joins the band. One link works for as many bandmates as you like.
+Press **Create invite link**, then copy it or share it straight from your phone. Anyone with a Gigboy account who opens it logs in and joins the band. One link works for as many bandmates as you like.
+
+Before you create the link you can choose:
+
+- **Link expires after … days** — how long the link works, from 1 to 365 days (7 by default).
+- **Allow new accounts** (only if your server admin allows it for the band) — someone new can create their account right from the link and joins the band at once, without needing a separate invite from the server admin. Anyone who gets hold of such a link can make an account, so share it only with your bandmates.
+
+The member list shows who invited each member.
+
+### Transferring ownership
+
+The owner can hand the band to another member under **Transfer ownership** in Band settings. The new owner must already be in the band (a viewer becomes an editor), and you stay on as an editor. Server admins can transfer a band too, for example when its owner has left.
 
 ### Removing a member
 

@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { users, userInvites } from '../db/schema.js';
@@ -7,10 +6,9 @@ import { startSession, requireAuth } from '../middleware/session.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { toPublicUser } from '../lib/user.js';
 import { resolveOrigin } from '../lib/http.js';
-import { getAuthConfig } from '../lib/authConfig.js';
+import { DUPLICATE_ACCOUNT_ERROR, validateSignup } from '../lib/accountSignup.js';
 import { isUniqueViolation } from '../lib/dbErrors.js';
 
-const BCRYPT_ROUNDS = 12;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches band invites
 
 /** Admin-only invite management, mounted at /api/admin/invites. */
@@ -134,43 +132,12 @@ publicInvitesRouter.post('/:token/accept', async (req, res) => {
       return;
     }
 
-    const { username, password, fullName, email: bodyEmail } = (req.body ?? {}) as Record<string, unknown>;
-
-    // Without emailed sign-in, a password is the new account's only guaranteed way back in (a
-    // passkey can be added after, but not every device can make one), so it's required. With
-    // emailed sign-in it's optional, and with passwords off it's not accepted at all.
-    const config = getAuthConfig();
-    const passwordRequired = config.passwords && !config.magicLinks;
-    const passwordGiven = typeof password === 'string' && password.length > 0;
-    if (passwordGiven && !config.passwords) {
-      res.json({ user: null, error: 'Passwords are disabled on this server.' });
+    const validated = await validateSignup(req.body, invite.email);
+    if (validated.error !== undefined) {
+      res.json({ user: null, error: validated.error });
       return;
     }
-    if ((passwordRequired || passwordGiven) && (typeof password !== 'string' || password.length < 8)) {
-      res.json({ user: null, error: 'Password must be at least 8 characters.' });
-      return;
-    }
-    if (typeof username !== 'string' || username.trim().length < 2) {
-      res.json({ user: null, error: 'Username must be at least 2 characters.' });
-      return;
-    }
-
-    // The invite may or may not have an email pinned to it. When it does, that value wins and
-    // any email in the request body is ignored. When it doesn't, the caller must supply one,
-    // validated the same way the old public /register route validated it.
-    let email: string;
-    if (invite.email) {
-      email = invite.email;
-    } else {
-      if (typeof bodyEmail !== 'string' || !bodyEmail.includes('@')) {
-        res.json({ user: null, error: 'A valid email is required.' });
-        return;
-      }
-      email = bodyEmail;
-    }
-
-    const emailLower = email.trim().toLowerCase();
-    const passwordHash = passwordGiven ? await bcrypt.hash(password as string, BCRYPT_ROUNDS) : null;
+    const values = validated.values;
     const id = crypto.randomUUID();
 
     // Atomically claim the invite: only one concurrent request can flip it from pending.
@@ -192,12 +159,9 @@ publicInvitesRouter.post('/:token/accept', async (req, res) => {
         .insert(users)
         .values({
           id,
-          email: email.trim(),
-          emailLower,
-          username: username.trim(),
-          passwordHash,
-          fullName: typeof fullName === 'string' && fullName.trim() ? fullName.trim() : null,
+          ...values,
           role: invite.role === 'admin' ? 'admin' : 'member',
+          invitedById: invite.inviterId,
         })
         .returning();
     } catch (insertErr) {
@@ -207,7 +171,7 @@ publicInvitesRouter.post('/:token/accept', async (req, res) => {
         .set({ status: 'pending', acceptedUserId: null })
         .where(eq(userInvites.id, invite.id));
       if (isUniqueViolation(insertErr)) {
-        res.json({ user: null, error: 'An account with this email or username already exists.' });
+        res.json({ user: null, error: DUPLICATE_ACCOUNT_ERROR });
         return;
       }
       throw insertErr;

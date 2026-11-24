@@ -10,7 +10,7 @@ Gigboy is a songbook and gig-prep app for your band. Everything you and your ban
 There is no public sign-up. Someone invites you:
 
 1. Open the invite link you were sent (it looks like `…/band-invite/…`).
-2. Create your account, or log in if you already have one.
+2. Create your account, or log in if you already have one. (If the link doesn't offer to create an account, you need an account invite from the server admin first.)
 3. Pick a username if asked. This is the name your bandmates see next to your notes and recordings.
 
 If you were invited while you already had an account, the invite also shows up under **Profile → Invites**.

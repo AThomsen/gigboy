@@ -12,6 +12,8 @@ export interface User {
   avatar: string | null;
   fullName: string | null;
   role: 'member' | 'admin';
+  /** Whether this user may create bands (server's ANYONE_CAN_CREATE_BANDS, or admin). Missing = true. */
+  canCreateBands?: boolean;
   storageQuotaBytes: number;
   /** Optional so older payloads / fixtures without it still type-check; treat missing as {}. */
   preferences?: UserPreferences;

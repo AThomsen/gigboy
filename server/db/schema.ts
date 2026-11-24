@@ -1,4 +1,4 @@
-import { pgTable, text, integer, bigint, timestamp, jsonb, boolean, primaryKey, check, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgTable, text, integer, bigint, timestamp, jsonb, boolean, primaryKey, check, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const users = pgTable(
@@ -19,6 +19,10 @@ export const users = pgTable(
     storageQuotaBytes: bigint('storage_quota_bytes', { mode: 'number' }),
     // Per-user app preferences (see server/lib/userPreferences.ts). Follows the user across devices.
     preferences: jsonb('preferences').$type<Record<string, unknown>>().notNull().default({}),
+    // Who invited this account to the server — the admin behind a server invite, or the band
+    // member behind a band invite that let them sign up. Null for the bootstrap admin, accounts
+    // that predate this column, and when the inviter's account is deleted.
+    invitedById: text('invited_by_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check('users_role_check', sql`${table.role} in ('member', 'admin')`)],
@@ -64,9 +68,14 @@ export const bands = pgTable('bands', {
   icon: text('icon'),
   logo: text('logo'),
   ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Who may create band invite links that let newcomers create an account on the server:
+  // 'none', 'owner' (the band's owner) or 'editors' (owner and editors). Set by site admins only.
+  memberSignup: text('member_signup').notNull().default('none'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  check('bands_member_signup_check', sql`${table.memberSignup} in ('none', 'owner', 'editors')`),
+]);
 
 export const bandMembers = pgTable(
   'band_members',
@@ -74,6 +83,9 @@ export const bandMembers = pgTable(
     bandId: text('band_id').notNull().references(() => bands.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('editor'),
+    // The member whose band invite link this member joined through. Null for the band's creator
+    // and for members who joined before this column existed.
+    invitedById: text('invited_by_id').references(() => users.id, { onDelete: 'set null' }),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -88,6 +100,9 @@ export const bandInvites = pgTable('band_invites', {
   inviterId: text('inviter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').notNull().default('editor'),
   status: text('status').notNull().default('pending'),
+  // Lets someone without an account create one from this link (joining the band in the same
+  // step), instead of needing a separate server invite from an admin first.
+  allowSignup: boolean('allow_signup').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 }, (table) => [

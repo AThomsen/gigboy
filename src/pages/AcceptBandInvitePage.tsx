@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { useBands } from '../context/BandsContext';
 import { clearPendingBandInvite } from '../lib/pendingBandInvite';
 import { dataClient } from '../lib/dataClient';
+import type { BandInviteContext } from '../lib/dataClient/types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
@@ -23,6 +24,20 @@ export default function AcceptBandInvitePage() {
   }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [invite, setInvite] = useState<BandInviteContext | null>(null);
+
+  useEffect(() => {
+    if (!inviteId) return;
+    let cancelled = false;
+    void dataClient.bands.getInvite(inviteId).then(({ invite: found, error: lookupError }) => {
+      if (cancelled) return;
+      setInvite(found);
+      if (lookupError) setError(lookupError);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteId]);
 
   async function handleAccept() {
     setBusy(true);
@@ -57,8 +72,11 @@ export default function AcceptBandInvitePage() {
 
   return (
     <div className="app-status">
-      <h1>You've been invited to join a band</h1>
-      <p>Accepting adds you as an editor of the band.</p>
+      <h1>{invite ? `You've been invited to join ${invite.bandName}` : "You've been invited to join a band"}</h1>
+      <p>
+        {invite?.inviterName ? `${invite.inviterName} invited you. ` : ''}
+        Accepting adds you as {invite?.role === 'viewer' ? 'a viewer' : 'an editor'} of the band.
+      </p>
       {error && <p className="login-error" role="alert">{error}</p>}
       <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1rem', justifyContent: 'center' }}>
         <Button variant="primary" onClick={handleAccept} disabled={busy}>

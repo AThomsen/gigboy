@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { bandInvites, bandMembers, bands } from '../db/schema.js';
+import { bandInvites, bandMembers, bands, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireBandEditor, requireBandMember } from '../middleware/bandAccess.js';
 import { toBandApi } from '../lib/band.js';
+import { canInviteWithSignup } from '../lib/bandSignup.js';
+import { canCreateBands } from '../lib/user.js';
 import { resolveOrigin } from '../lib/http.js';
 
-const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_INVITE_DAYS = 7;
+export const MAX_INVITE_DAYS = 365;
 
 export const bandsRouter = Router();
 bandsRouter.use(requireAuth);
@@ -29,6 +33,11 @@ bandsRouter.get('/', async (req, res) => {
 
 bandsRouter.post('/', async (req, res) => {
   try {
+    const [creator] = await db.select({ role: users.role }).from(users).where(eq(users.id, req.userId!)).limit(1);
+    if (!creator || !canCreateBands(creator.role)) {
+      res.status(403).json({ error: 'Only admins can create bands on this server.' });
+      return;
+    }
     const body = (req.body ?? {}) as Record<string, unknown>;
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name) {
@@ -103,9 +112,22 @@ bandsRouter.delete('/:id', async (req, res) => {
 
 bandsRouter.post('/:id/invite-link', requireBandEditor, async (req, res) => {
   try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const days = body.expiresInDays ?? DEFAULT_INVITE_DAYS;
+    if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > MAX_INVITE_DAYS) {
+      res.status(400).json({ error: `expiresInDays must be a whole number from 1 to ${MAX_INVITE_DAYS}.` });
+      return;
+    }
+    const allowSignup = body.allowSignup === true;
     const bandId = req.params.id;
+    // A sign-up link lets anyone holding it create an account on the server, so who may make one
+    // is the band's admin-set policy; anyone else can still invite people who have accounts.
+    if (allowSignup && !(await canInviteWithSignup(bandId, req.userId!))) {
+      res.status(403).json({ error: 'You are not allowed to create invite links that let new people sign up for this band.' });
+      return;
+    }
     const id = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+    const expiresAt = new Date(Date.now() + days * DAY_MS);
 
     await db.insert(bandInvites).values({
       id,
@@ -113,6 +135,7 @@ bandsRouter.post('/:id/invite-link', requireBandEditor, async (req, res) => {
       inviterId: req.userId!,
       role: 'editor',
       status: 'pending',
+      allowSignup,
       expiresAt,
     });
 
@@ -121,6 +144,7 @@ bandsRouter.post('/:id/invite-link', requireBandEditor, async (req, res) => {
       inviteId: id,
       inviteUrl: `${origin}/band-invite/${id}`,
       expiresAt: expiresAt.toISOString(),
+      allowSignup,
     });
   } catch (err) {
     console.error('Failed to create invite link:', err);
@@ -153,7 +177,7 @@ bandsRouter.post('/invites/:inviteId/accept', async (req, res) => {
     // (stays 'pending' and reusable) — intentional, matches current Firestore behavior.
     await db
       .insert(bandMembers)
-      .values({ bandId: invite.bandId, userId: req.userId!, role: invite.role })
+      .values({ bandId: invite.bandId, userId: req.userId!, role: invite.role, invitedById: invite.inviterId })
       .onConflictDoNothing();
 
     const bandRows = await db.select().from(bands).where(eq(bands.id, invite.bandId)).limit(1);
@@ -164,6 +188,65 @@ bandsRouter.post('/invites/:inviteId/accept', async (req, res) => {
     res.json({ band: await toBandApi(bandRows[0]) });
   } catch (err) {
     console.error('Failed to accept invite:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+/**
+ * Hands the band to another member. Allowed for the current owner and for site admins (who need
+ * not be members). A viewer who becomes owner is made an editor, since owners always edit.
+ */
+bandsRouter.post('/:id/transfer-ownership', async (req, res) => {
+  try {
+    const bandId = req.params.id;
+    const { userId: newOwnerId } = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof newOwnerId !== 'string' || !newOwnerId) {
+      res.status(400).json({ error: 'userId is required.' });
+      return;
+    }
+    const [band] = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1);
+    if (!band) {
+      res.status(404).json({ error: 'Band not found.' });
+      return;
+    }
+    if (band.ownerId !== req.userId) {
+      const [caller] = await db.select({ role: users.role }).from(users).where(eq(users.id, req.userId!)).limit(1);
+      if (caller?.role !== 'admin') {
+        res.status(403).json({ error: 'Only the band owner or an admin can transfer ownership.' });
+        return;
+      }
+    }
+    if (newOwnerId === band.ownerId) {
+      res.status(409).json({ error: 'That member already owns the band.' });
+      return;
+    }
+    const [member] = await db
+      .select({ role: bandMembers.role })
+      .from(bandMembers)
+      .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.userId, newOwnerId)))
+      .limit(1);
+    if (!member) {
+      res.status(400).json({ error: 'The new owner must be a member of the band.' });
+      return;
+    }
+
+    const row = await db.transaction(async (tx) => {
+      if (member.role !== 'editor') {
+        await tx
+          .update(bandMembers)
+          .set({ role: 'editor' })
+          .where(and(eq(bandMembers.bandId, bandId), eq(bandMembers.userId, newOwnerId)));
+      }
+      const [updated] = await tx
+        .update(bands)
+        .set({ ownerId: newOwnerId, updatedAt: new Date() })
+        .where(eq(bands.id, bandId))
+        .returning();
+      return updated;
+    });
+    res.json({ band: await toBandApi(row) });
+  } catch (err) {
+    console.error('Failed to transfer band ownership:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });

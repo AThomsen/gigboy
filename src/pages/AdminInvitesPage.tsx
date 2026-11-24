@@ -98,6 +98,7 @@ export default function AdminInvitesPage() {
       <nav className="admin-tabs">
         <Link to="/admin/invites" className="active" aria-current="page">Invites</Link>
         <Link to="/admin/users">Users</Link>
+        <Link to="/admin/bands">Bands</Link>
       </nav>
 
       <section className="profile-invites-section">

@@ -36,6 +36,7 @@ adminUsersRouter.get('/', async (_req, res) => {
           username: row.username,
           fullName: row.fullName,
           role: row.role,
+          invitedById: row.invitedById,
           createdAt: row.createdAt.toISOString(),
           storageQuotaBytes: resolveStorageQuotaBytes(row.storageQuotaBytes),
           hasCustomQuota: row.storageQuotaBytes != null,

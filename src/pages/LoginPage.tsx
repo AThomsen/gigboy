@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Location } from 'react-router-dom';
 import { Music2, ListMusic, Users, MonitorSpeaker, Newspaper, Activity, KeyRound, type LucideIcon } from 'lucide-react';
 import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from '@simplewebauthn/browser';
@@ -10,6 +10,8 @@ import BrandLogo from '../components/BrandLogo';
 import { Button } from '../components/ui/Button';
 import { isDemoMode } from '../lib/demo/demoMode';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { getPendingBandInvite } from '../lib/pendingBandInvite';
+import type { BandInviteContext } from '../lib/dataClient/types';
 
 const REPO_URL = 'https://github.com/blindpassasjer/gigboy';
 
@@ -250,6 +252,20 @@ export default function LoginPage() {
   const { login, setUser, authMethods } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // A band invite opened while signed out (remembered across the redirect to this page): say
+  // which band signing in joins, and offer sign-up instead when the link allows it.
+  const [pendingInviteId] = useState(() => getPendingBandInvite());
+  const [pendingInvite, setPendingInvite] = useState<BandInviteContext | null>(null);
+  useEffect(() => {
+    if (!pendingInviteId) return;
+    let cancelled = false;
+    void dataClient.bands.getInvite(pendingInviteId).then(({ invite }) => {
+      if (!cancelled) setPendingInvite(invite);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingInviteId]);
   const initialPending = useRef(loadPendingSignIn()).current;
   const [email, setEmail] = useState(isDemoMode ? 'demo@example.com' : initialPending?.email ?? '');
   const [password, setPassword] = useState(isDemoMode ? 'demo' : '');
@@ -392,10 +408,20 @@ export default function LoginPage() {
         <div className="login-card">
           <h1 className="login-title">{step === 'code' ? 'Check your email' : 'Sign in'}</h1>
 
-          {/band-invite\/|bandInvite=/.test(`${location.pathname}${location.search}`) && (
+          {pendingInviteId && (
             <p className="login-description">
-              Sign in to join the band. No account yet? Ask your server admin for an account
-              invite link, open it, and the band invite will be picked up afterwards.
+              Sign in to join {pendingInvite ? pendingInvite.bandName : 'the band'}.{' '}
+              {pendingInvite?.allowSignup ? (
+                <>
+                  No account yet?{' '}
+                  <Link to={`/band-invite/${encodeURIComponent(pendingInviteId)}/signup`}>Create one</Link>.
+                </>
+              ) : (
+                <>
+                  No account yet? Ask your server admin for an account invite link, open it, and the
+                  band invite will be picked up afterwards.
+                </>
+              )}
             </p>
           )}
 

@@ -162,6 +162,13 @@
       "when": 1795468936640,
       "tag": "0022_session_line_anchor",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795549790621,
+      "tag": "0023_band_invite_signup",
+      "breakpoints": true
     }
   ]
 }

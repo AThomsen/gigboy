@@ -15,12 +15,16 @@ export interface Band {
   logo?: string;
   logoStoragePath?: string;
   ownerId: string;
+  /** Who may create invite links that let newcomers sign up (set by site admins). Absent = 'none'. */
+  memberSignup?: 'none' | 'owner' | 'editors';
   memberIds: string[];
   memberRoles: Record<string, CollaborationPermission>;
   memberEmails: Record<string, string>;
   memberUsernames: Record<string, string>;
   memberFullNames: Record<string, string>;
   memberAvatars: Record<string, string>;
+  /** Who invited each member (user id → inviter's user id), for members who joined by invite link. */
+  memberInvitedBy?: Record<string, string>;
   createdAt: string;
   updatedAt?: string;
 }

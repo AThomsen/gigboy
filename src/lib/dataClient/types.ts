@@ -35,6 +35,7 @@ export interface DataClient {
   publicPressKits: PublicPressKitsClient;
   adminInvites: AdminInvitesClient;
   adminUsers: AdminUsersClient;
+  adminBands: AdminBandsClient;
   ultimateGuitar: UltimateGuitarClient;
 }
 
@@ -171,6 +172,8 @@ export interface AdminUserListing {
   username: string | null;
   fullName: string | null;
   role: 'member' | 'admin';
+  /** The user who invited this account to the server, or null (bootstrap admin, older accounts). */
+  invitedById: string | null;
   createdAt: string;
   /** Resolved quota (admin-assigned, or the default when hasCustomQuota is false). */
   storageQuotaBytes: number;
@@ -181,6 +184,25 @@ export interface AdminUserListing {
 }
 
 /** Admin-only user listing and storage quota assignment, mounted at `/api/admin/users`. */
+/** Who may create band invite links that let newcomers sign up. Set per band by site admins. */
+export type MemberSignupPolicy = 'none' | 'owner' | 'editors';
+
+export interface AdminBandListing {
+  id: string;
+  name: string;
+  memberSignup: MemberSignupPolicy;
+  memberCount: number;
+  ownerId: string;
+  ownerName: string;
+  createdAt: string;
+}
+
+export interface AdminBandsClient {
+  /** Every band on the server, not just the admin's own. */
+  list(): Promise<AdminBandListing[]>;
+  setMemberSignup(bandId: string, memberSignup: MemberSignupPolicy): Promise<void>;
+}
+
 export interface AdminUsersClient {
   list(): Promise<AdminUserListing[]>;
   /** Sets a user's storage quota override; pass null to reset to the default. */
@@ -197,6 +219,24 @@ export interface BandInvite {
   inviteId: string;
   inviteUrl: string;
   expiresAt: string;
+  /** Whether someone without an account can create one from this link. */
+  allowSignup: boolean;
+}
+
+export interface CreateBandInviteOptions {
+  /** Whole days until the link stops working, 1–365. The server defaults to 7. */
+  expiresInDays?: number;
+  allowSignup?: boolean;
+}
+
+/** What a band invite link shows before sign-in, mirroring `GET /api/band-invites/:id`. */
+export interface BandInviteContext {
+  bandName: string;
+  /** The inviter's full name, else username; null if their account is gone. */
+  inviterName: string | null;
+  role: 'editor' | 'viewer';
+  allowSignup: boolean;
+  expiresAt: string;
 }
 
 export interface BandsClient {
@@ -207,9 +247,21 @@ export interface BandsClient {
   /** Owner only. Cascades to the band's songs/songLists/setlists. */
   remove(id: string): Promise<void>;
   /** Editor+ only. Reusable multi-use link, valid until it expires (7 days) or is revoked. */
-  createInviteLink(bandId: string): Promise<BandInvite>;
+  createInviteLink(bandId: string, options?: CreateBandInviteOptions): Promise<BandInvite>;
   /** Joins the current user to the invite's band as an editor. Returns the band. */
   acceptInvite(inviteId: string): Promise<Band>;
+  /** Looks up a band invite without signing in. Null invite + error covers missing/expired/revoked. */
+  getInvite(inviteId: string): Promise<{ invite: BandInviteContext | null; error: string | null }>;
+  /**
+   * Creates an account from a band invite that allows sign-up, joins it to the band and signs it
+   * in (session cookie). `input.email` is required.
+   */
+  signUpWithInvite(
+    inviteId: string,
+    input: AcceptInviteInput,
+  ): Promise<{ user: User | null; bandId: string | null; error: string | null }>;
+  /** Makes another member the owner. Allowed for the current owner and site admins. Returns the band. */
+  transferOwnership(bandId: string, userId: string): Promise<Band>;
   /** Owner can remove any member; a user can remove themself (leave). */
   removeMember(bandId: string, userId: string): Promise<void>;
 }

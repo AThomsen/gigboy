@@ -14,6 +14,7 @@ const Layout = lazy(() => import('./components/Layout'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const AcceptBandInvitePage = lazy(() => import('./pages/AcceptBandInvitePage'));
 const AcceptInvitePage = lazy(() => import('./pages/AcceptInvitePage'));
+const BandInviteSignupPage = lazy(() => import('./pages/BandInviteSignupPage'));
 const MagicLinkPage = lazy(() => import('./pages/MagicLinkPage'));
 const UsernameSetupPage = lazy(() => import('./pages/UsernameSetupPage'));
 const AddSongPage = lazy(() => import('./pages/AddSongPage'));
@@ -28,6 +29,7 @@ const SongConcertPage = lazy(() => import('./pages/SongConcertPage'));
 const EditSongPage = lazy(() => import('./pages/EditSongPage'));
 const AdminInvitesPage = lazy(() => import('./pages/AdminInvitesPage'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
+const AdminBandsPage = lazy(() => import('./pages/AdminBandsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const PublicBandRiderPage = lazy(() => import('./pages/PublicBandRiderPage'));
 const PublicBandPressKitPage = lazy(() => import('./pages/PublicBandPressKitPage'));
@@ -153,7 +155,13 @@ function AuthenticatedApp() {
     return <div className="app-status">Loading Gigboy…</div>;
   }
 
-  if (authEnabled && !user) return <LoginPage />;
+  if (authEnabled && !user) {
+    // A band invite link opened while signed out: its landing page offers sign-up when the link
+    // allows it, and otherwise sends the visitor back here to sign in.
+    const inviteId = bandInviteIdFromLocation(location.pathname, location.search);
+    if (inviteId) return <Navigate to={`/band-invite/${encodeURIComponent(inviteId)}/signup`} replace />;
+    return <LoginPage />;
+  }
   if (authEnabled && user && !user.username && !isDeletingAccount) return <UsernameSetupPage />;
 
   return (
@@ -194,6 +202,14 @@ function AuthenticatedApp() {
               </RequireAdmin>
             }
           />
+          <Route
+            path="/admin/bands"
+            element={
+              <RequireAdmin>
+                <AdminBandsPage />
+              </RequireAdmin>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Layout>
@@ -207,6 +223,7 @@ const router = createBrowserRouter(
     { path: '/public/bands/:bandId/riders/:riderId', element: <PublicBandRiderPage />, errorElement: routerErrorElement },
     { path: '/public/press-kit/:token', element: <PublicBandPressKitPage />, errorElement: routerErrorElement },
     { path: '/invite/:token', element: <AcceptInvitePage />, errorElement: routerErrorElement },
+    { path: '/band-invite/:inviteId/signup', element: <BandInviteSignupPage />, errorElement: routerErrorElement },
     { path: '/login/link', element: <MagicLinkPage />, errorElement: routerErrorElement },
     { path: '/', element: <AuthenticatedApp />, errorElement: routerErrorElement },
     { path: '*', element: <AuthenticatedApp />, errorElement: routerErrorElement },

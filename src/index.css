@@ -10435,6 +10435,22 @@ input, select, textarea { font: inherit; color: var(--text); }
   border-color: var(--accent);
 }
 
+.admin-band-signup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.admin-band-signup select {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
 .admin-user-quota {
   display: flex;
   align-items: center;
@@ -11159,7 +11175,96 @@ input, select, textarea { font: inherit; color: var(--text); }
 .bands-invite-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-md);
+}
+
+.bands-transfer-form,
+.bands-transfer-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.bands-transfer-confirm p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.bands-settings-admin {
+  max-width: 40rem;
+}
+
+.bands-invite-intro {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.bands-invite-options {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--bands-border);
+  border-radius: var(--radius-lg);
+}
+
+.bands-invite-option {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.share-menu-field .bands-invite-option-title,
+.bands-invite-option-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.bands-invite-option + .bands-invite-option {
+  border-top: 1px solid var(--bands-border);
+}
+
+.bands-invite-days {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.share-menu-field .bands-invite-days input {
+  width: 5.5rem;
+  flex: none;
+}
+
+.bands-invite-days input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.share-menu-field .bands-invite-error {
+  color: var(--danger);
+}
+
+.bands-invite-signup {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+
+.bands-invite-signup input {
+  margin-top: 0.2em;
+  flex: none;
+}
+
+.bands-invite-signup > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+
+.bands-invite-signup small {
+  font-size: var(--text-xs);
+  color: var(--muted);
 }
 
 @media (max-width: 900px) {

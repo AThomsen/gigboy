@@ -6,6 +6,7 @@ import { showConfirmToast } from '../utils/toastDialogs';
 import { useBands } from '../context/BandsContext';
 import { useAuth } from '../context/AuthContext';
 import BandManagementPanel from '../components/BandManagementPanel';
+import TransferOwnershipPanel from '../components/TransferOwnershipPanel';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { listBandLogos, removeBandLogoAsset, selectBandLogo } from '../lib/bandLogos';
 import { saveBlob } from '../lib/download';
@@ -92,6 +93,7 @@ export default function BandSettingsPage() {
     setLogo(bandLogo);
   }, [bandLogo]);
   const isOwner = band?.ownerId === user?.id;
+  const isAdmin = user?.role === 'admin';
   const canEditBand = isOwner;
 
   useEffect(() => {
@@ -248,6 +250,29 @@ export default function BandSettingsPage() {
       <section className="bands-page">
         <p className="bands-status">Band not found.</p>
         <Link to="/profile" className="btn btn--secondary">Back to bands</Link>
+      </section>
+    );
+  }
+
+  if (!isOwner && isAdmin) {
+    // Site admins who don't own the band can hand it to another member, nothing more.
+    return (
+      <section className="bands-page">
+        <header className="bands-header">
+          <div>
+            <h1>Band Settings</h1>
+            <p>{band.name}</p>
+          </div>
+        </header>
+        <Link to={`/bands/${band.id}/library`} className="back-link">
+          <ArrowLeft size={16} /> Back to band library
+        </Link>
+        <p className="bands-status">
+          You&rsquo;re an admin but not this band&rsquo;s owner, so only ownership can be changed here.
+        </p>
+        <div className="bands-settings-admin">
+          <TransferOwnershipPanel band={band} isOwner={false} onTransferred={() => refreshBands()} />
+        </div>
       </section>
     );
   }
@@ -556,6 +581,15 @@ export default function BandSettingsPage() {
             band={band}
             canEditBand={canEditBand}
             isOwner={isOwner}
+          />
+
+          <TransferOwnershipPanel
+            band={band}
+            isOwner
+            onTransferred={async () => {
+              await refreshBands();
+              navigate(`/bands/${band.id}/members`, { replace: true });
+            }}
           />
 
           {isOwner && (

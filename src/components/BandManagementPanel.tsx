@@ -36,6 +36,16 @@ export default function BandManagementPanel({
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [lastInviteLinkExpiresAt, setLastInviteLinkExpiresAt] = useState<string | null>(null);
   const [showInviteQr, setShowInviteQr] = useState(false);
+  const [inviteDays, setInviteDays] = useState('7');
+  const [inviteAllowSignup, setInviteAllowSignup] = useState(false);
+  const [lastInviteAllowsSignup, setLastInviteAllowsSignup] = useState(false);
+  // Mirrors server/lib/bandSignup.ts; a site admin sets the band's policy.
+  const canInviteWithSignup =
+    band.memberSignup === 'owner' ? isOwner
+    : band.memberSignup === 'editors' ? isOwner || band.memberRoles[user?.id ?? ''] === 'editor'
+    : false;
+  const inviteDaysNumber = Number(inviteDays);
+  const inviteDaysValid = Number.isInteger(inviteDaysNumber) && inviteDaysNumber >= 1 && inviteDaysNumber <= 365;
 
   const handleRemoveMember = async (memberId: string) => {
     setBusyMemberId(memberId);
@@ -58,10 +68,14 @@ export default function BandManagementPanel({
 
     setBusyInviteLink(true);
     try {
-      const result = await dataClient.bands.createInviteLink(band.id);
+      const result = await dataClient.bands.createInviteLink(band.id, {
+        expiresInDays: inviteDaysNumber,
+        allowSignup: canInviteWithSignup && inviteAllowSignup,
+      });
 
       setLastInviteLink(result.inviteUrl);
       setLastInviteLinkExpiresAt(result.expiresAt ?? null);
+      setLastInviteAllowsSignup(result.allowSignup);
       if (await copyText(result.inviteUrl)) toast.success('Invite link copied to clipboard.');
       else toast.success('Invite link created. Copy it from the field below.');
     } catch (error) {
@@ -112,10 +126,52 @@ export default function BandManagementPanel({
     <section className="bands-panel">
       <h3>Band management</h3>
       <div className="bands-invite-form">
+        <p className="bands-invite-intro">
+          Invite bandmates with a link. One link works for everyone you share it with.
+        </p>
+        {canEditBand ? (
+          <div className="bands-invite-options" role="group" aria-label="Invite link options">
+            <label className="share-menu-field bands-invite-option">
+              <div className="bands-invite-days">
+                <span className="bands-invite-option-title">Link expires after</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={365}
+                  step={1}
+                  value={inviteDays}
+                  onChange={(e) => setInviteDays(e.target.value)}
+                  disabled={busyInviteLink}
+                  aria-invalid={!inviteDaysValid}
+                  aria-describedby={inviteDaysValid ? undefined : 'band-invite-days-error'}
+                />
+                <span>{inviteDaysNumber === 1 ? 'day' : 'days'}</span>
+              </div>
+              {!inviteDaysValid ? (
+                <span id="band-invite-days-error" className="bands-invite-error">Enter a whole number of days from 1 to 365.</span>
+              ) : null}
+            </label>
+            {canInviteWithSignup ? (
+              <label className="bands-invite-signup bands-invite-option">
+                <input
+                  type="checkbox"
+                  checked={inviteAllowSignup}
+                  onChange={(e) => setInviteAllowSignup(e.target.checked)}
+                  disabled={busyInviteLink}
+                />
+                <span>
+                  <span className="bands-invite-option-title">Allow new accounts</span>
+                  <small>People without a Gigboy account can create one from this link and join right away.</small>
+                </span>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           className="btn btn--primary"
-          disabled={!canEditBand || busyInviteLink}
+          disabled={!canEditBand || busyInviteLink || !inviteDaysValid}
           onClick={() => { void handleCreateInviteLink(); }}
         >
           <UserPlus size={15} /> {busyInviteLink ? 'Creating link...' : 'Create invite link'}
@@ -123,7 +179,10 @@ export default function BandManagementPanel({
       </div>
       {lastInviteLink ? (
         <label className="share-menu-field" style={{ marginTop: '0.75rem' }}>
-          <span>Invite link (share with as many bandmates as you like)</span>
+          <span>
+            Invite link (share with as many bandmates as you like
+            {lastInviteAllowsSignup ? '; anyone with it can create an account on this server' : ''})
+          </span>
           <div className="share-menu-input-wrap">
             <input type="text" value={lastInviteLink} readOnly />
             <button
@@ -175,6 +234,10 @@ export default function BandManagementPanel({
           const email = band.memberEmails[memberId] ?? 'No email saved';
           const fullName = band.memberFullNames[memberId] ?? null;
           const canRemove = isOwner && memberId !== band.ownerId;
+          const inviterId = band.memberInvitedBy?.[memberId];
+          const inviterName = inviterId
+            ? band.memberFullNames[inviterId] ?? band.memberUsernames[inviterId] ?? null
+            : null;
           const isCurrentUser = memberId === user?.id;
 
           return (
@@ -184,6 +247,7 @@ export default function BandManagementPanel({
                 <strong>{username ?? email}</strong>
                 <span>{username ? email : ''}</span>
                 <span>{roleLabel}</span>
+                {inviterName ? <span>Invited by {inviterName}</span> : null}
               </div>
               <div className="bands-member-actions">
                 {canRemove ? (

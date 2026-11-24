@@ -94,7 +94,8 @@ uploaded files.
 ## Admin account and invites
 
 Gigboy has no open self-registration. The first account is bootstrapped from environment
-variables, and every account after that is created by an admin generating an invite link.
+variables, and every account after that is created from an invite link: a server invite from an
+admin, or a band invite link opened for sign-up, where an admin has allowed that for the band (see below).
 
 **Bootstrapping the first admin** — set both `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`
 before running `docker compose up` for the first time. On startup, `docker-entrypoint.sh` runs
@@ -113,6 +114,16 @@ automatically) and share it with the person you're inviting — they open it at
 sign-in is on — see below). Links expire after
 7 days and can be revoked from the same page before they're used.
 
+**Band invite links** — any band editor can create a link under the band's members page. They
+choose how many days it lasts (1–365, default 7) and, where allowed, whether people without an
+account may sign up through it: such a link creates a regular member account and joins it to the
+band in one step, without a separate server invite. Who may create sign-up links is set per band
+by an admin on the Bands tab (`/admin/bands`), under **Allow new member sign-up**: *No* (the
+default), *Owner* or *Editors* (owner and editors). Tightening it also stops sign-up through
+links already shared by people it no longer allows. Anyone holding such a link can
+create an account until it expires. New accounts remember who invited them (shown on the Users
+tab), and band members remember whose link they joined through (shown in the band's member list).
+
 **Promoting/demoting admins** — on the Users tab (`/admin/users`), each user (other than
 yourself) has a "Make admin" / "Remove admin" button to grant or revoke site-wide admin access
 (inviting users, managing storage quotas, deleting accounts). You can't change your own role
@@ -124,6 +135,16 @@ account with the storage used across bands they own, and lets an admin set (or r
 5GB default) each user's storage quota. Uploads (attachments, recordings, stems, press kit
 images, band logos) that would push a band's total usage past the uploading user's quota are rejected
 server-side.
+
+**Who can create bands** — by default every account can create bands (and owns the ones it
+creates). Set `ANYONE_CAN_CREATE_BANDS=false` to let only admins create bands; everyone else then
+joins bands through invite links. Changing it doesn't affect bands that already exist.
+
+**Transferring band ownership** — a band's owner can hand it to another member in the band's
+settings, under **Transfer ownership**. Admins can do the same for any band they're a member of —
+useful when an owner leaves, or when an admin sets bands up for others while
+`ANYONE_CAN_CREATE_BANDS=false`. The new owner must already be a member; a viewer is made an
+editor. The band's storage then counts against the new owner's quota.
 
 ## Sign-in methods
 

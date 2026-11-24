@@ -11,12 +11,16 @@ interface Band {
   description?: string;
   icon?: string;
   ownerId: string;
+  /** Who may create invite links that let newcomers sign up; see server/lib/bandSignup.ts. */
+  memberSignup: string;
   memberIds: string[];
   memberRoles: Record<string, string>;
   memberEmails: Record<string, string>;
   memberUsernames: Record<string, string>;
   memberFullNames: Record<string, string>;
   memberAvatars: Record<string, string>;
+  /** Who invited each member (by user id), for members who joined through an invite link. */
+  memberInvitedBy: Record<string, string>;
   createdAt: string;
   updatedAt?: string;
 }
@@ -27,6 +31,7 @@ export async function toBandApi(row: BandRow): Promise<Band> {
     .select({
       userId: bandMembers.userId,
       role: bandMembers.role,
+      invitedById: bandMembers.invitedById,
       email: users.email,
       username: users.username,
       fullName: users.fullName,
@@ -42,6 +47,7 @@ export async function toBandApi(row: BandRow): Promise<Band> {
   const memberUsernames: Record<string, string> = {};
   const memberFullNames: Record<string, string> = {};
   const memberAvatars: Record<string, string> = {};
+  const memberInvitedBy: Record<string, string> = {};
 
   for (const m of memberRows) {
     memberIds.push(m.userId);
@@ -50,6 +56,7 @@ export async function toBandApi(row: BandRow): Promise<Band> {
     if (m.username) memberUsernames[m.userId] = m.username;
     if (m.fullName) memberFullNames[m.userId] = m.fullName;
     if (m.avatar) memberAvatars[m.userId] = m.avatar;
+    if (m.invitedById) memberInvitedBy[m.userId] = m.invitedById;
   }
 
   return removeNullish({
@@ -58,12 +65,14 @@ export async function toBandApi(row: BandRow): Promise<Band> {
     description: row.description ?? undefined,
     icon: row.icon ?? undefined,
     ownerId: row.ownerId,
+    memberSignup: row.memberSignup,
     memberIds,
     memberRoles,
     memberEmails,
     memberUsernames,
     memberFullNames,
     memberAvatars,
+    memberInvitedBy,
     createdAt: row.createdAt?.toISOString(),
     updatedAt: row.updatedAt?.toISOString(),
   }) as Band;

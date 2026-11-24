@@ -21,7 +21,10 @@ import {
 import { getAuthConfig } from './lib/authConfig.js';
 import { checkMailerAtStartup } from './lib/mailer.js';
 import { adminInvitesRouter, publicInvitesRouter } from './routes/invites.js';
+import { publicBandInvitesRouter } from './routes/bandInvites.js';
+import { anyoneCanCreateBands } from './lib/user.js';
 import { adminUsersRouter } from './routes/adminUsers.js';
+import { adminBandsRouter } from './routes/adminBands.js';
 import { bandsRouter } from './routes/bands.js';
 import { bandSongsRouter } from './routes/bandSongs.js';
 import { bandSongListsRouter } from './routes/bandSongLists.js';
@@ -75,6 +78,9 @@ console.log(
   `Ultimate Guitar search: ${ultimateGuitarSearch ? `on, at most ${ultimateGuitarMaxRequestsPerHour} requests to UG per hour` : 'off'}`,
 );
 
+// Validated here so a bad ANYONE_CAN_CREATE_BANDS value stops startup instead of a request.
+console.log(`Band creation: ${anyoneCanCreateBands() ? 'everyone' : 'admins only'}`);
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 6168;
 const DIST_DIR = path.resolve(__dirname, '../dist');
@@ -112,7 +118,9 @@ app.use('/api/auth/passkeys', authRateLimit, passkeysRouter);
 app.use('/api/auth', authRateLimit, authRouter);
 app.use('/api/admin/invites', adminInvitesRouter);
 app.use('/api/admin/users', adminUsersRouter);
+app.use('/api/admin/bands', adminBandsRouter);
 app.use('/api/invites', authRateLimit, publicInvitesRouter);
+app.use('/api/band-invites', authRateLimit, publicBandInvitesRouter);
 // Rate-limited like auth: each request makes an outbound request to Ultimate Guitar.
 app.use('/api/ultimate-guitar', authRateLimit, createUltimateGuitarRouter({
   enabled: ultimateGuitarSearch,

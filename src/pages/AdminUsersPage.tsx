@@ -147,6 +147,7 @@ export default function AdminUsersPage() {
       <nav className="admin-tabs">
         <Link to="/admin/invites">Invites</Link>
         <Link to="/admin/users" className="active" aria-current="page">Users</Link>
+        <Link to="/admin/bands">Bands</Link>
       </nav>
 
       <section className="profile-invites-section">
@@ -162,6 +163,7 @@ export default function AdminUsersPage() {
               const isSelf = user.id === currentUser?.id;
               const confirming = confirmDeleteId === user.id;
               const editingEmail = editEmailId === user.id;
+              const inviter = user.invitedById ? users.find((u) => u.id === user.invitedById) : undefined;
               return (
                 <li key={user.id} className={confirming || editingEmail ? 'profile-invite-card profile-invite-card--stacked' : 'profile-invite-card'}>
                   <div className="profile-invite-main">
@@ -171,6 +173,7 @@ export default function AdminUsersPage() {
                       {user.ownedBandCount === 1 ? 'band' : 'bands'} · using {formatMb(user.usedBytes)} of{' '}
                       {formatMb(user.storageQuotaBytes)}
                       {user.hasCustomQuota ? '' : ' (default)'}
+                      {inviter ? ` · invited by ${inviter.fullName || inviter.username || inviter.email}` : ''}
                     </span>
                   </div>
                   {editingEmail ? (

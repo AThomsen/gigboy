@@ -50,6 +50,8 @@ vi.mock('../db/client.js', async () => {
 const { adminInvitesRouter, publicInvitesRouter } = await import('./invites.js');
 const { adminUsersRouter } = await import('./adminUsers.js');
 const { bandsRouter } = await import('./bands.js');
+const { publicBandInvitesRouter } = await import('./bandInvites.js');
+const { adminBandsRouter } = await import('./adminBands.js');
 
 let base: string;
 let server: ReturnType<express.Express['listen']>;
@@ -80,6 +82,8 @@ beforeAll(async () => {
   app.use('/api/admin/users', adminUsersRouter);
   app.use('/api/invites', publicInvitesRouter);
   app.use('/api/bands', bandsRouter);
+  app.use('/api/band-invites', publicBandInvitesRouter);
+  app.use('/api/admin/bands', adminBandsRouter);
   await new Promise<void>((resolve) => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -192,5 +196,173 @@ describe('band invites', () => {
     const id2 = (await call('POST', '/api/bands/b1/invite-link', 'editor')).json.inviteId as string;
     await h.exec(`UPDATE band_invites SET status = 'revoked' WHERE id = '${id2}'`);
     expect((await call('POST', `/api/bands/invites/${id2}/accept`, 'admin')).status).toBe(409);
+  });
+
+  it('takes a custom expiry in whole days and rejects out-of-range values', async () => {
+    const before = Date.now();
+    const link = await call('POST', '/api/bands/b1/invite-link', 'editor', { expiresInDays: 30 });
+    expect(link.status).toBe(200);
+    const ms = new Date(link.json.expiresAt as string).getTime() - before;
+    expect(Math.round(ms / 86_400_000)).toBe(30);
+    expect(link.json.allowSignup).toBe(false);
+    for (const expiresInDays of [0, 366, 1.5, '7']) {
+      expect((await call('POST', '/api/bands/b1/invite-link', 'editor', { expiresInDays })).status, String(expiresInDays)).toBe(400);
+    }
+  });
+
+  it('records who invited an existing user to the band', async () => {
+    const id = (await call('POST', '/api/bands/b2/invite-link', 'other')).json.inviteId as string;
+    expect((await call('POST', `/api/bands/invites/${id}/accept`, 'viewer')).status).toBe(200);
+    const band = (await call('GET', '/api/bands', 'viewer')).json.bands.find((b: { id: string }) => b.id === 'b2');
+    expect(band.memberInvitedBy).toMatchObject({ viewer: 'other' });
+  });
+
+  it('lets admins set who may create sign-up links, and enforces it', async () => {
+    const setPolicy = (memberSignup: unknown, user = 'admin') =>
+      call('PATCH', '/api/admin/bands/b1/member-signup', user, { memberSignup });
+    expect((await setPolicy('owner', 'editor')).status).toBe(403);
+    expect((await setPolicy('everyone')).status).toBe(400);
+    expect((await call('PATCH', '/api/admin/bands/missing/member-signup', 'admin', { memberSignup: 'owner' })).status).toBe(404);
+    // Editors can't slip it in through the ordinary band update either.
+    await call('PUT', '/api/bands/b1', 'editor', { memberSignup: 'editors' });
+
+    await h.exec(`INSERT INTO band_members (band_id, user_id, role) VALUES ('b1', 'admin2', 'editor')`);
+    const signupLink = (user: string) => call('POST', '/api/bands/b1/invite-link', user, { allowSignup: true });
+
+    // Default: nobody.
+    expect((await signupLink('editor')).status).toBe(403);
+    expect((await call('POST', '/api/bands/b1/invite-link', 'admin2')).status).toBe(200);
+
+    expect((await setPolicy('owner')).status).toBe(200);
+    expect((await signupLink('editor')).status).toBe(200);
+    expect((await signupLink('admin2')).status).toBe(403);
+
+    expect((await setPolicy('editors')).status).toBe(200);
+    expect((await signupLink('admin2')).status).toBe(200);
+    expect((await signupLink('viewer')).status).toBe(403);
+
+    const listed = (await call('GET', '/api/admin/bands', 'admin')).json.bands.find((b: { id: string }) => b.id === 'b1');
+    expect(listed).toMatchObject({ name: 'Band; One', memberSignup: 'editors', ownerName: 'editor' });
+    expect((await call('GET', '/api/admin/bands', 'editor')).status).toBe(403);
+  });
+
+  it('stops sign-up through links already shared when the policy is tightened', async () => {
+    await call('PATCH', '/api/admin/bands/b1/member-signup', 'admin', { memberSignup: 'editors' });
+    const byEditor = (await call('POST', '/api/bands/b1/invite-link', 'admin2', { allowSignup: true })).json.inviteId as string;
+    const byOwner = (await call('POST', '/api/bands/b1/invite-link', 'editor', { allowSignup: true })).json.inviteId as string;
+    await call('PATCH', '/api/admin/bands/b1/member-signup', 'admin', { memberSignup: 'owner' });
+
+    expect((await call('GET', `/api/band-invites/${byEditor}`)).json.allowSignup).toBe(false);
+    const body = { username: 'latecomer', password: 'password1', email: 'late@x.com' };
+    expect((await call('POST', `/api/band-invites/${byEditor}/signup`, undefined, body)).status).toBe(403);
+    expect((await call('GET', `/api/band-invites/${byOwner}`)).json.allowSignup).toBe(true);
+    expect((await call('POST', `/api/band-invites/${byOwner}/signup`, undefined, body)).json.error).toBeNull();
+  });
+
+  it('describes an invite to signed-out visitors', async () => {
+    const id = (await call('POST', '/api/bands/b1/invite-link', 'editor', { allowSignup: true })).json.inviteId as string;
+    const lookup = await call('GET', `/api/band-invites/${id}`);
+    expect(lookup.status).toBe(200);
+    expect(lookup.json).toMatchObject({ bandName: 'Band; One', inviterName: 'editor', role: 'editor', allowSignup: true });
+    expect((await call('GET', '/api/band-invites/missing')).status).toBe(404);
+    await h.exec(`UPDATE band_invites SET status = 'revoked' WHERE id = '${id}'`);
+    expect((await call('GET', `/api/band-invites/${id}`)).status).toBe(410);
+  });
+
+  it('lets a newcomer sign up and join from a sign-up link, crediting the inviter', async () => {
+    const id = (await call('POST', '/api/bands/b1/invite-link', 'editor', { allowSignup: true })).json.inviteId as string;
+    const signup = await call('POST', `/api/band-invites/${id}/signup`, undefined, {
+      username: 'newbie', password: 'password1', email: 'newbie@x.com',
+    });
+    expect(signup.status).toBe(200);
+    expect(signup.json.error).toBeNull();
+    expect(signup.json.bandId).toBe('b1');
+    expect(signup.json.user).toMatchObject({ username: 'newbie', role: 'member' });
+    expect(String(signup.headers.get('set-cookie'))).toMatch(/^session=/);
+    const userId = signup.json.user.id as string;
+
+    const band = (await call('GET', '/api/bands', userId)).json.bands[0];
+    expect(band.id).toBe('b1');
+    expect(band.memberRoles[userId]).toBe('editor');
+    expect(band.memberInvitedBy[userId]).toBe('editor');
+    const listed = (await call('GET', '/api/admin/users', 'admin')).json.users.find((u: { id: string }) => u.id === userId);
+    expect(listed.invitedById).toBe('editor');
+
+    // The link stays reusable for the rest of the band.
+    const second = await call('POST', `/api/band-invites/${id}/signup`, undefined, {
+      username: 'newbie2', password: 'password1', email: 'newbie2@x.com',
+    });
+    expect(second.json.error).toBeNull();
+  });
+
+  it('refuses sign-up on plain links, dead links and taken accounts without side effects', async () => {
+    const plain = (await call('POST', '/api/bands/b1/invite-link', 'editor')).json.inviteId as string;
+    const body = { username: 'nobody', password: 'password1', email: 'nobody@x.com' };
+    expect((await call('POST', `/api/band-invites/${plain}/signup`, undefined, body)).status).toBe(403);
+
+    const open = (await call('POST', '/api/bands/b1/invite-link', 'editor', { allowSignup: true })).json.inviteId as string;
+    const taken = await call('POST', `/api/band-invites/${open}/signup`, undefined, { ...body, username: 'editor' });
+    expect(taken.json.error).toMatch(/already exists/);
+    expect((await call('POST', `/api/band-invites/${open}/signup`, undefined, { ...body, password: 'short' })).json.error).toMatch(/8 characters/);
+    expect((await call('POST', `/api/band-invites/${open}/signup`, undefined, { ...body, email: 'nope' })).json.error).toMatch(/valid email/);
+
+    await h.exec(`UPDATE band_invites SET expires_at = now() - interval '1 day' WHERE id = '${open}'`);
+    expect((await call('POST', `/api/band-invites/${open}/signup`, undefined, body)).status).toBe(410);
+    const [result] = (await h.exec(`SELECT count(*)::int AS n FROM users WHERE username = 'nobody'`)) as { rows: { n: number }[] }[];
+    expect(result.rows[0].n).toBe(0);
+  });
+});
+
+describe('server invites', () => {
+  it('record the inviting admin on the new account', async () => {
+    const id = await newInvite();
+    const ok = await call('POST', `/api/invites/${id}/accept`, undefined, { username: 'credited', password: 'password1', email: 'credited@x.com' });
+    const listed = (await call('GET', '/api/admin/users', 'admin')).json.users.find((u: { id: string }) => u.id === ok.json.user.id);
+    expect(listed.invitedById).toBe('admin');
+  });
+});
+
+describe('band creation', () => {
+  it('is open to everyone by default, and admin-only with ANYONE_CAN_CREATE_BANDS=false', async () => {
+    const previous = process.env.ANYONE_CAN_CREATE_BANDS;
+    try {
+      delete process.env.ANYONE_CAN_CREATE_BANDS;
+      expect((await call('POST', '/api/bands', 'viewer', { name: 'Open' })).status).toBe(200);
+      process.env.ANYONE_CAN_CREATE_BANDS = 'false';
+      const refused = await call('POST', '/api/bands', 'viewer', { name: 'Closed' });
+      expect(refused.status).toBe(403);
+      expect(refused.json.error).toMatch(/Only admins/);
+      expect((await call('POST', '/api/bands', 'admin', { name: 'By admin' })).status).toBe(200);
+    } finally {
+      if (previous === undefined) delete process.env.ANYONE_CAN_CREATE_BANDS;
+      else process.env.ANYONE_CAN_CREATE_BANDS = previous;
+    }
+  });
+});
+
+describe('band ownership transfer', () => {
+  it('lets the owner hand the band to a member, promoting a viewer to editor', async () => {
+    const band = (await call('POST', '/api/bands', 'other', { name: 'Handover' })).json.band as { id: string };
+    await h.exec(`INSERT INTO band_members (band_id, user_id, role) VALUES ('${band.id}', 'viewer', 'viewer')`);
+
+    expect((await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'viewer', { userId: 'viewer' })).status).toBe(403);
+    expect((await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'other', { userId: 'editor' })).status).toBe(400);
+    expect((await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'other', { userId: 'other' })).status).toBe(409);
+    expect((await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'other', {})).status).toBe(400);
+
+    const moved = await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'other', { userId: 'viewer' });
+    expect(moved.status).toBe(200);
+    expect(moved.json.band).toMatchObject({ ownerId: 'viewer', memberRoles: { viewer: 'editor', other: 'editor' } });
+    // The previous owner is now just a member.
+    expect((await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'other', { userId: 'other' })).status).toBe(403);
+  });
+
+  it('lets a site admin transfer a band they are not a member of', async () => {
+    const band = (await call('POST', '/api/bands', 'other', { name: 'Admin handover' })).json.band as { id: string };
+    await h.exec(`INSERT INTO band_members (band_id, user_id, role) VALUES ('${band.id}', 'editor', 'editor')`);
+    const moved = await call('POST', `/api/bands/${band.id}/transfer-ownership`, 'admin', { userId: 'editor' });
+    expect(moved.status).toBe(200);
+    expect(moved.json.band.ownerId).toBe('editor');
+    expect((await call('POST', '/api/bands/missing/transfer-ownership', 'admin', { userId: 'editor' })).status).toBe(404);
   });
 });

@@ -8,11 +8,14 @@ import type {
   AdminInvitesClient,
   AdminUserListing,
   AdminUsersClient,
+  AdminBandListing,
+  AdminBandsClient,
   AuthClient,
   AuthMethods,
   Passkey,
   BandAttachmentsClient,
   BandInvite,
+  BandInviteContext,
   BandScopedCrudClient,
   BandsClient,
   BandTrashClient,
@@ -117,11 +120,39 @@ const bandsClient: BandsClient = {
   async remove(id) {
     await apiFetch<Record<string, never>>(`/bands/${id}`, { method: 'DELETE' });
   },
-  async createInviteLink(bandId) {
-    return apiFetch<BandInvite>(`/bands/${bandId}/invite-link`, { method: 'POST' });
+  async createInviteLink(bandId, options = {}) {
+    return apiFetch<BandInvite>(`/bands/${bandId}/invite-link`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
   },
   async acceptInvite(inviteId) {
     const data = await apiFetch<{ band: Band }>(`/bands/invites/${inviteId}/accept`, { method: 'POST' });
+    return data.band;
+  },
+  async getInvite(inviteId) {
+    try {
+      const invite = await apiFetch<BandInviteContext>(`/band-invites/${encodeURIComponent(inviteId)}`);
+      return { invite, error: null };
+    } catch (err) {
+      return { invite: null, error: err instanceof Error ? err.message : 'Failed to look up invite.' };
+    }
+  },
+  async signUpWithInvite(inviteId, input: AcceptInviteInput) {
+    try {
+      return await apiFetch<{ user: User | null; bandId: string | null; error: string | null }>(
+        `/band-invites/${encodeURIComponent(inviteId)}/signup`,
+        { method: 'POST', body: JSON.stringify(input) },
+      );
+    } catch (err) {
+      return { user: null, bandId: null, error: err instanceof Error ? err.message : 'Failed to create account.' };
+    }
+  },
+  async transferOwnership(bandId, userId) {
+    const data = await apiFetch<{ band: Band }>(`/bands/${bandId}/transfer-ownership`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
     return data.band;
   },
   async removeMember(bandId, userId) {
@@ -533,6 +564,19 @@ const adminInvitesClient: AdminInvitesClient = {
   },
 };
 
+const adminBandsClient: AdminBandsClient = {
+  async list() {
+    const data = await apiFetch<{ bands: AdminBandListing[] }>('/admin/bands');
+    return data.bands;
+  },
+  async setMemberSignup(bandId, memberSignup) {
+    await apiFetch(`/admin/bands/${encodeURIComponent(bandId)}/member-signup`, {
+      method: 'PATCH',
+      body: JSON.stringify({ memberSignup }),
+    });
+  },
+};
+
 const adminUsersClient: AdminUsersClient = {
   async list() {
     const data = await apiFetch<{ users: AdminUserListing[] }>('/admin/users');
@@ -596,5 +640,6 @@ export const apiClient: DataClient = {
   publicPressKits: publicPressKitsClient,
   adminInvites: adminInvitesClient,
   adminUsers: adminUsersClient,
+  adminBands: adminBandsClient,
   ultimateGuitar: ultimateGuitarClient,
 };

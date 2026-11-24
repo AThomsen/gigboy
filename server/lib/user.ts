@@ -15,6 +15,23 @@ export interface PublicUser {
   preferences: UserPreferences;
   /** Whether the account has a password set (accounts may sign in by passkey or email only). */
   hasPassword: boolean;
+  /** Whether this user may create new bands (see `ANYONE_CAN_CREATE_BANDS`). */
+  canCreateBands: boolean;
+}
+
+/**
+ * `ANYONE_CAN_CREATE_BANDS` (default true): when false, only site admins can create bands;
+ * everyone else joins bands through invite links. Read per call so tests can vary it.
+ */
+export function anyoneCanCreateBands(env: Record<string, string | undefined> = process.env): boolean {
+  const raw = env.ANYONE_CAN_CREATE_BANDS?.trim().toLowerCase();
+  if (!raw || raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return false;
+  throw new Error(`ANYONE_CAN_CREATE_BANDS must be "true" or "false" (got "${env.ANYONE_CAN_CREATE_BANDS}").`);
+}
+
+export function canCreateBands(role: string): boolean {
+  return role === 'admin' || anyoneCanCreateBands();
 }
 
 /** Self-host builds have no billing/plan concept — every user gets full feature access, aside
@@ -30,5 +47,6 @@ export function toPublicUser(row: UserRow): PublicUser {
     storageQuotaBytes: resolveStorageQuotaBytes(row.storageQuotaBytes),
     preferences: sanitizeUserPreferences(row.preferences),
     hasPassword: Boolean(row.passwordHash),
+    canCreateBands: canCreateBands(row.role),
   };
 }

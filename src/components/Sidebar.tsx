@@ -653,7 +653,7 @@ export default function Sidebar({ open, mobile = false, onNavigate }: Props) {
           </div>
         )}
         </div>
-        {sidebarMode === 'bands' && (
+        {sidebarMode === 'bands' && user?.canCreateBands !== false && (
           <button
             type="button"
             className="sidebar-icon-btn"

@@ -2,6 +2,7 @@ import type { Gig, InputList, PressKit, Setlist, Song, SongList, Tour } from '..
 import type {
   AdminInvitesClient,
   AdminUsersClient,
+  AdminBandsClient,
   UltimateGuitarClient,
   AuthClient,
   BandAttachmentsClient,
@@ -52,17 +53,23 @@ const bandsClient: BandsClient = {
   remove: async () => {
     throw new Error('Deleting the demo band is disabled in the demo.');
   },
-  createInviteLink: (bandId) => {
+  createInviteLink: (bandId, options = {}) => {
     const band = store.getDemoBand();
     if (bandId !== band.id) throw new Error('Band not found.');
     return delay({
       inviteId: 'demo-invite',
       inviteUrl: `${window.location.origin}${window.location.pathname}#/invite/demo-invite`,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + (options.expiresInDays ?? 7) * 24 * 60 * 60 * 1000).toISOString(),
+      allowSignup: options.allowSignup ?? false,
     });
   },
   acceptInvite: () => delay(store.getDemoBand()),
+  getInvite: () => delay({ invite: null, error: 'Invites are disabled in the demo.' }),
+  signUpWithInvite: () => delay({ user: null, bandId: null, error: 'Invites are disabled in the demo.' }),
   removeMember: async () => {
+    throw new Error('Managing members is disabled in the demo.');
+  },
+  transferOwnership: async () => {
     throw new Error('Managing members is disabled in the demo.');
   },
 };
@@ -184,6 +191,13 @@ const adminInvitesClient: AdminInvitesClient = {
   },
 };
 
+const adminBandsClient: AdminBandsClient = {
+  list: () => delay([]),
+  setMemberSignup: async () => {
+    throw new Error('Admin actions are disabled in the demo.');
+  },
+};
+
 const adminUsersClient: AdminUsersClient = {
   list: () => delay([]),
   setQuota: async () => {
@@ -229,5 +243,6 @@ export const demoClient: DataClient = {
   publicPressKits: publicPressKitsClient,
   adminInvites: adminInvitesClient,
   adminUsers: adminUsersClient,
+  adminBands: adminBandsClient,
   ultimateGuitar: ultimateGuitarClient,
 };
