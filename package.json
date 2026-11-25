@@ -82,5 +82,10 @@
     "vite": "^7.3.3",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.4"
+    }
   }
 }
