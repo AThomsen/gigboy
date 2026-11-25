@@ -14068,3 +14068,21 @@ input.stageplot-legend-number:focus {
 .ug-import-rating { display: inline-flex; align-items: center; gap: 2px; }
 .ug-import-more { align-self: center; }
 .ug-import-footnote { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
+
+/* On phones and tablets the song is the whole screen: no card frame or page padding around
+   it, only the safe-area insets. Touch screens count as tablets up to landscape iPad Pro width. */
+@media (max-width: 900px), (pointer: coarse) and (max-width: 1400px) {
+  .main-content--concert {
+    padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  }
+
+  .concert-song-surface {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .concert-song-surface .chord-display {
+    border-radius: 0;
+  }
+}
