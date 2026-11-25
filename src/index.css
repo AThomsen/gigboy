@@ -3852,7 +3852,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   font-family: inherit;
 }
 
-/* A scroll pause ({pause: 16 bars, Solo}): Concert Mode's autoscroll holds still here. */
+/* A scroll hold ({hold: 16 bars, Solo}): Concert Mode's autoscroll holds still here. */
 .scroll-pause-marker {
   display: flex;
   width: fit-content;
@@ -8121,31 +8121,6 @@ input, select, textarea { font: inherit; color: var(--text); }
 .concert-scroll-save-bar-text {
   flex: 1 1 12rem;
   min-width: 0;
-}
-
-/* Holding at a scroll pause: what it is and how long is left, under the autoscroll button. */
-.concert-scroll-pause-status {
-  position: absolute;
-  z-index: 3;
-  top: calc(50% + 2rem);
-  right: var(--space-md);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  padding: var(--space-3xs) var(--space-sm);
-  border-radius: var(--radius-pill);
-  background: var(--media-play);
-  color: #fff;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  box-shadow: var(--shadow-lg);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.concert-scroll-pause-status-time {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.85;
 }
 
 @keyframes concert-autoscroll-track-in {

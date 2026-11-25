@@ -24,9 +24,9 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   screen and text size. A song without one starts from its duration. Changing it in concert
   mode shows a "Save changes?" bar; editors can save it for the band, and moving to another
   song discards it. See Help → Concert mode.
-- **Scroll pauses.** `{pause: 16 bars, Guitar solo}` in a chart makes autoscroll hold still
-  there for that long, timed by the song's BPM and time signature, with a countdown.
-  `{pause: 20s}` gives seconds; `{pause}` waits for a tap.
+- **Scroll holds.** `{hold: 16 bars, Guitar solo}` in a chart makes autoscroll hold still
+  there for that long, timed by the song's BPM and time signature, with a countdown on the
+  autoscroll button. `{hold: 20s}` gives seconds; `{hold}` waits for a tap.
 
 - **`scripts/backup.sh` for self-hosters.** One command backs up the database and the attachment
   files into a timestamped folder (`KEEP=N` prunes old ones), and `restore` puts them back. A
@@ -62,6 +62,11 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
   beat flash. Adds a database migration (applied automatically by the Docker image).
 
 ### Changed
+- **Autoscroll reads ahead.** The line being played stays about a third of the way down the
+  screen, leaving the rest for what's coming: the chart holds still at the start (the autoscroll
+  button counts down the seconds) until the music reaches that line, and stops once the last line is on
+  screen. Scroll holds start as the music reaches them, so an intro hold on the first screen
+  works; one in the last screenful doesn't stop anything.
 - **Smoother autoscroll.** The chart now moves a fraction of a pixel every frame instead of
   stepping a whole pixel every few frames, so slow scrolling no longer looks jerky.
 - Imported chord sheets that use Scandinavian/German chord names read H as B (`Hm` → `Bm`,

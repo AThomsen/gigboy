@@ -6,7 +6,7 @@ import type { DiagramInstrument } from './ChordDiagram';
 import TabDisplay from './TabDisplay';
 import StrumDisplay from './StrumDisplay';
 import { uniqueChords } from '../utils/strumParser';
-import { describePause, parsePause } from '../utils/scrollPause';
+import { describePause, parsePause, SCROLL_HOLD_DIRECTIVE } from '../utils/scrollPause';
 import { Pause } from 'lucide-react';
 
 /**
@@ -209,9 +209,9 @@ function LineRenderer({
     if (dir === 'title') return hideMetaDirectives ? null : <h2 className="song-title-directive">{line.directiveValue}</h2>;
     if (dir === 'subtitle' || dir === 'artist')
       return hideMetaDirectives ? null : <p className="song-subtitle-directive">{line.directiveValue}</p>;
-    // Scroll pause ({pause: 16 bars, Solo}). Concert Mode's autoscroll finds these by the
-    // data attribute (its value is the raw directive value) and holds still there.
-    if (dir === 'pause') {
+    // Scroll hold ({hold: 16 bars, Solo}). Concert Mode's autoscroll finds these by the data
+    // attribute (its value is the raw directive value) and holds still there.
+    if (dir === SCROLL_HOLD_DIRECTIVE) {
       return (
         <div className="scroll-pause-marker" data-scroll-pause={line.directiveValue ?? ''}>
           <Pause size={12} aria-hidden /> {describePause(parsePause(line.directiveValue))}

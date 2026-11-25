@@ -1,11 +1,14 @@
 /**
- * Scroll pauses: `{pause: 16 bars, Guitar solo}` in a chart holds Concert Mode's autoscroll
- * still for that long. Forms (case-insensitive):
- *   {pause: 16 bars} / {pause: 16}  bars (a bare number is bars)
- *   {pause: 20s}                    seconds ("20 sec", "20 seconds" too)
- *   {pause}                         until tapped
- * Anything after a comma is a label: {pause: 16 bars, Guitar solo}.
+ * Scroll holds: `{hold: 16 bars, Guitar solo}` in a chart holds Concert Mode's autoscroll still
+ * for that long (code calls them pauses). Called "hold" in charts, not "pause", which would read
+ * as the band pausing. Forms (case-insensitive):
+ *   {hold: 16 bars} / {hold: 16}  bars (a bare number is bars)
+ *   {hold: 20s}                   seconds ("20 sec", "20 seconds" too)
+ *   {hold}                        until tapped
+ * Anything after a comma is a label: {hold: 16 bars, Guitar solo}.
  */
+export const SCROLL_HOLD_DIRECTIVE = 'hold';
+
 export interface ScrollPause {
   bars?: number;
   seconds?: number;
@@ -22,7 +25,7 @@ export function parsePause(value: string | undefined): ScrollPause {
   const tail = comma === -1 ? '' : text.slice(comma + 1).trim();
   const match = head.match(AMOUNT_RE);
   if (!match) {
-    // No amount, just words ("{pause: Drum break}"): an untimed pause with that label.
+    // No amount, just words ("{hold: Drum break}"): an untimed pause with that label.
     return { label: text };
   }
   const amount = Number(match[1]);
@@ -46,10 +49,10 @@ export function pauseSeconds(pause: ScrollPause, tempo: number | undefined, time
   return (pause.bars * beatsPerBar(timeSignature) * 60) / tempo;
 }
 
-/** The marker's text in a chart, e.g. "Guitar solo · 16 bars", "Pause · 20 s", "Pause". */
+/** The marker's text in a chart, e.g. "Guitar solo · 16 bars", "Hold · 20 s", "Hold". */
 export function describePause(pause: ScrollPause): string {
   const amount = pause.bars !== undefined
     ? `${pause.bars} bar${pause.bars === 1 ? '' : 's'}`
     : pause.seconds !== undefined ? `${pause.seconds} s` : '';
-  return [pause.label ?? 'Pause', amount].filter(Boolean).join(' · ');
+  return [pause.label ?? 'Hold', amount].filter(Boolean).join(' · ');
 }

@@ -77,11 +77,13 @@ With autoscroll on, a round button (a double down arrow) sits at the right of th
 
 - **Drag with one finger** (or use the mouse wheel) to scroll by hand, to look ahead or go back a bit. Autoscroll holds still while you do, then carries on from where you left it.
 
-**The speed belongs to the song.** While you drag, the button shows how long the whole song takes to scroll through, like **3:20**. That time is the same on every screen and at every text size: a phone and a tablet both reach the end together. A song without a saved speed starts from its **Duration**, if it has one.
+**The speed belongs to the song.** While you drag, the button shows how long the whole song takes to play through, like **3:20**. That time is the same on every screen and at every text size: a phone and a tablet keep the same pace. A song without a saved speed starts from its **Duration**, if it has one.
+
+**Reading ahead.** Autoscroll keeps the line you're playing about a third of the way down the screen, so the rest of the screen shows what's coming. At the start of a song the chart stays put until the music reaches that line (the button counts down the seconds), then scrolls. Near the end it stops once the last line is on screen, and you read the rest without scrolling.
 
 When you change the speed, a bar at the bottom asks **Scroll speed adjusted. Save changes?** **Save** keeps it for everyone in the band; moving on to another song without saving goes back to the saved speed. Only members who can edit songs can save it, so viewers don't get the bar: for them the change lasts until they leave the song.
 
-**Pauses.** Put `{pause: 16 bars}` in a song where autoscroll should stop for a while, say for a solo. When it gets there, it holds still for that long and counts down by the button, then carries on. Bars are timed by the song's BPM and time signature (4/4 if none is set). You can also give seconds, `{pause: 20s}`, add a name after a comma, `{pause: 16 bars, Guitar solo}`, or write just `{pause}` to wait until you tap. A pause in bars on a song with no BPM waits for a tap too. Tapping during a pause ends it early. The song's scroll time includes its pauses.
+**Holds.** Put `{hold: 16 bars}` in a song where the scrolling should stand still for a while, say during a solo. When the music reaches the hold marker (a third of the way down the screen), the chart holds still for that long, with the marker lit up and the seconds counting down on the button, then carries on. A hold on the first screen, like an intro, holds the start. A hold in the last screenful doesn't stop anything, since the scrolling has already finished by then. Bars are timed by the song's BPM and time signature (4/4 if none is set). You can also give seconds, `{hold: 20s}`, add a name after a comma, `{hold: 16 bars, Guitar solo}`, or write just `{hold}` to wait until you tap (the button shows the start arrow). A hold in bars on a song with no BPM waits for a tap too. Tapping during a hold ends it early. The song's scroll time includes its holds.
 
 ## The song list
 

@@ -54,17 +54,17 @@ describe('beatsPerBar', () => {
 describe('describePause', () => {
   it('labels the marker', () => {
     expect(describePause({ bars: 16, label: 'Guitar solo' })).toBe('Guitar solo · 16 bars');
-    expect(describePause({ seconds: 20 })).toBe('Pause · 20 s');
-    expect(describePause({})).toBe('Pause');
+    expect(describePause({ seconds: 20 })).toBe('Hold · 20 s');
+    expect(describePause({})).toBe('Hold');
   });
 });
 
-describe('parseChordPro with pauses', () => {
-  it('parses {pause} and {pause: …} as directives', () => {
-    const lines = parseChordPro('{pause}\n{pause: 16 bars, Solo}');
+describe('parseChordPro with scroll holds', () => {
+  it('parses {hold} and {hold: …} as directives', () => {
+    const lines = parseChordPro('{hold}\n{hold: 16 bars, Solo}');
     expect(lines.map((l) => [l.type, l.directive, l.directiveValue])).toEqual([
-      ['directive', 'pause', undefined],
-      ['directive', 'pause', '16 bars, Solo'],
+      ['directive', 'hold', undefined],
+      ['directive', 'hold', '16 bars, Solo'],
     ]);
   });
 });

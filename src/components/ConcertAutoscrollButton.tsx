@@ -7,6 +7,11 @@ interface Props {
   speed: number;
   /** Shown on the handle while adjusting instead of the raw speed, e.g. the song's scroll time. */
   speedLabel?: string;
+  /** Seconds until the chart moves again (the lead-in at the top of a song, or a scroll pause):
+   * shown on the button in place of the pause sign while scrolling. */
+  countdown?: number | null;
+  /** Holding at a pause that waits for a tap: the button shows the start arrow. */
+  waitingForTap?: boolean;
   min: number;
   max: number;
   onToggle: () => void;
@@ -35,7 +40,7 @@ const REWIND_MAX_PX_PER_S = 400;
  * Dragged on up past the track's top (the slowest end), it scrolls the chart back instead,
  * faster the further up: for when the song ran ahead. Back on the track, autoscroll carries on.
  */
-export default function ConcertAutoscrollButton({ scrolling, speed, speedLabel, min, max, onToggle, onSpeedChange, onRewind }: Props) {
+export default function ConcertAutoscrollButton({ scrolling, speed, speedLabel, countdown, waitingForTap, min, max, onToggle, onSpeedChange, onRewind }: Props) {
   const [adjusting, setAdjusting] = useState(false);
   // How far the handle is above the track (0 = on it).
   const [overshoot, setOvershoot] = useState(0);
@@ -77,6 +82,34 @@ export default function ConcertAutoscrollButton({ scrolling, speed, speedLabel, 
     : overshoot > 0 ? trackTop - overshoot
       : (fraction(speed) - startFraction) * TRACK_PX;
 
+  // What the button shows: the speed (or rewinding) while held; while scrolling, a countdown when
+  // the chart is holding still for a while, the start arrow when it waits for a tap, else the
+  // pause sign; the start arrow when paused.
+  const face = () => {
+    if (adjusting && overshoot > 0) return <ChevronsUp size={22} aria-label="Scrolling back" />;
+    if (adjusting) {
+      return (
+        <span
+          className="concert-autoscroll-speed"
+          role="status"
+          aria-label={speedLabel ? `Scrolls through in ${speedLabel}` : `Autoscroll speed ${speed}`}
+        >
+          {speedLabel ?? speed}
+        </span>
+      );
+    }
+    if (!scrolling) return <ChevronsDown size={20} />;
+    if (waitingForTap) return <ChevronsDown size={20} aria-label="Waiting: tap to carry on" />;
+    if (countdown != null) {
+      return (
+        <span className="concert-autoscroll-speed" role="timer" aria-label={`Scrolling again in ${countdown} seconds`}>
+          {countdown}
+        </span>
+      );
+    }
+    return <Pause size={18} fill="currentColor" />;
+  };
+
   return (
     <div className="concert-autoscroll">
       {adjusting && (
@@ -98,7 +131,9 @@ export default function ConcertAutoscrollButton({ scrolling, speed, speedLabel, 
       <button
         type="button"
         className={`concert-autoscroll-btn${scrolling ? ' is-playing' : ''}${adjusting ? ' is-adjusting' : ''}`}
-        aria-label={scrolling ? 'Pause autoscroll (hold to change speed)' : 'Start autoscroll (hold to change speed)'}
+        aria-label={!scrolling ? 'Start autoscroll (hold to change speed)'
+          : waitingForTap ? 'Carry on scrolling (hold to change speed)'
+            : 'Pause autoscroll (hold to change speed)'}
         aria-pressed={scrolling}
         style={{ transform: `translateY(${offset}px)` }}
         onPointerDown={(e) => {
@@ -136,21 +171,7 @@ export default function ConcertAutoscrollButton({ scrolling, speed, speedLabel, 
           onToggle();
         }}
       >
-        {adjusting && overshoot > 0
-          ? <ChevronsUp size={22} aria-label="Scrolling back" />
-          : adjusting
-            ? (
-              <span
-                className="concert-autoscroll-speed"
-                role="status"
-                aria-label={speedLabel ? `Scrolls through in ${speedLabel}` : `Autoscroll speed ${speed}`}
-              >
-                {speedLabel ?? speed}
-              </span>
-            )
-            : scrolling
-              ? <Pause size={18} fill="currentColor" />
-              : <ChevronsDown size={20} />}
+        {face()}
       </button>
     </div>
   );

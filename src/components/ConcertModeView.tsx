@@ -39,7 +39,7 @@ import { transposeChord, type ChordNotation } from '../utils/chordParser';
 import { getUserNoteColor } from '../lib/userColors';
 import { extractPinnedLineIds } from '../lib/lineAnchor';
 import { clampScrollSeconds } from '../lib/songScroll';
-import { describePause, parsePause, pauseSeconds } from '../utils/scrollPause';
+import { parsePause, pauseSeconds } from '../utils/scrollPause';
 import { formatDuration } from '../utils/duration';
 
 const noop = () => {};
@@ -147,41 +147,59 @@ function pageOfLineId(contentEl: HTMLElement, offsets: number[], lineId: number)
 }
 
 /**
- * What autoscroll needs to know about the chart's layout, measured with the pagination:
- * how far it scrolls to bring the chart's end into view, and where its pauses fire.
+ * What autoscroll needs to know about the chart's layout, measured with the pagination.
+ *
+ * Musicians read ahead: what's coming matters more than what was played. So autoscroll keeps the
+ * line being played (the "play line") a third of the way down the screen, leaving two thirds of
+ * look-ahead. It tracks a play position moving down the chart at the music's pace, from the top
+ * to the chart's end over the song's scroll time (less its pauses). The scroll follows it at
+ * scrollTop = play position − a third of the screen, so:
+ * - at the start it holds still (a "lead-in") until the play position reaches the play line;
+ *   scrolling sooner would push lines off the top before they're played;
+ * - it stops early, once the chart's end reaches the bottom of the screen, and the rest is read
+ *   without scrolling. The next-song cue after the chart just scrolls on at the same speed.
  */
 interface ScrollGeometry {
-  /** Scroll distance (px) from the top until the chart's last line reaches the bottom. */
+  /** Height (px) of the chart, from the top of the scroll to the end of the notes stage. */
+  chartHeight: number;
+  /** Scroll distance (px) from the top until the chart's end reaches the bottom of the screen. */
   distance: number;
-  /** Each {pause} marker: the raw directive value, and the scrollTop at which it fires. */
-  pauses: { value: string; trigger: number }[];
+  /** How far the play line sits below the top of the screen (px): the lead-in at the start. */
+  leadIn: number;
+  /** Each {hold} marker: the raw directive value, the scroll position (play position − lead-in,
+   * negative during the lead-in) at which it fires, and whether autoscroll ever gets there: a
+   * marker in the last screenful is reached after scrolling has stopped. */
+  pauses: { value: string; trigger: number; fires: boolean }[];
 }
 
-const EMPTY_GEOMETRY: ScrollGeometry = { distance: 0, pauses: [] };
+const EMPTY_GEOMETRY: ScrollGeometry = { chartHeight: 0, distance: 0, leadIn: 0, pauses: [] };
 
-/**
- * A song's scroll time maps linearly onto the chart: a marker a third of the way down the
- * chart fires a third of the way through the (moving) scroll. The chart ends at the bottom of
- * the notes stage; the next-song cue after it just scrolls on at the same speed.
- */
+// The play line: this far down the screen.
+const PLAY_LINE = 1 / 3;
+
 function measureScrollGeometry(viewport: HTMLElement, content: HTMLElement): ScrollGeometry {
   const viewportRect = viewport.getBoundingClientRect();
   const contentRect = content.getBoundingClientRect();
   const contentTop = contentRect.top - viewportRect.top + viewport.scrollTop;
   const stage = content.querySelector('.song-notes-stage') ?? content;
-  const chartEnd = stage.getBoundingClientRect().bottom - contentRect.top + contentTop;
-  const distance = Math.max(0, chartEnd - viewport.clientHeight);
+  const chartHeight = stage.getBoundingClientRect().bottom - contentRect.top + contentTop;
+  const distance = Math.max(0, chartHeight - viewport.clientHeight);
+  const leadIn = viewport.clientHeight * PLAY_LINE;
   const pauses = Array.from(content.querySelectorAll<HTMLElement>('[data-scroll-pause]')).map((el) => {
     const y = el.getBoundingClientRect().top - contentRect.top + contentTop;
-    return { value: el.dataset.scrollPause ?? '', trigger: chartEnd > 0 ? (y * distance) / chartEnd : 0 };
+    const trigger = y - leadIn;
+    return { value: el.dataset.scrollPause ?? '', trigger, fires: trigger <= distance };
   });
-  return { distance, pauses };
+  return { chartHeight, distance, leadIn, pauses };
 }
 
 function sameGeometry(a: ScrollGeometry, b: ScrollGeometry): boolean {
   return Math.abs(a.distance - b.distance) < 0.5
+    && Math.abs(a.chartHeight - b.chartHeight) < 0.5
+    && Math.abs(a.leadIn - b.leadIn) < 0.5
     && a.pauses.length === b.pauses.length
-    && a.pauses.every((p, i) => p.value === b.pauses[i].value && Math.abs(p.trigger - b.pauses[i].trigger) < 0.5);
+    && a.pauses.every((p, i) => p.value === b.pauses[i].value && p.fires === b.pauses[i].fires
+      && Math.abs(p.trigger - b.pauses[i].trigger) < 0.5);
 }
 
 const FONT_SCALE_KEY = 'gigboy.concert.fontScale';
@@ -333,8 +351,16 @@ export default function ConcertModeView({
   // The scroll pause autoscroll is holding at, if any: which marker, and when it ends
   // (performance.now() time; null waits for a tap).
   const [activePause, setActivePause] = useState<{ index: number; endsAt: number | null } | null>(null);
+  // Whole seconds until the lead-in at the top of the song ends and the chart starts moving, shown
+  // on the autoscroll button (the chart standing still while "playing" would look broken); null
+  // otherwise.
+  const [leadInSeconds, setLeadInSeconds] = useState<number | null>(null);
   const activePauseRef = useRef(activePause);
-  const scrollPausesRef = useRef<{ trigger: number; seconds: number | null }[]>([]);
+  const scrollPausesRef = useRef<{ trigger: number; seconds: number | null; fires: boolean }[]>([]);
+  const scrollLeadInRef = useRef(0);
+  // Where the lead-in had got to (a negative scroll position) when autoscroll was paused at the
+  // top of the song, to carry on from there; null starts it afresh. Reset for each song.
+  const leadInPosRef = useRef<number | null>(null);
   // One finger moving on the chart: autoscroll holds still while the user scrolls by hand.
   // A finger merely resting there (steadying the tablet) doesn't count.
   const touchingRef = useRef(false);
@@ -387,15 +413,20 @@ export default function ConcertModeView({
   const isMultiSong = songs.length > 1;
   const activeSong = songs[currentIndex] ?? null;
 
-  // Autoscroll speed. A song stores how long the chart takes to scroll through (pauses
-  // included); px/s follows from this screen's layout, so it's right at any text size.
+  // Autoscroll speed. A song stores how long it takes to play through the chart (pauses
+  // included); the play position moves down the chart at chart height ÷ (that time − pauses),
+  // in this screen's px, so it's right at any width and text size (see ScrollGeometry). Every
+  // timed pause is part of the song's time, also one in the last screenful that never holds
+  // the (by then finished) scroll.
   const scrollPauseSeconds = useMemo(
     () => scrollGeometry.pauses.map((p) => pauseSeconds(parsePause(p.value), activeSong?.tempo, activeSong?.timeSignature)),
     [scrollGeometry.pauses, activeSong?.tempo, activeSong?.timeSignature],
   );
-  scrollPausesRef.current = scrollGeometry.pauses.map((p, i) => ({ trigger: p.trigger, seconds: scrollPauseSeconds[i] }));
+  scrollPausesRef.current = scrollGeometry.pauses.map((p, i) => ({ trigger: p.trigger, seconds: scrollPauseSeconds[i], fires: p.fires }));
+  scrollLeadInRef.current = scrollGeometry.leadIn;
   const scrollPauseTotal = scrollPauseSeconds.reduce<number>((sum, s) => sum + (s ?? 0), 0);
-  const scrollDistance = scrollGeometry.distance;
+  // The px the play position covers over the song; 0 when the chart fits without scrolling.
+  const scrollDistance = scrollGeometry.distance > 0 ? scrollGeometry.chartHeight : 0;
   const storedScrollSeconds = activeSong?.scrollSeconds ?? activeSong?.durationSeconds ?? null;
   const adjustedScrollSeconds = scrollAdjust && scrollAdjust.songId === activeSong?.id ? scrollAdjust.seconds : null;
   const scrollSeconds = adjustedScrollSeconds ?? storedScrollSeconds;
@@ -501,6 +532,7 @@ export default function ConcertModeView({
     setActiveChord(null);
     // An unsaved speed change belongs to the song it was made on.
     setScrollAdjust(null);
+    leadInPosRef.current = null;
     setScrollSaveState({ saving: false, error: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
@@ -781,7 +813,9 @@ export default function ConcertModeView({
   // into a translateY on the content instead, so the chart glides. While the user scrolls by hand
   // (a finger down, or the scroll still moving from a drag, wheel or button), it holds
   // still and then carries on from wherever that left it.
-  // Scrolling down past a {pause} marker's trigger holds still there for the pause's length
+  // `pos` is the scroll position the play line asks for (see ScrollGeometry): negative during
+  // the lead-in at the top of the song, where the chart holds still.
+  // Scrolling down past a {hold} marker's trigger holds still there for the pause's length
   // (or until tapped). Scrolling by hand or rewinding cancels a pause; one that was scrolled
   // past by hand doesn't fire, and one scrolled back above fires again.
   useEffect(() => {
@@ -790,7 +824,11 @@ export default function ConcertModeView({
     const content = contentRef.current;
     let raf = 0;
     let last = performance.now();
-    let pos = viewport.scrollTop;
+    // At the top of the song: the lead-in, from where it was paused or from the start (a hair
+    // before it, so a pause marker on the very first line fires too).
+    let pos = viewport.scrollTop >= 0.5
+      ? viewport.scrollTop
+      : (leadInPosRef.current ?? -scrollLeadInRef.current - 0.01);
     // The scrollTop as the browser took it the last time this loop set it: anything else moved
     // the scroll since.
     let written = viewport.scrollTop;
@@ -802,10 +840,11 @@ export default function ConcertModeView({
     };
     const scrollTo = (target: number) => {
       const dpr = window.devicePixelRatio || 1;
-      viewport.scrollTop = Math.floor(target * dpr) / dpr;
+      viewport.scrollTop = Math.floor(Math.max(0, target) * dpr) / dpr;
       written = viewport.scrollTop;
       // Past the end scrollTop stops short; never shift the chart further than a pixel.
       shift(Math.min(1, Math.max(0, target - written)));
+      leadInPosRef.current = target < 0 ? target : null;
     };
     if (content) content.style.willChange = 'transform';
     const tick = (now: number) => {
@@ -814,7 +853,7 @@ export default function ConcertModeView({
       if (rewindRef.current > 0) {
         if (activePauseRef.current) startPause(null);
         if (Math.abs(viewport.scrollTop - written) > 2) pos = viewport.scrollTop;
-        pos = Math.max(0, pos - rewindRef.current * dt);
+        if (pos > 0) pos = Math.max(0, pos - rewindRef.current * dt);
         scrollTo(pos);
         raf = requestAnimationFrame(tick);
         return;
@@ -829,6 +868,8 @@ export default function ConcertModeView({
         shift(0);
         pos = viewport.scrollTop;
         written = pos;
+        leadInPosRef.current = null;
+        setLeadInSeconds(null);
         raf = requestAnimationFrame(tick);
         return;
       }
@@ -841,7 +882,7 @@ export default function ConcertModeView({
         startPause(null);
       }
       let next = pos + scrollSpeedRef.current * dt;
-      const hit = scrollPausesRef.current.findIndex((p) => pos < p.trigger && p.trigger <= next);
+      const hit = scrollPausesRef.current.findIndex((p) => p.fires && pos < p.trigger && p.trigger <= next);
       if (hit !== -1) {
         next = scrollPausesRef.current[hit].trigger;
         const seconds = scrollPausesRef.current[hit].seconds;
@@ -849,6 +890,9 @@ export default function ConcertModeView({
       }
       pos = next;
       scrollTo(pos);
+      const speed = scrollSpeedRef.current;
+      const leadIn = pos < 0 && speed > 0 ? Math.ceil(-pos / speed) : null;
+      setLeadInSeconds((current) => (current === leadIn ? current : leadIn));
       if (viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 1) {
         setScrolling(false);
         return;
@@ -864,6 +908,7 @@ export default function ConcertModeView({
         if (content.style.transform === applied) content.style.transform = '';
         content.style.willChange = '';
       }
+      setLeadInSeconds(null);
       if (activePauseRef.current) startPause(null);
     };
   }, [scrolling, rewinding, autoscroll, continuous, startPause]);
@@ -1962,6 +2007,10 @@ export default function ConcertModeView({
               scrolling={scrolling}
               speed={Math.min(SCROLL_SPEED_MAX, Math.max(SCROLL_SPEED_MIN, Math.round(scrollPxPerSecond)))}
               speedLabel={shownScrollSeconds !== null ? formatDuration(shownScrollSeconds) : undefined}
+              countdown={activePause
+                ? (activePause.endsAt === null ? null : Math.ceil(Math.max(0, activePause.endsAt - pauseNow) / 1000))
+                : leadInSeconds}
+              waitingForTap={activePause?.endsAt === null}
               min={SCROLL_SPEED_MIN}
               max={SCROLL_SPEED_MAX}
               onToggle={toggleScrolling}
@@ -1970,17 +2019,6 @@ export default function ConcertModeView({
             />
           )}
 
-          {autoscroll && continuous && activePause && (
-            <div className="concert-scroll-pause-status" role="status">
-              <Pause size={14} aria-hidden />
-              <span>{describePause(parsePause(scrollGeometry.pauses[activePause.index]?.value))}</span>
-              <span className="concert-scroll-pause-status-time">
-                {activePause.endsAt === null
-                  ? 'Tap to continue'
-                  : formatDuration(Math.ceil(Math.max(0, activePause.endsAt - pauseNow) / 1000))}
-              </span>
-            </div>
-          )}
         </article>
 
         {isMultiSong && showSongNavigator && (

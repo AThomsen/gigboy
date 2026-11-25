@@ -9,7 +9,7 @@ const DIRECTIVE_RE = /^\{([^:}]+)(?::([^}]*))?\}$/;
 const KNOWN_VALUELESS_DIRECTIVES = new Set([
   'title', 't', 'subtitle', 'st', 'artist',
   'chorus', 'verse', 'intro', 'bridge', 'pre_chorus', 'interlude', 'solo', 'outro',
-  'pause',
+  'hold', // scroll hold (see utils/scrollPause.ts)
 ]);
 
 // A real chord token: root note, optional quality/extension, optional /bass — e.g. "A",
