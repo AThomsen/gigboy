@@ -357,7 +357,7 @@ export function demoImage(kind: ImageKind): { title: string; url: string; sizeBy
   const m = IMAGE_META[kind];
   const figure = (x: number, h: number) =>
     `<g fill="#0b0b12" opacity="0.92"><circle cx="${x}" cy="${620 - h}" r="${h * 0.16}"/><rect x="${x - h * 0.14}" y="${620 - h * 0.8}" width="${h * 0.28}" height="${h * 0.8}" rx="${h * 0.08}"/></g>`;
-  let scene = '';
+  let scene: string;
   if (kind === 'stage') {
     scene =
       `<polygon points="450,0 350,520 550,520" fill="${m.accent}" opacity="0.18"/>` +

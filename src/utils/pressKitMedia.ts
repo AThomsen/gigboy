@@ -65,7 +65,7 @@ function parseVimeo(url: URL): PressKitMedia | null {
   if (!host || (host !== 'vimeo.com' && host !== 'www.vimeo.com' && host !== 'player.vimeo.com')) return null;
 
   const parts = url.pathname.split('/').filter(Boolean);
-  let videoId = '';
+  let videoId: string;
 
   if (host === 'player.vimeo.com' && parts[0] === 'video') {
     videoId = parts[1] ?? '';
