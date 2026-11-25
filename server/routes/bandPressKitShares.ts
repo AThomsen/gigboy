@@ -7,6 +7,7 @@ import { requireAuth } from '../middleware/session.js';
 import { requireBandEditor, requireBandMember } from '../middleware/bandAccess.js';
 import { loadBandPressKit } from './bandPressKits.js';
 import { resolveOrigin } from '../lib/http.js';
+import { param } from '../lib/routeParam.js';
 
 type ShareRow = typeof pressKitShares.$inferSelect;
 
@@ -38,12 +39,12 @@ bandPressKitSharesRouter.use(requireAuth);
 
 bandPressKitSharesRouter.get('/:id/share', requireBandMember, async (req, res) => {
   try {
-    const kit = await loadBandPressKit(req.params.bandId, req.params.id);
+    const kit = await loadBandPressKit(param(req, 'bandId'), param(req, 'id'));
     if (!kit) {
       res.status(404).json({ error: 'Press kit not found.' });
       return;
     }
-    const share = await findActiveShare(req.params.bandId, req.params.id);
+    const share = await findActiveShare(param(req, 'bandId'), param(req, 'id'));
     res.json({ share: share ? shareToApi(req, share) : null });
   } catch (err) {
     console.error('Failed to load press kit share:', err);
@@ -53,12 +54,12 @@ bandPressKitSharesRouter.get('/:id/share', requireBandMember, async (req, res) =
 
 bandPressKitSharesRouter.post('/:id/share', requireBandEditor, async (req, res) => {
   try {
-    const kit = await loadBandPressKit(req.params.bandId, req.params.id);
+    const kit = await loadBandPressKit(param(req, 'bandId'), param(req, 'id'));
     if (!kit) {
       res.status(404).json({ error: 'Press kit not found.' });
       return;
     }
-    const existing = await findActiveShare(req.params.bandId, req.params.id);
+    const existing = await findActiveShare(param(req, 'bandId'), param(req, 'id'));
     if (existing) {
       res.json({ share: shareToApi(req, existing) });
       return;
@@ -67,8 +68,8 @@ bandPressKitSharesRouter.post('/:id/share', requireBandEditor, async (req, res) 
       .insert(pressKitShares)
       .values({
         token: crypto.randomUUID(),
-        bandId: req.params.bandId,
-        kitId: req.params.id,
+        bandId: param(req, 'bandId'),
+        kitId: param(req, 'id'),
         status: 'active',
         createdBy: req.userId!,
       })
@@ -82,12 +83,12 @@ bandPressKitSharesRouter.post('/:id/share', requireBandEditor, async (req, res) 
 
 bandPressKitSharesRouter.post('/:id/share/disable', requireBandEditor, async (req, res) => {
   try {
-    const kit = await loadBandPressKit(req.params.bandId, req.params.id);
+    const kit = await loadBandPressKit(param(req, 'bandId'), param(req, 'id'));
     if (!kit) {
       res.status(404).json({ error: 'Press kit not found.' });
       return;
     }
-    const existing = await findActiveShare(req.params.bandId, req.params.id);
+    const existing = await findActiveShare(param(req, 'bandId'), param(req, 'id'));
     if (existing) {
       await db.update(pressKitShares).set({ status: 'revoked' }).where(eq(pressKitShares.token, existing.token));
     }

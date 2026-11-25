@@ -18,10 +18,11 @@ import {
 import { toBandApi } from '../lib/band.js';
 import { assertUploadWithinQuota } from '../lib/storageQuota.js';
 import { imageBytesMatchMime } from '../lib/imageSniff.js';
+import { param } from '../lib/routeParam.js';
 
 /** Reads :bandId via a widened Request type — route handlers on '/' otherwise infer params as {}. */
 function bandIdFromReq(req: Request): string {
-  return req.params.bandId;
+  return param(req, 'bandId');
 }
 
 function downloadUrlBase(req: Request): string {
@@ -48,7 +49,7 @@ async function loadLogo(req: Request, res: Response) {
   const existing = await db
     .select()
     .from(bandLogos)
-    .where(and(eq(bandLogos.id, req.params.id), eq(bandLogos.bandId, req.params.bandId)))
+    .where(and(eq(bandLogos.id, param(req, 'id')), eq(bandLogos.bandId, param(req, 'bandId'))))
     .limit(1);
   if (!existing[0]) {
     res.status(404).json({ error: 'Logo not found.' });

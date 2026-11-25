@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/session.js';
 import { requireBandEditor, requireBandMember } from '../middleware/bandAccess.js';
 import { removeNullish } from '../lib/serialize.js';
 import { insertTrashItem } from '../lib/trash.js';
+import { param } from '../lib/routeParam.js';
 
 type RiderRow = typeof bandRiders.$inferSelect;
 
@@ -33,7 +34,7 @@ bandRidersRouter.get('/', requireBandMember, async (req, res) => {
     const rows = await db
       .select()
       .from(bandRiders)
-      .where(eq(bandRiders.bandId, req.params.bandId))
+      .where(eq(bandRiders.bandId, param(req, 'bandId')))
       .orderBy(bandRiders.sortOrder);
     res.json({ riders: rows.map(toApi) });
   } catch (err) {
@@ -46,7 +47,7 @@ bandRidersRouter.post('/', requireBandEditor, async (req, res) => {
   try {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const name = typeof body.name === 'string' ? body.name : '';
-    const bandId = req.params.bandId;
+    const bandId = param(req, 'bandId');
 
     const [{ value: riderCount }] = await db
       .select({ value: count() })
@@ -76,8 +77,8 @@ bandRidersRouter.post('/', requireBandEditor, async (req, res) => {
 
 bandRidersRouter.put('/:id', requireBandEditor, async (req, res) => {
   try {
-    const bandId = req.params.bandId;
-    const id = req.params.id;
+    const bandId = param(req, 'bandId');
+    const id = param(req, 'id');
     const existing = await db
       .select()
       .from(bandRiders)
@@ -115,8 +116,8 @@ bandRidersRouter.put('/:id', requireBandEditor, async (req, res) => {
 
 bandRidersRouter.delete('/:id', requireBandEditor, async (req, res) => {
   try {
-    const bandId = req.params.bandId;
-    const id = req.params.id;
+    const bandId = param(req, 'bandId');
+    const id = param(req, 'id');
     const existing = await db
       .select()
       .from(bandRiders)

@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { calendarFeeds } from '../db/schema.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireBandMember } from '../middleware/bandAccess.js';
+import { param } from '../lib/routeParam.js';
 
 type FeedRow = typeof calendarFeeds.$inferSelect;
 
@@ -39,7 +40,7 @@ bandCalendarFeedRouter.use(requireAuth);
 
 bandCalendarFeedRouter.get('/', requireBandMember, async (req, res) => {
   try {
-    const feed = await findActiveFeed(req.params.bandId, req.userId!);
+    const feed = await findActiveFeed(param(req, 'bandId'), req.userId!);
     res.json({ feed: feed ? feedToApi(feed) : null });
   } catch (err) {
     console.error('Failed to load calendar feed:', err);
@@ -51,7 +52,7 @@ bandCalendarFeedRouter.get('/', requireBandMember, async (req, res) => {
 // Idempotent: returns the existing active feed if there is one.
 bandCalendarFeedRouter.post('/', requireBandMember, async (req, res) => {
   try {
-    const feed = (await findActiveFeed(req.params.bandId, req.userId!)) ?? (await createFeed(req.params.bandId, req.userId!));
+    const feed = (await findActiveFeed(param(req, 'bandId'), req.userId!)) ?? (await createFeed(param(req, 'bandId'), req.userId!));
     res.json({ feed: feedToApi(feed) });
   } catch (err) {
     console.error('Failed to create calendar feed:', err);
@@ -68,14 +69,14 @@ bandCalendarFeedRouter.post('/regenerate', requireBandMember, async (req, res) =
         .set({ status: 'revoked' })
         .where(
           and(
-            eq(calendarFeeds.bandId, req.params.bandId),
+            eq(calendarFeeds.bandId, param(req, 'bandId')),
             eq(calendarFeeds.userId, req.userId!),
             eq(calendarFeeds.status, 'active'),
           ),
         );
       const [row] = await tx
         .insert(calendarFeeds)
-        .values({ token: crypto.randomUUID(), bandId: req.params.bandId, status: 'active', userId: req.userId! })
+        .values({ token: crypto.randomUUID(), bandId: param(req, 'bandId'), status: 'active', userId: req.userId! })
         .returning();
       return row;
     });
@@ -93,7 +94,7 @@ bandCalendarFeedRouter.post('/disable', requireBandMember, async (req, res) => {
       .set({ status: 'revoked' })
       .where(
         and(
-          eq(calendarFeeds.bandId, req.params.bandId),
+          eq(calendarFeeds.bandId, param(req, 'bandId')),
           eq(calendarFeeds.userId, req.userId!),
           eq(calendarFeeds.status, 'active'),
         ),

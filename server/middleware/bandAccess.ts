@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { bandMembers, bands } from '../db/schema.js';
+import { param } from '../lib/routeParam.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace -- standard Express request-augmentation pattern
@@ -14,7 +15,7 @@ declare global {
 
 /** Resolves the band id from the request's `:bandId` or `:id` route param. */
 function bandIdParam(req: Request): string | undefined {
-  return req.params.bandId ?? req.params.id;
+  return param(req, 'bandId') ?? param(req, 'id');
 }
 
 async function lookupRole(bandId: string, userId: string): Promise<string | null> {

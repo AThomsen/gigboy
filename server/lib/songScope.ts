@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { songs } from '../db/schema.js';
+import { param } from './routeParam.js';
 
 /**
  * Shared "resolve the song + its band scope" helper for song-nested resources mounted under
@@ -20,7 +21,7 @@ export async function loadBandSongScope(req: Request, res: Response): Promise<Re
   const rows = await db
     .select()
     .from(songs)
-    .where(and(eq(songs.id, req.params.songId), eq(songs.bandId, req.params.bandId)))
+    .where(and(eq(songs.id, param(req, 'songId')), eq(songs.bandId, param(req, 'bandId'))))
     .limit(1);
   const song = rows[0];
   if (!song) {
@@ -29,7 +30,7 @@ export async function loadBandSongScope(req: Request, res: Response): Promise<Re
   }
   return {
     song: { id: song.id },
-    bandId: req.params.bandId,
+    bandId: param(req, 'bandId'),
     canManageOthers: req.bandRole === 'editor',
   };
 }

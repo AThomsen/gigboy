@@ -13,6 +13,7 @@ import { passkeys, users } from '../db/schema.js';
 import { requireAuth, startSession } from '../middleware/session.js';
 import { getAuthConfig, readPasskeyConfig } from '../lib/authConfig.js';
 import { toPublicUser } from '../lib/user.js';
+import { param } from '../lib/routeParam.js';
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
 const NAME_MAX = 60;
@@ -256,7 +257,7 @@ passkeysRouter.patch('/:id', requireAuth, async (req, res) => {
     const [row] = await db
       .update(passkeys)
       .set({ name: name.trim() })
-      .where(and(eq(passkeys.id, req.params.id), eq(passkeys.userId, req.userId!)))
+      .where(and(eq(passkeys.id, param(req, 'id')), eq(passkeys.userId, req.userId!)))
       .returning();
     if (!row) {
       res.status(404).json({ error: 'Passkey not found.' });
@@ -282,7 +283,7 @@ passkeysRouter.delete('/:id', requireAuth, async (req, res) => {
     }
     const [row] = await db
       .delete(passkeys)
-      .where(and(eq(passkeys.id, req.params.id), eq(passkeys.userId, req.userId!)))
+      .where(and(eq(passkeys.id, param(req, 'id')), eq(passkeys.userId, req.userId!)))
       .returning();
     if (!row) {
       res.status(404).json({ error: 'Passkey not found.' });

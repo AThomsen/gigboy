@@ -15,6 +15,7 @@ import {
 } from '../lib/songRecordings.js';
 import { loadBandSongScope, type ResolvedSongScope } from '../lib/songScope.js';
 import { assertUploadWithinQuota } from '../lib/storageQuota.js';
+import { param } from '../lib/routeParam.js';
 
 function handleUploadErrors(err: unknown, res: Response): boolean {
   if (!err) return false;
@@ -36,7 +37,7 @@ async function loadRecording(req: Request, res: Response, songId: string) {
   const existing = await db
     .select()
     .from(songRecordings)
-    .where(and(eq(songRecordings.id, req.params.id), eq(songRecordings.songId, songId)))
+    .where(and(eq(songRecordings.id, param(req, 'id')), eq(songRecordings.songId, songId)))
     .limit(1);
   if (!existing[0]) {
     res.status(404).json({ error: 'Recording not found.' });
@@ -176,7 +177,7 @@ function buildRecordingsRouter(
       const [row] = await db
         .update(songRecordings)
         .set({ name: name.trim() })
-        .where(eq(songRecordings.id, req.params.id))
+        .where(eq(songRecordings.id, param(req, 'id')))
         .returning();
       res.json({ recording: songRecordingToApi(row, urlBase(req)) });
     } catch (err) {
@@ -195,7 +196,7 @@ function buildRecordingsRouter(
         res.status(403).json({ error: 'You do not have permission to delete this recording.' });
         return;
       }
-      await db.delete(songRecordings).where(eq(songRecordings.id, req.params.id));
+      await db.delete(songRecordings).where(eq(songRecordings.id, param(req, 'id')));
       await localStorageAdapter.delete(recording.storageKey);
       res.json({});
     } catch (err) {
@@ -225,6 +226,6 @@ bandSongRecordingsRouter.use(requireAuth, requireBandMember);
 bandSongRecordingsRouter.use(
   buildRecordingsRouter(
     loadBandSongScope,
-    (req) => `/api/bands/${req.params.bandId}/songs/${req.params.songId}/recordings`,
+    (req) => `/api/bands/${param(req, 'bandId')}/songs/${param(req, 'songId')}/recordings`,
   ),
 );

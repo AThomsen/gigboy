@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/session.js';
 import { requireBandEditor, requireBandMember } from '../middleware/bandAccess.js';
 import { removeNullish } from '../lib/serialize.js';
 import { insertTrashItem } from '../lib/trash.js';
+import { param } from '../lib/routeParam.js';
 
 type PressKitRow = typeof pressKits.$inferSelect;
 
@@ -42,7 +43,7 @@ bandPressKitsRouter.use(requireAuth);
 
 bandPressKitsRouter.get('/', requireBandMember, async (req, res) => {
   try {
-    const rows = await db.select().from(pressKits).where(eq(pressKits.bandId, req.params.bandId));
+    const rows = await db.select().from(pressKits).where(eq(pressKits.bandId, param(req, 'bandId')));
     res.json({ pressKits: rows.map(pressKitToApi) });
   } catch (err) {
     console.error('Failed to list band press kits:', err);
@@ -54,7 +55,7 @@ bandPressKitsRouter.post('/', requireBandEditor, async (req, res) => {
   try {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const name = typeof body.name === 'string' ? body.name : '';
-    const bandId = req.params.bandId;
+    const bandId = param(req, 'bandId');
 
     const [row] = await db
       .insert(pressKits)
@@ -82,7 +83,7 @@ bandPressKitsRouter.post('/', requireBandEditor, async (req, res) => {
 
 bandPressKitsRouter.put('/:id', requireBandEditor, async (req, res) => {
   try {
-    const existing = await loadBandPressKit(req.params.bandId, req.params.id);
+    const existing = await loadBandPressKit(param(req, 'bandId'), param(req, 'id'));
     if (!existing) {
       res.status(404).json({ error: 'Press kit not found.' });
       return;
@@ -105,7 +106,7 @@ bandPressKitsRouter.put('/:id', requireBandEditor, async (req, res) => {
       // Only this band's gigs may be listed on this band's kit (the ids are stored loosely, not as FKs).
       const requested = body.gigIds.filter((g): g is string => typeof g === 'string');
       const owned = requested.length
-        ? await db.select({ id: gigs.id }).from(gigs).where(and(eq(gigs.bandId, req.params.bandId), inArray(gigs.id, requested)))
+        ? await db.select({ id: gigs.id }).from(gigs).where(and(eq(gigs.bandId, param(req, 'bandId')), inArray(gigs.id, requested)))
         : [];
       const ownedIds = new Set(owned.map((g) => g.id));
       updates.gigIds = requested.filter((g) => ownedIds.has(g));
@@ -114,7 +115,7 @@ bandPressKitsRouter.put('/:id', requireBandEditor, async (req, res) => {
     const [row] = await db
       .update(pressKits)
       .set(updates)
-      .where(eq(pressKits.id, req.params.id))
+      .where(eq(pressKits.id, param(req, 'id')))
       .returning();
 
     res.json({ pressKit: pressKitToApi(row) });
@@ -126,14 +127,14 @@ bandPressKitsRouter.put('/:id', requireBandEditor, async (req, res) => {
 
 bandPressKitsRouter.delete('/:id', requireBandEditor, async (req, res) => {
   try {
-    const bandId = req.params.bandId;
-    const existing = await loadBandPressKit(bandId, req.params.id);
+    const bandId = param(req, 'bandId');
+    const existing = await loadBandPressKit(bandId, param(req, 'id'));
     if (!existing) {
       res.status(404).json({ error: 'Press kit not found.' });
       return;
     }
     await insertTrashItem({ bandId }, 'pressKit', pressKitToApi(existing));
-    await db.delete(pressKits).where(eq(pressKits.id, req.params.id));
+    await db.delete(pressKits).where(eq(pressKits.id, param(req, 'id')));
     res.json({});
   } catch (err) {
     console.error('Failed to delete band press kit:', err);

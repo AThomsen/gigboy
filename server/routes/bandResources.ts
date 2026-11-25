@@ -6,6 +6,7 @@ import { db } from '../db/client.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireBandEditor, requireBandMember } from '../middleware/bandAccess.js';
 import { insertTrashItem, type TrashItemType } from '../lib/trash.js';
+import { param } from '../lib/routeParam.js';
 
 interface BandCrudConfig<Row extends Record<string, unknown>, Api> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,7 +67,7 @@ export function buildBandCrudRouter<Row extends { bandId: string | null }, Api>(
       const rows = (await db
         .select()
         .from(table)
-        .where(eq(bandIdColumn, req.params.bandId))) as Row[];
+        .where(eq(bandIdColumn, param(req, 'bandId')))) as Row[];
       res.json({ [pluralKey]: rows.map(toApi) });
     } catch (err) {
       console.error(`Failed to list band ${pluralKey}:`, err);
@@ -90,16 +91,16 @@ export function buildBandCrudRouter<Row extends { bandId: string | null }, Api>(
         .from(table)
         .where(eq(idColumn, id))
         .limit(1)) as { existingBandId: string | null }[];
-      if (conflicting[0] && conflicting[0].existingBandId !== req.params.bandId) {
+      if (conflicting[0] && conflicting[0].existingBandId !== param(req, 'bandId')) {
         res.status(409).json({ error: `That ${resourceKey} id is already in use.` });
         return;
       }
       const prior = (await db
         .select()
         .from(table)
-        .where(and(eq(idColumn, id), eq(bandIdColumn, req.params.bandId)))
+        .where(and(eq(idColumn, id), eq(bandIdColumn, param(req, 'bandId'))))
         .limit(1)) as Row[];
-      const values = fromBody(body, id, req.params.bandId);
+      const values = fromBody(body, id, param(req, 'bandId'));
       const [row] = (await db
         .insert(table)
         .values(values)
@@ -123,17 +124,17 @@ export function buildBandCrudRouter<Row extends { bandId: string | null }, Api>(
       const existing = (await db
         .select()
         .from(table)
-        .where(and(eq(idColumn, req.params.id), eq(bandIdColumn, req.params.bandId)))
+        .where(and(eq(idColumn, param(req, 'id')), eq(bandIdColumn, param(req, 'bandId'))))
         .limit(1)) as Row[];
       if (!existing[0]) {
         res.status(404).json({ error: `${resourceKey} not found.` });
         return;
       }
-      const values = fromBody((req.body ?? {}) as Record<string, unknown>, req.params.id, req.params.bandId);
+      const values = fromBody((req.body ?? {}) as Record<string, unknown>, param(req, 'id'), param(req, 'bandId'));
       const [row] = (await db
         .update(table)
         .set(values)
-        .where(eq(idColumn, req.params.id))
+        .where(eq(idColumn, param(req, 'id')))
         .returning()) as Row[];
       res.json({ [resourceKey]: toApi(row) });
       await runAfterWrite(afterWrite, { kind: 'update', row, prevRow: existing[0], req });
@@ -148,13 +149,13 @@ export function buildBandCrudRouter<Row extends { bandId: string | null }, Api>(
       const existing = (await db
         .select()
         .from(table)
-        .where(and(eq(idColumn, req.params.id), eq(bandIdColumn, req.params.bandId)))
+        .where(and(eq(idColumn, param(req, 'id')), eq(bandIdColumn, param(req, 'bandId'))))
         .limit(1)) as Row[];
       if (!existing[0]) {
         res.status(404).json({ error: `${resourceKey} not found.` });
         return;
       }
-      await insertTrashItem({ bandId: req.params.bandId }, itemType, toApi(existing[0]));
+      await insertTrashItem({ bandId: param(req, 'bandId') }, itemType, toApi(existing[0]));
       if (beforeDelete) {
         try {
           await beforeDelete({ row: existing[0], req });
@@ -162,7 +163,7 @@ export function buildBandCrudRouter<Row extends { bandId: string | null }, Api>(
           console.error(`beforeDelete hook failed for band ${resourceKey}:`, err);
         }
       }
-      await db.delete(table).where(eq(idColumn, req.params.id));
+      await db.delete(table).where(eq(idColumn, param(req, 'id')));
       res.json({});
     } catch (err) {
       console.error(`Failed to delete band ${resourceKey}:`, err);

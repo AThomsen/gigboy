@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { bandChordVoicings } from '../db/schema.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireBandMember, requireBandEditor } from '../middleware/bandAccess.js';
+import { param } from '../lib/routeParam.js';
 
 const INSTRUMENTS = ['guitar', 'ukulele'] as const;
 type Instrument = (typeof INSTRUMENTS)[number];
@@ -36,7 +37,7 @@ bandChordVoicingsRouter.get('/', requireBandMember, async (req, res) => {
         frets: bandChordVoicings.frets,
       })
       .from(bandChordVoicings)
-      .where(eq(bandChordVoicings.bandId, (req.params as { bandId: string }).bandId));
+      .where(eq(bandChordVoicings.bandId, param(req, 'bandId')));
     res.json({ voicings: rows });
   } catch (err) {
     console.error('Failed to list band chord voicings:', err);
@@ -46,9 +47,9 @@ bandChordVoicingsRouter.get('/', requireBandMember, async (req, res) => {
 
 bandChordVoicingsRouter.put('/:instrument/:chordName', requireBandEditor, async (req, res) => {
   try {
-    const bandId = (req.params as { bandId: string }).bandId;
-    const instrument = req.params.instrument;
-    const chordName = req.params.chordName.trim();
+    const bandId = param(req, 'bandId');
+    const instrument = param(req, 'instrument');
+    const chordName = param(req, 'chordName').trim();
     if (!isInstrument(instrument)) {
       res.status(400).json({ error: 'Unsupported instrument.' });
       return;
@@ -88,13 +89,13 @@ bandChordVoicingsRouter.put('/:instrument/:chordName', requireBandEditor, async 
 
 bandChordVoicingsRouter.delete('/:instrument/:chordName', requireBandEditor, async (req, res) => {
   try {
-    const bandId = (req.params as { bandId: string }).bandId;
+    const bandId = param(req, 'bandId');
     await db
       .delete(bandChordVoicings)
       .where(and(
         eq(bandChordVoicings.bandId, bandId),
-        eq(bandChordVoicings.instrument, req.params.instrument),
-        eq(bandChordVoicings.chordName, req.params.chordName.trim()),
+        eq(bandChordVoicings.instrument, param(req, 'instrument')),
+        eq(bandChordVoicings.chordName, param(req, 'chordName').trim()),
       ));
     res.json({});
   } catch (err) {

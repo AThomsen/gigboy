@@ -6,6 +6,7 @@ import { recordingComments, songRecordings, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireBandMember } from '../middleware/bandAccess.js';
 import { loadBandSongScope } from '../lib/songScope.js';
+import { param } from '../lib/routeParam.js';
 
 type CommentRow = typeof recordingComments.$inferSelect;
 
@@ -36,7 +37,7 @@ async function loadScopedRecording(req: Request, res: Response) {
   const [recording] = await db
     .select()
     .from(songRecordings)
-    .where(and(eq(songRecordings.id, req.params.recordingId), eq(songRecordings.songId, scope.song.id)))
+    .where(and(eq(songRecordings.id, param(req, 'recordingId')), eq(songRecordings.songId, scope.song.id)))
     .limit(1);
   if (!recording) {
     res.status(404).json({ error: 'Recording not found.' });
@@ -107,7 +108,7 @@ async function loadOwnComment(req: Request, res: Response, canManageOthers: bool
   const [row] = await db
     .select()
     .from(recordingComments)
-    .where(and(eq(recordingComments.id, req.params.id), eq(recordingComments.recordingId, req.params.recordingId)))
+    .where(and(eq(recordingComments.id, param(req, 'id')), eq(recordingComments.recordingId, param(req, 'recordingId'))))
     .limit(1);
   if (!row) {
     res.status(404).json({ error: 'Comment not found.' });

@@ -14,6 +14,7 @@ import {
 } from '../lib/attachments.js';
 import { insertTrashItem } from '../lib/trash.js';
 import { assertUploadWithinQuota } from '../lib/storageQuota.js';
+import { param } from '../lib/routeParam.js';
 
 export const bandAttachmentsRouter = Router({ mergeParams: true });
 bandAttachmentsRouter.use(requireAuth, requireBandMember);
@@ -23,7 +24,7 @@ async function loadBandSong(req: Request, res: Response): Promise<{ id: string }
   const rows = await db
     .select()
     .from(songs)
-    .where(and(eq(songs.id, req.params.songId), eq(songs.bandId, req.params.bandId)))
+    .where(and(eq(songs.id, param(req, 'songId')), eq(songs.bandId, param(req, 'bandId'))))
     .limit(1);
   const song = rows[0];
   if (!song) {
@@ -34,12 +35,12 @@ async function loadBandSong(req: Request, res: Response): Promise<{ id: string }
 }
 
 function downloadUrlBase(req: Request): string {
-  return `/api/bands/${req.params.bandId}/songs/${req.params.songId}/attachments`;
+  return `/api/bands/${param(req, 'bandId')}/songs/${param(req, 'songId')}/attachments`;
 }
 
 /** Reads :bandId via a widened Request type — route handlers on '/:id' otherwise infer params as {id}. */
 function bandIdFromReq(req: Request): string {
-  return req.params.bandId;
+  return param(req, 'bandId');
 }
 
 function handleUploadErrors(err: unknown, res: Response): boolean {
@@ -63,7 +64,7 @@ async function loadAttachment(req: Request, res: Response, songId: string) {
   const existing = await db
     .select()
     .from(attachments)
-    .where(and(eq(attachments.id, req.params.id), eq(attachments.songId, songId)))
+    .where(and(eq(attachments.id, param(req, 'id')), eq(attachments.songId, songId)))
     .limit(1);
   if (!existing[0]) {
     res.status(404).json({ error: 'Attachment not found.' });
@@ -111,7 +112,7 @@ bandAttachmentsRouter.post(
         return;
       }
 
-      const quotaCheck = await assertUploadWithinQuota(req.userId!, req.params.bandId, file.size);
+      const quotaCheck = await assertUploadWithinQuota(req.userId!, param(req, 'bandId'), file.size);
       if (!quotaCheck.ok) {
         res.status(413).json({ error: quotaCheck.message });
         return;
@@ -165,7 +166,7 @@ bandAttachmentsRouter.patch('/:id', async (req, res) => {
     const [row] = await db
       .update(attachments)
       .set({ name })
-      .where(eq(attachments.id, req.params.id))
+      .where(eq(attachments.id, param(req, 'id')))
       .returning();
     res.json({ attachment: attachmentToApi(row, downloadUrlBase(req)) });
   } catch (err) {
@@ -189,7 +190,7 @@ bandAttachmentsRouter.delete('/:id', async (req, res) => {
       songId: attachment.songId,
       storageKey: attachment.storageKey,
     });
-    await db.delete(attachments).where(eq(attachments.id, req.params.id));
+    await db.delete(attachments).where(eq(attachments.id, param(req, 'id')));
     res.json({});
   } catch (err) {
     console.error('Failed to delete band attachment:', err);

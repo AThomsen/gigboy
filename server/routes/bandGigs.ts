@@ -7,6 +7,7 @@ import { buildBandCrudRouter } from './bandResources.js';
 import { requireAuth } from '../middleware/session.js';
 import { requireBandEditor } from '../middleware/bandAccess.js';
 import { removeNullish } from '../lib/serialize.js';
+import { param } from '../lib/routeParam.js';
 
 type GigRow = typeof gigs.$inferSelect;
 
@@ -126,7 +127,7 @@ async function validateGigBody(req: Request, res: Response, next: NextFunction) 
       res.status(400).json({ error: 'endsAt must be after startsAt.' });
       return;
     }
-    const error = await attachmentsBelongToBand(req.params.bandId, body);
+    const error = await attachmentsBelongToBand(param(req, 'bandId'), body);
     if (error) {
       res.status(400).json({ error });
       return;

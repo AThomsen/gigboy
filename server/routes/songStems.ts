@@ -16,6 +16,7 @@ import {
 } from '../lib/songStems.js';
 import { loadBandSongScope } from '../lib/songScope.js';
 import { assertUploadWithinQuota } from '../lib/storageQuota.js';
+import { param } from '../lib/routeParam.js';
 
 const INVALID_TYPE_MESSAGE = 'Only MP3 and WAV stems are accepted.';
 
@@ -36,14 +37,14 @@ function handleUploadErrors(err: unknown, res: Response): boolean {
 }
 
 function urlBase(req: Request): string {
-  return `/api/bands/${req.params.bandId}/songs/${req.params.songId}/stems`;
+  return `/api/bands/${param(req, 'bandId')}/songs/${param(req, 'songId')}/stems`;
 }
 
 async function loadStem(req: Request, res: Response, songId: string) {
   const rows = await db
     .select()
     .from(songStems)
-    .where(and(eq(songStems.id, req.params.id), eq(songStems.songId, songId)))
+    .where(and(eq(songStems.id, param(req, 'id')), eq(songStems.songId, songId)))
     .limit(1);
   if (!rows[0]) {
     res.status(404).json({ error: 'Stem not found.' });
@@ -89,7 +90,7 @@ bandSongStemsRouter.put(
   '/:name',
   requireBandEditor,
   (req: Request, res: Response, next: NextFunction) => {
-    if (!STEM_NAME_RE.test(req.params.name)) {
+    if (!STEM_NAME_RE.test(param(req, 'name'))) {
       res.status(400).json({ error: 'Stem names may only use a–z, 0–9, "_" and "-" (max 40 characters).' });
       return;
     }
@@ -112,7 +113,7 @@ bandSongStemsRouter.put(
         return;
       }
 
-      const name = req.params.name;
+      const name = param(req, 'name');
       const [existing] = await db
         .select()
         .from(songStems)

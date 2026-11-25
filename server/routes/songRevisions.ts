@@ -12,6 +12,7 @@ import {
   summarizeChange,
   type SongSnapshot,
 } from '../lib/songRevisions.js';
+import { param } from '../lib/routeParam.js';
 
 export const bandSongRevisionsRouter = Router({ mergeParams: true });
 bandSongRevisionsRouter.use(requireAuth);
@@ -46,7 +47,7 @@ bandSongRevisionsRouter.get('/:id', requireBandMember, async (req, res) => {
     const [row] = await db
       .select()
       .from(songRevisions)
-      .where(eq(songRevisions.id, req.params.id))
+      .where(eq(songRevisions.id, param(req, 'id')))
       .limit(1);
     if (!row || row.songId !== scope.song.id) {
       res.status(404).json({ error: 'Revision not found.' });
@@ -67,7 +68,7 @@ bandSongRevisionsRouter.post('/:id/restore', requireBandEditor, async (req, res)
     const [revision] = await db
       .select()
       .from(songRevisions)
-      .where(eq(songRevisions.id, req.params.id))
+      .where(eq(songRevisions.id, param(req, 'id')))
       .limit(1);
     if (!revision || revision.songId !== scope.song.id) {
       res.status(404).json({ error: 'Revision not found.' });

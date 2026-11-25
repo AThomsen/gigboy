@@ -8,6 +8,7 @@ import { toBandApi } from '../lib/band.js';
 import { canInviteWithSignup } from '../lib/bandSignup.js';
 import { canCreateBands } from '../lib/user.js';
 import { resolveOrigin } from '../lib/http.js';
+import { param } from '../lib/routeParam.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_INVITE_DAYS = 7;
@@ -71,7 +72,7 @@ bandsRouter.post('/', async (req, res) => {
 
 bandsRouter.put('/:id', requireBandEditor, async (req, res) => {
   try {
-    const existing = await db.select().from(bands).where(eq(bands.id, req.params.id)).limit(1);
+    const existing = await db.select().from(bands).where(eq(bands.id, param(req, 'id'))).limit(1);
     if (!existing[0]) {
       res.status(404).json({ error: 'Band not found.' });
       return;
@@ -82,7 +83,7 @@ bandsRouter.put('/:id', requireBandEditor, async (req, res) => {
     if ('description' in body) values.description = (body.description as string | undefined) ?? null;
     if ('icon' in body) values.icon = (body.icon as string | undefined) ?? null;
 
-    const [row] = await db.update(bands).set(values).where(eq(bands.id, req.params.id)).returning();
+    const [row] = await db.update(bands).set(values).where(eq(bands.id, param(req, 'id'))).returning();
     res.json({ band: await toBandApi(row) });
   } catch (err) {
     console.error('Failed to update band:', err);
@@ -92,7 +93,7 @@ bandsRouter.put('/:id', requireBandEditor, async (req, res) => {
 
 bandsRouter.delete('/:id', async (req, res) => {
   try {
-    const existing = await db.select().from(bands).where(eq(bands.id, req.params.id)).limit(1);
+    const existing = await db.select().from(bands).where(eq(bands.id, param(req, 'id'))).limit(1);
     if (!existing[0]) {
       res.status(404).json({ error: 'Band not found.' });
       return;
@@ -102,7 +103,7 @@ bandsRouter.delete('/:id', async (req, res) => {
       return;
     }
     // ON DELETE CASCADE removes band_members, band_invites, and any songs/song_lists/setlists with this band_id.
-    await db.delete(bands).where(eq(bands.id, req.params.id));
+    await db.delete(bands).where(eq(bands.id, param(req, 'id')));
     res.json({});
   } catch (err) {
     console.error('Failed to delete band:', err);
@@ -119,7 +120,7 @@ bandsRouter.post('/:id/invite-link', requireBandEditor, async (req, res) => {
       return;
     }
     const allowSignup = body.allowSignup === true;
-    const bandId = req.params.id;
+    const bandId = param(req, 'id');
     // A sign-up link lets anyone holding it create an account on the server, so who may make one
     // is the band's admin-set policy; anyone else can still invite people who have accounts.
     if (allowSignup && !(await canInviteWithSignup(bandId, req.userId!))) {
@@ -157,7 +158,7 @@ bandsRouter.post('/invites/:inviteId/accept', async (req, res) => {
     const invites = await db
       .select()
       .from(bandInvites)
-      .where(eq(bandInvites.id, req.params.inviteId))
+      .where(eq(bandInvites.id, param(req, 'inviteId')))
       .limit(1);
     const invite = invites[0];
     if (!invite) {
@@ -198,7 +199,7 @@ bandsRouter.post('/invites/:inviteId/accept', async (req, res) => {
  */
 bandsRouter.post('/:id/transfer-ownership', async (req, res) => {
   try {
-    const bandId = req.params.id;
+    const bandId = param(req, 'id');
     const { userId: newOwnerId } = (req.body ?? {}) as Record<string, unknown>;
     if (typeof newOwnerId !== 'string' || !newOwnerId) {
       res.status(400).json({ error: 'userId is required.' });
@@ -253,8 +254,8 @@ bandsRouter.post('/:id/transfer-ownership', async (req, res) => {
 
 bandsRouter.delete('/:id/members/:userId', requireBandMember, async (req, res) => {
   try {
-    const bandId = req.params.id;
-    const targetUserId = req.params.userId;
+    const bandId = param(req, 'id');
+    const targetUserId = param(req, 'userId');
 
     const existing = await db.select().from(bands).where(eq(bands.id, bandId)).limit(1);
     if (!existing[0]) {

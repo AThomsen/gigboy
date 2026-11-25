@@ -18,6 +18,7 @@ import {
 import { insertTrashItem } from '../lib/trash.js';
 import { assertUploadWithinQuota } from '../lib/storageQuota.js';
 import { imageBytesMatchMime } from '../lib/imageSniff.js';
+import { param } from '../lib/routeParam.js';
 
 function downloadUrlBase(req: Request): string {
   return `/api/bands/${bandIdFromReq(req)}/press-kit-images`;
@@ -25,7 +26,7 @@ function downloadUrlBase(req: Request): string {
 
 /** Reads :bandId via a widened Request type — route handlers on '/' otherwise infer params as {}. */
 function bandIdFromReq(req: Request): string {
-  return req.params.bandId;
+  return param(req, 'bandId');
 }
 
 function handleUploadErrors(err: unknown, res: Response): boolean {
@@ -53,7 +54,7 @@ async function loadImage(req: Request, res: Response) {
   const existing = await db
     .select()
     .from(pressKitImages)
-    .where(and(eq(pressKitImages.id, req.params.id), eq(pressKitImages.bandId, req.params.bandId)))
+    .where(and(eq(pressKitImages.id, param(req, 'id')), eq(pressKitImages.bandId, param(req, 'bandId'))))
     .limit(1);
   if (!existing[0]) {
     res.status(404).json({ error: 'Image not found.' });
@@ -90,7 +91,7 @@ bandPressKitImagesRouter.post(
   },
   async (req, res) => {
     try {
-      const bandId = req.params.bandId;
+      const bandId = param(req, 'bandId');
       const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
       const file = files.file?.[0];
       const thumb = files.thumb?.[0];
@@ -155,7 +156,7 @@ bandPressKitImagesRouter.post(
 
 bandPressKitImagesRouter.delete('/:id', requireBandEditor, async (req, res) => {
   try {
-    const bandId = req.params.bandId;
+    const bandId = param(req, 'bandId');
     const image = await loadImage(req, res);
     if (!image) return;
 

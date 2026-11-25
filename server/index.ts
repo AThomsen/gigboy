@@ -203,7 +203,7 @@ app.get('/public/press-kit/:token', async (req, res, next) => {
 });
 
 app.use(express.static(DIST_DIR));
-app.get('*', (_req, res) => {
+app.get('/{*splat}', (_req, res) => {
   res.sendFile(path.join(DIST_DIR, 'index.html'));
 });
 

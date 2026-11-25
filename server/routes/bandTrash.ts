@@ -10,17 +10,18 @@ import {
   sweepExpiredBandTrash,
   trashRowToListItem,
 } from '../lib/trash.js';
+import { param } from '../lib/routeParam.js';
 
 export const bandTrashRouter = Router({ mergeParams: true });
 bandTrashRouter.use(requireAuth);
 
 bandTrashRouter.get('/', requireBandMember, async (req, res) => {
   try {
-    await sweepExpiredBandTrash(req.params.bandId);
+    await sweepExpiredBandTrash(param(req, 'bandId'));
     const rows = await db
       .select()
       .from(trashItems)
-      .where(eq(trashItems.bandId, req.params.bandId))
+      .where(eq(trashItems.bandId, param(req, 'bandId')))
       .orderBy(desc(trashItems.deletedAt));
     res.json({ items: rows.map(trashRowToListItem) });
   } catch (err) {
@@ -34,7 +35,7 @@ bandTrashRouter.post('/:id/restore', requireBandEditor, async (req, res) => {
     const existing = await db
       .select()
       .from(trashItems)
-      .where(and(eq(trashItems.id, req.params.id), eq(trashItems.bandId, req.params.bandId)))
+      .where(and(eq(trashItems.id, param(req, 'id')), eq(trashItems.bandId, param(req, 'bandId'))))
       .limit(1);
     if (!existing[0]) {
       res.status(404).json({ error: 'Trash item not found.' });
@@ -45,7 +46,7 @@ bandTrashRouter.post('/:id/restore', requireBandEditor, async (req, res) => {
       res.status(result.status).json({ error: result.error });
       return;
     }
-    await db.delete(trashItems).where(eq(trashItems.id, req.params.id));
+    await db.delete(trashItems).where(eq(trashItems.id, param(req, 'id')));
     res.json({});
   } catch (err) {
     console.error('Failed to restore band trash item:', err);
@@ -58,7 +59,7 @@ bandTrashRouter.delete('/:id', requireBandOwner, async (req, res) => {
     const existing = await db
       .select()
       .from(trashItems)
-      .where(and(eq(trashItems.id, req.params.id), eq(trashItems.bandId, req.params.bandId)))
+      .where(and(eq(trashItems.id, param(req, 'id')), eq(trashItems.bandId, param(req, 'bandId'))))
       .limit(1);
     if (!existing[0]) {
       res.status(404).json({ error: 'Trash item not found.' });
@@ -74,7 +75,7 @@ bandTrashRouter.delete('/:id', requireBandOwner, async (req, res) => {
 
 bandTrashRouter.delete('/', requireBandOwner, async (req, res) => {
   try {
-    const rows = await db.select().from(trashItems).where(eq(trashItems.bandId, req.params.bandId));
+    const rows = await db.select().from(trashItems).where(eq(trashItems.bandId, param(req, 'bandId')));
     for (const row of rows) {
       await permanentlyDeleteTrashRow(row);
     }
