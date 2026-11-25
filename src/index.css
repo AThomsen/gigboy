@@ -4671,6 +4671,7 @@ input, select, textarea { font: inherit; color: var(--text); }
 }
 .stems-import,
 .stems-loop-controls,
+.stems-tempo-controls,
 .stems-transport {
   display: flex;
   flex-wrap: wrap;
@@ -4691,6 +4692,18 @@ input, select, textarea { font: inherit; color: var(--text); }
   color: var(--text);
   font-size: var(--text-xs);
   cursor: pointer;
+}
+.stems-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.stems-stepper .stems-btn {
+  padding-inline: var(--space-sm);
+}
+.stems-stepper-value {
+  min-width: 4.5rem;
+  font-variant-numeric: tabular-nums;
 }
 .stems-btn:disabled {
   opacity: .5;

@@ -1,16 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { Pause, Play, Repeat, Trash2, Upload, X } from 'lucide-react';
+import { Minus, Pause, Play, Plus, Repeat, Trash2, Upload, X } from 'lucide-react';
 import type { SongStem } from '../lib/songStems';
 import type { SongStemsState } from '../hooks/useSongStems';
 import { FULL_MIX_STEMS, STEM_IMPORT_ACCEPT, stemColor } from '../lib/stemImport';
-import { normalizeLoop, StemPlayer, type LaneMix } from '../lib/stemPlayer';
+import { MAX_SPEED_PERCENT, MAX_TRANSPOSE, MIN_SPEED_PERCENT, normalizeLoop, StemPlayer, type LaneMix } from '../lib/stemPlayer';
+import { transposeChord } from '../utils/chordParser';
 import { showConfirmToast } from '../utils/toastDialogs';
 import toast from '../utils/anchoredToast';
 
 interface Props {
   stemsState: SongStemsState;
   canEdit: boolean;
+  /** The song's key, to name the key the stems are transposed to. */
+  songKey?: string;
+  /** The chord chart's current transpose, offered as a one-tap pitch for the stems. */
+  chartTranspose?: number;
+}
+
+const SPEED_STEP = 5;
+
+function pitchLabel(transpose: number, songKey: string | undefined): string {
+  if (songKey) return `Key of ${transpose === 0 ? songKey : transposeChord(songKey.replace(/^H/i, 'B'), transpose)}`;
+  return transpose === 0 ? 'Original key' : `${transpose > 0 ? '+' : ''}${transpose} st`;
 }
 
 function formatTime(seconds: number): string {
@@ -46,7 +58,7 @@ function WaveformPath({ bars }: { bars: number[] }) {
   );
 }
 
-export default function SongStems({ stemsState, canEdit }: Props) {
+export default function SongStems({ stemsState, canEdit, songKey, chartTranspose = 0 }: Props) {
   const { stems, loading, progress, error, importStems, deleteStem, deleteAllStems } = stemsState;
   const rootRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
@@ -62,6 +74,8 @@ export default function SongStems({ stemsState, canEdit }: Props) {
   const [markerA, setMarkerA] = useState<number | null>(null);
   const [markerB, setMarkerB] = useState<number | null>(null);
   const [loopOn, setLoopOn] = useState(false);
+  const [speed, setSpeed] = useState(100);
+  const [transpose, setTranspose] = useState(0);
   const durationRef = useRef(0);
 
   // The playhead moves every frame; write it straight to the DOM instead of re-rendering.
@@ -80,6 +94,7 @@ export default function SongStems({ stemsState, canEdit }: Props) {
       onPlayingChange: setPlaying,
       onBuffering: setBuffering,
       onStemFailed: (id) => setFailedIds((prev) => (prev.includes(id) ? prev : [...prev, id])),
+      onPitchShiftFailed: () => toast.error("Couldn't load the pitch shifter: speed changes will change the pitch too."),
     });
     playerRef.current = player;
     setPlaying(false);
@@ -129,6 +144,11 @@ export default function SongStems({ stemsState, canEdit }: Props) {
   useEffect(() => {
     playerRef.current?.setMix(Object.values(mix));
   }, [mix, duration]);
+
+  useEffect(() => {
+    playerRef.current?.setSpeed(speed / 100);
+    playerRef.current?.setTranspose(transpose);
+  }, [speed, transpose, duration]);
 
   const loop = markerA !== null && markerB !== null ? normalizeLoop(markerA, markerB, duration) : null;
   useEffect(() => {
@@ -315,6 +335,72 @@ export default function SongStems({ stemsState, canEdit }: Props) {
         {(markerA !== null || markerB !== null) && (
           <button type="button" className="stems-btn stems-btn--quiet" onClick={clearLoop} aria-label="Clear loop">
             <X size={14} />
+          </button>
+        )}
+      </div>
+
+      <div className="stems-tempo-controls">
+        <div className="stems-stepper" role="group" aria-label="Speed">
+          <button
+            type="button"
+            className="stems-btn"
+            onClick={() => setSpeed((s) => Math.max(MIN_SPEED_PERCENT, s - SPEED_STEP))}
+            disabled={speed <= MIN_SPEED_PERCENT}
+            aria-label="Slower"
+          >
+            <Minus size={14} />
+          </button>
+          <button
+            type="button"
+            className={`stems-btn stems-stepper-value${speed !== 100 ? ' stems-btn--active' : ''}`}
+            onClick={() => setSpeed(100)}
+            title="Reset speed"
+            aria-label={`Speed ${speed}%${speed !== 100 ? ', reset' : ''}`}
+          >
+            {speed}%
+          </button>
+          <button
+            type="button"
+            className="stems-btn"
+            onClick={() => setSpeed((s) => Math.min(MAX_SPEED_PERCENT, s + SPEED_STEP))}
+            disabled={speed >= MAX_SPEED_PERCENT}
+            aria-label="Faster"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        <div className="stems-stepper" role="group" aria-label="Pitch">
+          <button
+            type="button"
+            className="stems-btn"
+            onClick={() => setTranspose((t) => Math.max(-MAX_TRANSPOSE, t - 1))}
+            disabled={transpose <= -MAX_TRANSPOSE}
+            aria-label="Pitch down a semitone"
+          >
+            <Minus size={14} />
+          </button>
+          <button
+            type="button"
+            className={`stems-btn stems-stepper-value${transpose !== 0 ? ' stems-btn--active' : ''}`}
+            onClick={() => setTranspose(0)}
+            title="Reset pitch"
+            aria-label={`${pitchLabel(transpose, songKey)}${transpose !== 0 ? ', reset' : ''}`}
+          >
+            {pitchLabel(transpose, songKey)}
+          </button>
+          <button
+            type="button"
+            className="stems-btn"
+            onClick={() => setTranspose((t) => Math.min(MAX_TRANSPOSE, t + 1))}
+            disabled={transpose >= MAX_TRANSPOSE}
+            aria-label="Pitch up a semitone"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        {chartTranspose !== 0 && chartTranspose !== transpose && Math.abs(chartTranspose) <= MAX_TRANSPOSE && (
+          <button type="button" className="stems-btn stems-btn--quiet" onClick={() => setTranspose(chartTranspose)}>
+            Match chords ({pitchLabel(chartTranspose, songKey)})
           </button>
         )}
       </div>

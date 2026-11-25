@@ -28,12 +28,18 @@ export interface MixState {
   /** Playhead in stem samples. */
   position: number;
   /**
-   * Fraction of a stem sample, as a whole number of 1/outputRate steps, when the output runs at a
-   * different rate than the stems. Integer arithmetic keeps the playhead exact over hours.
+   * Fraction of a stem sample, as a whole number of 1/(outputRate·100) steps, when the output
+   * runs at a different rate than the stems or at another speed. Integer arithmetic keeps the
+   * playhead exact over hours.
    */
   frac: number;
   stemRate: number;
   outputRate: number;
+  /**
+   * Playback speed in whole percent (100 = as recorded). This is varispeed: it changes the pitch
+   * too, which the player corrects after the mixer (see stemPlayer.ts).
+   */
+  speed: number;
   playing: boolean;
   loop: LoopRegion | null;
   master: number;
@@ -56,6 +62,7 @@ export function createMixState(options: { chunkSize: number; stemRate: number; o
     frac: 0,
     stemRate: options.stemRate,
     outputRate: options.outputRate,
+    speed: 100,
     playing: false,
     loop: null,
     master: 1,
@@ -96,7 +103,7 @@ function chunkPresentForAll(state: MixState, index: number): boolean {
  * Runs on the audio thread every render quantum, so it allocates nothing.
  */
 export function hasAudioFor(state: MixState, frames: number): boolean {
-  const needed = Math.ceil((state.frac + frames * state.stemRate) / state.outputRate) + 1;
+  const needed = Math.ceil((state.frac + frames * state.stemRate * state.speed) / (state.outputRate * 100)) + 1;
   let lastIndex = -1;
   let p = state.position;
   for (let i = 0; i <= needed; i++) {
@@ -131,13 +138,15 @@ export function renderBlock(state: MixState, left: Float32Array, right: Float32A
   }
   if (!hasAudioFor(state, left.length)) return 'underrun';
 
-  const { chunkSize, smoothing, stemRate, outputRate } = state;
+  const { chunkSize, smoothing } = state;
+  const step = state.stemRate * state.speed;
+  const unit = state.outputRate * 100;
   const stems = state.stemList;
-  const interpolate = stemRate !== outputRate;
+  const interpolate = step !== unit;
   for (let i = 0; i < left.length; i++) {
     const p = state.position;
     const p1 = interpolate ? nextPosition(p, state.loop) : p;
-    const t = state.frac / outputRate;
+    const t = state.frac / unit;
     let l = 0;
     let r = 0;
     for (let s = 0; s < stems.length; s++) {
@@ -159,9 +168,9 @@ export function renderBlock(state: MixState, left: Float32Array, right: Float32A
     left[i] = l * state.master;
     right[i] = r * state.master;
 
-    state.frac += stemRate;
-    while (state.frac >= outputRate) {
-      state.frac -= outputRate;
+    state.frac += step;
+    while (state.frac >= unit) {
+      state.frac -= unit;
       state.position = nextPosition(state.position, state.loop);
     }
     if (!state.loop && state.position >= state.totalSamples) {

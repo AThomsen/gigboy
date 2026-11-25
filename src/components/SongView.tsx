@@ -876,7 +876,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
                       </span>
                       <button className="floating-tool-close" onClick={() => setShowStems(false)} aria-label="Close stems"><X size={14} /></button>
                     </div>
-                    <SongStems stemsState={stemsState} canEdit={canEditBand} />
+                    <SongStems stemsState={stemsState} canEdit={canEditBand} songKey={song.key} chartTranspose={transpose} />
                   </div>
                 )}
 

@@ -4,6 +4,8 @@ import { StemDecoderClient } from './stems/stemDecoderProtocol';
 import { requestPersistentStorage } from './stems/stemCache';
 import type { MixerCommand, MixerReport } from './stems/stemMixer.worklet';
 import type { StreamInfo } from './stems/streamDecoder';
+import { correctionSemitones, createPitchShifter } from './stems/pitchShift';
+import type { StretchNode } from 'signalsmith-stretch';
 
 /**
  * Multitrack player for a song's stems, built to play long songs with many stems on phones:
@@ -15,6 +17,10 @@ import type { StreamInfo } from './stems/streamDecoder';
  *   they're sample-locked; a stem that isn't decoded yet holds the playhead for all of them.
  *
  * Only ~16 s of PCM per stem is in memory at once, instead of the whole song.
+ *
+ * Speed and pitch: the mixer plays faster or slower (varispeed, which also moves the pitch), and
+ * a pitch shifter after it (stems/pitchShift.ts) cancels that pitch change and adds the
+ * transpose. At normal speed and pitch the shifter is taken out of the signal path.
  */
 
 export interface LaneMix {
@@ -45,6 +51,21 @@ const BUFFERING_GRACE_MS = 250;
 const KEEP_BEHIND_SECONDS = 0.5;
 /** Decode failures in a row after which a stem is dropped, so the others keep playing. */
 const MAX_DECODE_FAILURES = 3;
+
+/** Speed range, in percent of the recorded tempo. */
+export const MIN_SPEED_PERCENT = 50;
+export const MAX_SPEED_PERCENT = 150;
+/** Transpose range, in semitones either way. */
+export const MAX_TRANSPOSE = 12;
+
+/** Plays back `samples` earlier than `position`, following the loop backwards across its start. */
+export function rewind(position: number, samples: number, loop: SampleLoop | null): number {
+  const p = position - samples;
+  if (loop && position >= loop.start && position < loop.end && p < loop.start && loop.end > loop.start) {
+    return loop.end - ((loop.start - p) % (loop.end - loop.start));
+  }
+  return Math.max(0, p);
+}
 
 /** Gain per lane: when any lane is soloed only soloed lanes play (solo beats a lane's own mute); otherwise muted lanes are silent. */
 export function effectiveGains(lanes: LaneMix[]): Record<string, number> {
@@ -88,6 +109,8 @@ export interface StemPlayerCallbacks {
   onBuffering?: (buffering: boolean) => void;
   /** Called when a stem keeps failing to decode and has been taken out of the mix. */
   onStemFailed?: (stemId: string) => void;
+  /** Called when the pitch shifter couldn't be loaded: speed changes then move the pitch too. */
+  onPitchShiftFailed?: () => void;
 }
 
 interface Lane {
@@ -124,6 +147,13 @@ export class StemPlayer {
   private buffering = false;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private speedPercent = 100;
+  private transpose = 0;
+  private shifter: Promise<StretchNode | null> | null = null;
+  /** The pitch shifter, while it's in the signal path. */
+  private shifting: StretchNode | null = null;
+  /** Seconds of audio inside the pitch shifter while it's in the signal path. */
+  private shiftLatency = 0;
   duration = 0;
 
   constructor(private readonly callbacks: StemPlayerCallbacks = {}) {}
@@ -194,6 +224,8 @@ export class StemPlayer {
       totalSamples: this.totalSamples,
       stems: [...this.lanes].map(([id, lane]) => ({ id, channels: lane.info.channels, totalSamples: lane.info.totalSamples, gain: gains[id] ?? 1 })),
     });
+    this.send({ type: 'speed', percent: this.speedPercent });
+    void this.applyPitch();
     this.refill();
     return { failed };
   }
@@ -207,15 +239,82 @@ export class StemPlayer {
     const report = this.lastReport;
     if (!report) return 0;
     if (!report.playing || report.underrun || !this.ctx) return report.position;
-    let p = report.position + Math.max(0, this.ctx.currentTime - report.time) * this.stemRate;
+    let p = report.position + Math.max(0, this.ctx.currentTime - report.time) * this.samplesPerSecond;
     const loop = this.loop;
     if (loop && report.position < loop.end && p >= loop.end) p = loop.start + ((p - loop.start) % (loop.end - loop.start));
     return Math.min(Math.floor(p), this.totalSamples);
   }
 
-  /** Current playhead position in seconds. */
+  /** Stem samples played per second of real time. */
+  private get samplesPerSecond(): number {
+    return (this.stemRate * this.speedPercent) / 100;
+  }
+
+  /** Position of the audio being heard now, in seconds (the pitch shifter delays it a little). */
   get position(): number {
-    return this.positionSamples / this.stemRate;
+    const samples = this.positionSamples;
+    const delay = this.shifting && this.lastReport?.playing ? Math.round(this.shiftLatency * this.samplesPerSecond) : 0;
+    return (delay > 0 ? rewind(samples, delay, this.loop) : samples) / this.stemRate;
+  }
+
+  /** Playback speed as a fraction of the recorded tempo (1 = as recorded); the pitch is kept. */
+  setSpeed(speed: number): void {
+    const percent = Math.round(Math.min(MAX_SPEED_PERCENT, Math.max(MIN_SPEED_PERCENT, speed * 100)));
+    if (percent === this.speedPercent) return;
+    // Re-anchor the interpolated playhead so it doesn't jump when its rate changes.
+    const position = this.positionSamples;
+    this.speedPercent = percent;
+    this.send({ type: 'speed', percent });
+    if (this.lastReport) this.lastReport = { ...this.lastReport, position, time: this.ctx?.currentTime ?? 0 };
+    void this.applyPitch();
+    this.refill();
+  }
+
+  /** Shifts the pitch by whole semitones, keeping the tempo. */
+  setTranspose(semitones: number): void {
+    const value = Math.round(Math.min(MAX_TRANSPOSE, Math.max(-MAX_TRANSPOSE, semitones)));
+    if (value === this.transpose) return;
+    this.transpose = value;
+    void this.applyPitch();
+  }
+
+  /** Puts the pitch shifter in the signal path with the right shift, or takes it out. */
+  private async applyPitch(): Promise<void> {
+    const ctx = this.ctx;
+    const node = this.node;
+    if (!ctx || !node || this.disposed) return;
+    const semitones = correctionSemitones(this.transpose, this.speedPercent);
+    if (Math.abs(semitones) < 0.01) {
+      const shifter = this.shifting;
+      if (!shifter) return;
+      this.shifting = null;
+      node.disconnect();
+      node.connect(ctx.destination);
+      shifter.disconnect();
+      void shifter.stop();
+      return;
+    }
+    this.shifter ??= createPitchShifter(ctx).catch((err: unknown) => {
+      console.error('[StemPlayer] Failed to load the pitch shifter:', err);
+      this.callbacks.onPitchShiftFailed?.();
+      return null;
+    });
+    const shifter = await this.shifter;
+    if (!shifter || this.disposed || this.ctx !== ctx) return;
+    // Another change may have come in while the shifter was loading; apply the latest.
+    const latest = correctionSemitones(this.transpose, this.speedPercent);
+    if (Math.abs(latest) < 0.01) {
+      if (!this.shifting) return;
+      void this.applyPitch();
+      return;
+    }
+    void shifter.schedule({ active: true, semitones: latest });
+    if (this.shifting) return;
+    this.shifting = shifter;
+    node.disconnect();
+    node.connect(shifter);
+    shifter.connect(ctx.destination);
+    this.shiftLatency = await shifter.latency();
   }
 
   /** Must be called from the tap/click handler so Safari lets the context resume. */
@@ -276,6 +375,8 @@ export class StemPlayer {
     this.node?.port.close();
     this.node?.disconnect();
     this.node = null;
+    this.shifting?.disconnect();
+    this.shifting = null;
     this.client?.dispose();
     this.client = null;
     this.lanes.clear();
@@ -345,7 +446,9 @@ export class StemPlayer {
     const loop = this.loop;
     // Inside a loop, "behind" the loop start is the loop end, which the window already covers.
     const from = loop && reported >= loop.start && reported - margin < loop.start ? loop.start : Math.max(0, reported - margin);
-    return chunksAhead(from, this.stemRate * LOOKAHEAD_SECONDS + margin, this.chunkSize, this.totalSamples, loop)
+    // Faster playback eats through the lookahead faster; keep the same lead in real time.
+    const lookahead = Math.round(this.stemRate * LOOKAHEAD_SECONDS * Math.max(1, this.speedPercent / 100)) + margin;
+    return chunksAhead(from, lookahead, this.chunkSize, this.totalSamples, loop)
       .filter((k) => k * this.chunkSize < lane.info.totalSamples);
   }
 

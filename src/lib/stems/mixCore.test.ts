@@ -132,6 +132,26 @@ describe('renderBlock', () => {
     left.forEach((value) => expect(value).toBeCloseTo(0, 6)); // a and b cancel at every frame
     expect(state.position).toBe(Math.floor(50 * BLOCK * (44100 / 48000)));
   });
+
+  it('advances the playhead by the speed and interpolates between samples', () => {
+    const state = createMixState({ chunkSize: 1000, stemRate: 44100, outputRate: 44100 });
+    addStem(state, 'a', 20000, (n) => n / 20000);
+    state.speed = 75;
+    state.playing = true;
+    const { left } = render(state, 10);
+    expect(state.position).toBe(Math.floor(10 * BLOCK * 0.75));
+    // Output frame i plays source sample 0.75·i (a linear ramp, so interpolation is exact).
+    for (const i of [1, 2, 3, 333, 1001]) expect(left[i]).toBeCloseTo((0.75 * i) / 20000, 6);
+  });
+
+  it('plays faster than recorded', () => {
+    const state = createMixState({ chunkSize: 1000, stemRate: 44100, outputRate: 48000 });
+    addStem(state, 'a', 40000, () => 0.5);
+    state.speed = 150;
+    state.playing = true;
+    render(state, 20);
+    expect(state.position).toBe(Math.floor(20 * BLOCK * (44100 / 48000) * 1.5));
+  });
 });
 
 describe('chunksAhead', () => {

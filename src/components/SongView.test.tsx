@@ -94,6 +94,8 @@ vi.mock('../lib/stemPlayer', async () => {
     load() { return new Promise(() => {}); }
     setMix() {}
     setLoop() {}
+    setSpeed() {}
+    setTranspose() {}
     dispose() {}
   }
   return { ...actual, StemPlayer: FakeStemPlayer };

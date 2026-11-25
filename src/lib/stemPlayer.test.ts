@@ -7,6 +7,7 @@ const fake = vi.hoisted(() => ({
   sent: [] as unknown[],
   ctx: null as null | { currentTime: number },
   port: null as null | { onmessage: ((e: { data: unknown }) => void) | null },
+  connectedTo: null as unknown,
 }));
 
 vi.mock('./stems/stemDecoderProtocol', () => ({
@@ -21,8 +22,28 @@ vi.mock('./stems/stemDecoderProtocol', () => ({
   },
 }));
 vi.mock('./stems/stemMixer.worklet.ts?worker&url', () => ({ default: 'stem-mixer.js' }));
+const shifter = vi.hoisted(() => ({
+  created: 0,
+  scheduled: [] as Array<{ active?: boolean; semitones?: number }>,
+  connectedTo: [] as unknown[],
+  stopped: 0,
+}));
+vi.mock('./stems/pitchShift', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./stems/pitchShift')>()),
+  createPitchShifter: async () => {
+    shifter.created += 1;
+    return {
+      schedule: async (change: { active?: boolean; semitones?: number }) => { shifter.scheduled.push(change); },
+      stop: async () => { shifter.stopped += 1; },
+      latency: async () => 0.1,
+      connect: (target: unknown) => { shifter.connectedTo.push(target); },
+      disconnect: () => {},
+    };
+  },
+}));
 
-import { effectiveGains, normalizeLoop, pickSampleRate, StemPlayer } from './stemPlayer';
+import { effectiveGains, normalizeLoop, pickSampleRate, rewind, StemPlayer } from './stemPlayer';
+import { correctionSemitones } from './stems/pitchShift';
 
 const lane = (id: string, patch: Partial<{ volume: number; muted: boolean; solo: boolean }> = {}) => ({
   id, volume: 1, muted: false, solo: false, ...patch,
@@ -61,6 +82,25 @@ describe('pickSampleRate', () => {
   });
 });
 
+describe('rewind', () => {
+  it('steps back, stopping at the start of the song', () => {
+    expect(rewind(1000, 300, null)).toBe(700);
+    expect(rewind(100, 300, null)).toBe(0);
+  });
+
+  it('wraps back across the loop start to the loop end', () => {
+    expect(rewind(1100, 300, { start: 1000, end: 2000 })).toBe(1800);
+  });
+});
+
+describe('correctionSemitones', () => {
+  it('cancels the pitch change of varispeed and adds the transpose', () => {
+    expect(correctionSemitones(0, 100)).toBe(0);
+    expect(correctionSemitones(0, 50)).toBeCloseTo(12);
+    expect(correctionSemitones(2, 200)).toBeCloseTo(-10);
+  });
+});
+
 describe('StemPlayer coordinator', () => {
   beforeEach(() => {
     fake.decodes.length = 0;
@@ -82,10 +122,14 @@ describe('StemPlayer coordinator', () => {
       fake.port = port;
       return {
         port,
-        connect() {},
-        disconnect() {},
+        connect(target: unknown) { fake.connectedTo = target; },
+        disconnect() { fake.connectedTo = null; },
       };
     });
+    shifter.created = 0;
+    shifter.scheduled.length = 0;
+    shifter.connectedTo.length = 0;
+    shifter.stopped = 0;
     vi.stubGlobal('requestAnimationFrame', () => 0);
     vi.stubGlobal('cancelAnimationFrame', () => {});
   });
@@ -93,6 +137,7 @@ describe('StemPlayer coordinator', () => {
 
   const sent = <T extends MixerCommand['type']>(type: T) =>
     fake.sent.filter((m): m is Extract<MixerCommand, { type: T }> => (m as MixerCommand).type === type);
+  const last = <T,>(list: T[]) => list[list.length - 1];
   const flush = () => new Promise((r) => setTimeout(r, 0));
   const chunk = 44100 * 4;
 
@@ -148,6 +193,49 @@ describe('StemPlayer coordinator', () => {
     expect(sent('loop')[0].loop).toEqual({ start: 2 * 44100, end: 31 * 44100 });
     // The loop jumps back to 2 s, so the chunk holding the loop start is decoded again.
     expect(fake.decodes.map((d) => d.from / chunk)).toEqual([0]);
+    player.dispose();
+  });
+
+  it('puts the pitch shifter in the path only while speed or pitch is changed', async () => {
+    fake.infos = { a: { sampleRate: 44100, channels: 2, totalSamples: chunk * 10, format: 'mp3' } };
+    const player = new StemPlayer();
+    await player.load([{ id: 'a', url: '/a' }]);
+    const destination = (fake.ctx as unknown as { destination: unknown }).destination;
+    expect(sent('speed')).toEqual([{ type: 'speed', percent: 100 }]);
+    expect(shifter.created).toBe(0);
+
+    player.setTranspose(3);
+    await flush();
+    expect(shifter.created).toBe(1);
+    expect(last(shifter.scheduled)).toEqual({ active: true, semitones: 3 });
+    expect(fake.connectedTo).not.toBe(destination);
+    expect(shifter.connectedTo).toEqual([destination]);
+
+    player.setSpeed(0.5);
+    await flush();
+    expect(last(sent('speed'))).toEqual({ type: 'speed', percent: 50 });
+    expect(last(shifter.scheduled)?.semitones).toBeCloseTo(15);
+
+    player.setSpeed(1);
+    player.setTranspose(0);
+    await flush();
+    expect(fake.connectedTo).toBe(destination);
+    expect(shifter.stopped).toBe(1);
+    expect(shifter.created).toBe(1);
+    player.dispose();
+  });
+
+  it('decodes further ahead when playing faster', async () => {
+    fake.infos = { a: { sampleRate: 44100, channels: 2, totalSamples: chunk * 20, format: 'mp3' } };
+    const player = new StemPlayer();
+    await player.load([{ id: 'a', url: '/a' }]);
+    player.setSpeed(1.5);
+    for (let round = 0; round < 6; round++) {
+      for (const d of fake.decodes.splice(0)) d.resolve([new Float32Array(chunk), new Float32Array(chunk)]);
+      await flush();
+    }
+    // 12 s of real time at 1.5× is 18 s of song (plus the keep-behind margin): chunks 0–4.
+    expect(sent('chunk').map((c) => c.index).sort()).toEqual([0, 1, 2, 3, 4]);
     player.dispose();
   });
 

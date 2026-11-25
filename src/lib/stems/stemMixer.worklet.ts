@@ -21,6 +21,7 @@ export type MixerCommand =
   | { type: 'removeStem'; stemId: string }
   | { type: 'gains'; gains: Record<string, number> }
   | { type: 'master'; value: number }
+  | { type: 'speed'; percent: number }
   | { type: 'play' }
   | { type: 'pause' }
   | { type: 'seek'; position: number }
@@ -80,6 +81,9 @@ class StemMixerProcessor extends AudioWorkletProcessor {
       case 'master':
         state.targetMaster = cmd.value;
         return;
+      case 'speed':
+        state.speed = Math.max(1, Math.round(cmd.percent));
+        break;
       case 'play':
         if (!state.loop && state.position >= state.totalSamples) state.position = 0;
         state.playing = true;
