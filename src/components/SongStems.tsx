@@ -19,6 +19,22 @@ interface Props {
 }
 
 const SPEED_STEP = 5;
+/** Pointer travel (px) that turns a tap (seek) into a drag (loop selection). */
+const DRAG_THRESHOLD_PX = 6;
+/** How close (px) to a loop edge a drag must start to move that edge instead of drawing a new loop. */
+const EDGE_GRAB_PX = 12;
+
+interface LoopDrag {
+  pointerId: number;
+  startX: number;
+  rect: DOMRect;
+  /** The fixed end of the selection, in seconds. */
+  anchor: number;
+  /** True once the pointer has moved far enough to count as a drag. */
+  dragging: boolean;
+  /** Grabbing an existing edge starts as a drag right away. */
+  edge: boolean;
+}
 
 function pitchLabel(transpose: number, songKey: string | undefined): string {
   if (songKey) return `Key of ${transpose === 0 ? songKey : transposeChord(songKey.replace(/^H/i, 'B'), transpose)}`;
@@ -73,6 +89,9 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
   const [mix, setMix] = useState<Record<string, LaneMix>>({});
   const [markerA, setMarkerA] = useState<number | null>(null);
   const [markerB, setMarkerB] = useState<number | null>(null);
+  /** The loop being drawn, shown live but only handed to the player on release. */
+  const [draftLoop, setDraftLoop] = useState<{ a: number; b: number } | null>(null);
+  const dragRef = useRef<LoopDrag | null>(null);
   const [loopOn, setLoopOn] = useState(false);
   const [speed, setSpeed] = useState(100);
   const [transpose, setTranspose] = useState(0);
@@ -167,11 +186,64 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
 
   const seekTo = (seconds: number) => playerRef.current?.seek(seconds);
 
-  const seekFromPointer = (event: ReactPointerEvent<HTMLElement>) => {
+  const timeAt = (clientX: number, rect: DOMRect) =>
+    rect.width > 0 ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * duration : 0;
+
+  // Tap a waveform to seek; drag across it to select a loop (or drag a loop edge to adjust it).
+  const handleWavePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!ready || event.button !== 0) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || duration <= 0) return;
-    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    seekTo(fraction * duration);
+    if (rect.width <= 0) return;
+    const x = event.clientX - rect.left;
+    const edgeX = (t: number) => (t / duration) * rect.width;
+    let anchor = timeAt(event.clientX, rect);
+    let edge = false;
+    if (loop) {
+      if (Math.abs(x - edgeX(loop.start)) <= EDGE_GRAB_PX) { anchor = loop.end; edge = true; }
+      else if (Math.abs(x - edgeX(loop.end)) <= EDGE_GRAB_PX) { anchor = loop.start; edge = true; }
+    }
+    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, rect, anchor, dragging: edge, edge };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleWavePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.dragging && Math.abs(event.clientX - drag.startX) < DRAG_THRESHOLD_PX) return;
+    drag.dragging = true;
+    setDraftLoop({ a: drag.anchor, b: timeAt(event.clientX, drag.rect) });
+  };
+
+  const handleWavePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDraftLoop(null);
+    const time = timeAt(event.clientX, drag.rect);
+    if (!drag.dragging) {
+      seekTo(time);
+      return;
+    }
+    const region = normalizeLoop(drag.anchor, time, duration);
+    if (!region) return;
+    setMarkerA(region.start);
+    setMarkerB(region.end);
+    setLoopOn(true);
+    // A freshly drawn loop starts from its top; nudging an edge keeps playing where it is.
+    const position = playerRef.current?.position ?? 0;
+    if (!drag.edge || position < region.start || position > region.end) seekTo(region.start);
+  };
+
+  const handleWavePointerCancel = () => {
+    dragRef.current = null;
+    setDraftLoop(null);
+  };
+
+  const waveHandlers = {
+    onPointerDown: handleWavePointerDown,
+    onPointerMove: handleWavePointerMove,
+    onPointerUp: handleWavePointerUp,
+    onPointerCancel: handleWavePointerCancel,
   };
 
   const handleSeekKey = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -179,6 +251,7 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
     if (event.key === 'ArrowRight') seekTo(position + 5);
     else if (event.key === 'ArrowLeft') seekTo(position - 5);
     else if (event.key === 'Home') seekTo(loopOn && loop ? loop.start : 0);
+    else if (event.key === '[' || event.key === ']') setMarker(event.key === '[' ? 'a' : 'b');
     else return;
     event.preventDefault();
   };
@@ -186,13 +259,13 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
   const updateLane = (id: string, patch: Partial<LaneMix>) =>
     setMix((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], ...patch } } : prev));
 
+  // Keyboard fallback for drawing a loop: [ and ] set its start and end at the playhead.
   const setMarker = (which: 'a' | 'b') => {
     const position = playerRef.current?.position ?? 0;
+    const other = which === 'a' ? markerB : markerA;
     if (which === 'a') setMarkerA(position);
-    else {
-      setMarkerB(position);
-      if (markerA !== null && normalizeLoop(markerA, position, duration)) setLoopOn(true);
-    }
+    else setMarkerB(position);
+    if (other !== null && normalizeLoop(other, position, duration)) setLoopOn(true);
   };
 
   const clearLoop = () => {
@@ -271,10 +344,16 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
     );
   }
 
-  const loopStyle = loop && duration > 0
-    ? { left: `${(loop.start / duration) * 100}%`, width: `${((loop.end - loop.start) / duration) * 100}%` }
+  const shownLoop = draftLoop ? normalizeLoop(draftLoop.a, draftLoop.b, duration) : loop;
+  const loopStyle = shownLoop && duration > 0
+    ? { left: `${(shownLoop.start / duration) * 100}%`, width: `${((shownLoop.end - shownLoop.start) / duration) * 100}%` }
     : undefined;
-  const markerStyle = (t: number | null) => (t !== null && duration > 0 ? { left: `${(t / duration) * 100}%` } : undefined);
+  const loopActive = draftLoop !== null || loopOn;
+  const loopRegion = loopStyle && (
+    <div className={`stems-loop-region${loopActive ? ' stems-loop-region--on' : ''}`} style={loopStyle} />
+  );
+  // A lone [ / ] marker from the keyboard, waiting for its partner.
+  const pendingMarker = loop ? null : markerA ?? markerB;
 
   return (
     <div className="song-stems" ref={rootRef}>
@@ -291,53 +370,34 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
         <span className="stems-time">
           <span ref={timeRef}>0:00</span> / {formatTime(duration)}
         </span>
-        {buffering && !loadProgress && (
-          <span className="stems-hint" role="status">Buffering…</span>
-        )}
-        {loadProgress && (
-          <span className="stems-hint" role="status">
-            Loading stems {loadProgress.loaded} / {loadProgress.total}
-          </span>
-        )}
-      </div>
-
-      <div
-        className="stems-seek"
-        role="slider"
-        tabIndex={0}
-        aria-label="Seek"
-        aria-valuemin={0}
-        aria-valuemax={Math.round(duration)}
-        aria-valuetext="Playback position"
-        onPointerDown={(e) => ready && seekFromPointer(e)}
-        onKeyDown={handleSeekKey}
-      >
-        <div className="stems-seek-track" />
-        {loopStyle && <div className={`stems-seek-loop${loopOn ? ' stems-seek-loop--on' : ''}`} style={loopStyle} />}
-        {markerA !== null && <div className="stems-seek-marker" style={markerStyle(markerA)}>A</div>}
-        {markerB !== null && <div className="stems-seek-marker" style={markerStyle(markerB)}>B</div>}
-        <div className="stems-seek-fill" />
-        <div className="stems-playhead" />
-      </div>
-
-      <div className="stems-loop-controls">
-        <button type="button" className="stems-btn" onClick={() => setMarker('a')} disabled={!ready}>Set A</button>
-        <button type="button" className="stems-btn" onClick={() => setMarker('b')} disabled={!ready}>Set B</button>
-        <button
-          type="button"
-          className={`stems-btn${loopOn && loop ? ' stems-btn--active' : ''}`}
-          onClick={() => setLoopOn((on) => !on)}
-          disabled={!loop}
-          aria-pressed={loopOn && Boolean(loop)}
+        <div
+          className="stems-seek"
+          role="slider"
+          tabIndex={0}
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuetext="Playback position"
+          aria-keyshortcuts="[ ]"
+          title="Tap to seek, drag to loop"
+          onKeyDown={handleSeekKey}
+          {...waveHandlers}
         >
-          <Repeat size={14} /> Loop
-        </button>
-        {(markerA !== null || markerB !== null) && (
-          <button type="button" className="stems-btn stems-btn--quiet" onClick={clearLoop} aria-label="Clear loop">
-            <X size={14} />
-          </button>
-        )}
+          <div className="stems-seek-track" />
+          {loopRegion}
+          {pendingMarker !== null && duration > 0 && (
+            <div className="stems-seek-marker" style={{ left: `${(pendingMarker / duration) * 100}%` }} />
+          )}
+          <div className="stems-seek-fill" />
+          <div className="stems-playhead" />
+        </div>
       </div>
+
+      {(buffering || loadProgress) && (
+        <span className="stems-hint" role="status">
+          {loadProgress ? `Loading stems ${loadProgress.loaded} / ${loadProgress.total}` : 'Buffering…'}
+        </span>
+      )}
 
       <div className="stems-tempo-controls">
         <div className="stems-stepper" role="group" aria-label="Speed">
@@ -403,6 +463,24 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
             Match chords ({pitchLabel(chartTranspose, songKey)})
           </button>
         )}
+        {loop ? (
+          <div className="stems-loop-chip" role="group" aria-label="Loop">
+            <button
+              type="button"
+              className={`stems-btn${loopOn ? ' stems-btn--active' : ''}`}
+              onClick={() => setLoopOn((on) => !on)}
+              aria-pressed={loopOn}
+              aria-label={`Loop ${formatTime(loop.start)} to ${formatTime(loop.end)}`}
+            >
+              <Repeat size={14} /> {formatTime(loop.start)}–{formatTime(loop.end)}
+            </button>
+            <button type="button" className="stems-btn stems-btn--quiet" onClick={clearLoop} aria-label="Clear loop">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          ready && <span className="stems-hint stems-loop-hint">Drag across a waveform to loop</span>
+        )}
       </div>
 
       <ul className="stems-lanes">
@@ -462,12 +540,9 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
               {failed ? (
                 <p className="stems-error">Couldn't load this stem ({stem.mimeType}). Try importing it again as MP3 or WAV.</p>
               ) : (
-                <div
-                  className="stems-waveform"
-                  onPointerDown={(e) => ready && seekFromPointer(e)}
-                  aria-hidden="true"
-                >
+                <div className="stems-waveform" aria-hidden="true" {...waveHandlers}>
                   {stem.waveformBars?.length ? <WaveformPath bars={stem.waveformBars} /> : <div className="stems-waveform-empty" />}
+                  {loopRegion}
                   <div className="stems-playhead" />
                 </div>
               )}

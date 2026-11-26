@@ -4670,13 +4670,29 @@ input, select, textarea { font: inherit; color: var(--text); }
   display: none;
 }
 .stems-import,
-.stems-loop-controls,
+.stems-loop-chip,
 .stems-tempo-controls,
 .stems-transport {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-sm);
+}
+.stems-transport,
+.stems-loop-chip {
+  flex-wrap: nowrap;
+}
+.stems-loop-chip {
+  gap: 0;
+}
+.stems-loop-chip .stems-btn--quiet {
+  padding-inline: var(--space-xs);
+}
+.stems-loop-chip .stems-btn:first-child {
+  font-variant-numeric: tabular-nums;
+}
+.stems-loop-hint {
+  font-style: italic;
 }
 .stems-btn {
   display: inline-flex;
@@ -4702,7 +4718,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   padding-inline: var(--space-sm);
 }
 .stems-stepper-value {
-  min-width: 4.5rem;
+  min-width: 3.5rem;
   font-variant-numeric: tabular-nums;
 }
 .stems-btn:disabled {
@@ -4736,15 +4752,20 @@ input, select, textarea { font: inherit; color: var(--text); }
   cursor: default;
 }
 .stems-time {
+  flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   font-size: var(--text-sm);
   color: var(--text);
 }
 .stems-seek {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 80px;
   height: 44px;
   cursor: pointer;
-  touch-action: none;
+  /* Horizontal drags draw a loop; vertical ones still scroll the card. */
+  touch-action: pan-y;
+  user-select: none;
   border-radius: var(--radius-sm);
 }
 .stems-seek:focus-visible {
@@ -4768,26 +4789,31 @@ input, select, textarea { font: inherit; color: var(--text); }
   width: calc(var(--stems-progress) * 100%);
   background: var(--accent);
 }
-.stems-seek-loop {
+.stems-loop-region {
   position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent);
+  pointer-events: none;
+}
+.stems-loop-region--on {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-style: solid;
+  border-inline-width: 2px;
+}
+.stems-seek .stems-loop-region {
   top: 8px;
   bottom: 8px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent);
-}
-.stems-seek-loop--on {
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
-  border-style: solid;
 }
 .stems-seek-marker {
   position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--accent);
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
   pointer-events: none;
 }
 .stems-playhead {
@@ -4882,7 +4908,8 @@ input, select, textarea { font: inherit; color: var(--text); }
   position: relative;
   height: 44px;
   cursor: pointer;
-  touch-action: none;
+  touch-action: pan-y;
+  user-select: none;
 }
 .stems-waveform-svg {
   display: block;
