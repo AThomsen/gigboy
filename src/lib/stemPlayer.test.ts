@@ -196,7 +196,7 @@ describe('StemPlayer coordinator', () => {
     player.dispose();
   });
 
-  it('puts the pitch shifter in the path only while speed or pitch is changed', async () => {
+  it('puts the pitch shifter in the path on the first speed or pitch change and keeps it there', async () => {
     fake.infos = { a: { sampleRate: 44100, channels: 2, totalSamples: chunk * 10, format: 'mp3' } };
     const player = new StemPlayer();
     await player.load([{ id: 'a', url: '/a' }]);
@@ -219,8 +219,11 @@ describe('StemPlayer coordinator', () => {
     player.setSpeed(1);
     player.setTranspose(0);
     await flush();
-    expect(fake.connectedTo).toBe(destination);
-    expect(shifter.stopped).toBe(1);
+    // Back at normal speed and pitch it stays in (no skip or gap), shifting by nothing.
+    expect(last(shifter.scheduled)?.semitones).toBeCloseTo(0);
+    expect(fake.connectedTo).not.toBe(destination);
+    expect(shifter.connectedTo).toEqual([destination]);
+    expect(shifter.stopped).toBe(0);
     expect(shifter.created).toBe(1);
     player.dispose();
   });

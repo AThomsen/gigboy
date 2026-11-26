@@ -20,7 +20,7 @@ import type { StretchNode } from 'signalsmith-stretch';
  *
  * Speed and pitch: the mixer plays faster or slower (varispeed, which also moves the pitch), and
  * a pitch shifter after it (stems/pitchShift.ts) cancels that pitch change and adds the
- * transpose. At normal speed and pitch the shifter is taken out of the signal path.
+ * transpose. The shifter is only added to the signal path on the first change, then stays in.
  */
 
 export interface LaneMix {
@@ -278,36 +278,26 @@ export class StemPlayer {
     void this.applyPitch();
   }
 
-  /** Puts the pitch shifter in the signal path with the right shift, or takes it out. */
+  /**
+   * Puts the pitch shifter in the signal path with the right shift. It stays in once added, even
+   * back at normal speed and pitch: taking it out drops the audio inside it (a skip) and putting
+   * it back in starts it empty (a gap), so only the first change has a short gap.
+   */
   private async applyPitch(): Promise<void> {
     const ctx = this.ctx;
-    const node = this.node;
-    if (!ctx || !node || this.disposed) return;
-    const semitones = correctionSemitones(this.transpose, this.speedPercent);
-    if (Math.abs(semitones) < 0.01) {
-      const shifter = this.shifting;
-      if (!shifter) return;
-      this.shifting = null;
-      node.disconnect();
-      node.connect(ctx.destination);
-      shifter.disconnect();
-      void shifter.stop();
-      return;
-    }
+    if (!ctx || !this.node || this.disposed) return;
+    if (!this.shifting && Math.abs(correctionSemitones(this.transpose, this.speedPercent)) < 0.01) return;
     this.shifter ??= createPitchShifter(ctx).catch((err: unknown) => {
       console.error('[StemPlayer] Failed to load the pitch shifter:', err);
       this.callbacks.onPitchShiftFailed?.();
       return null;
     });
     const shifter = await this.shifter;
-    if (!shifter || this.disposed || this.ctx !== ctx) return;
+    const node = this.node;
+    if (!shifter || !node || this.disposed || this.ctx !== ctx) return;
     // Another change may have come in while the shifter was loading; apply the latest.
     const latest = correctionSemitones(this.transpose, this.speedPercent);
-    if (Math.abs(latest) < 0.01) {
-      if (!this.shifting) return;
-      void this.applyPitch();
-      return;
-    }
+    if (!this.shifting && Math.abs(latest) < 0.01) return;
     void shifter.schedule({ active: true, semitones: latest });
     if (this.shifting) return;
     this.shifting = shifter;
