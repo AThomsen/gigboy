@@ -8,8 +8,11 @@ import { MAX_SPEED_PERCENT, MAX_TRANSPOSE, MIN_SPEED_PERCENT, normalizeLoop, Ste
 import { transposeChord } from '../utils/chordParser';
 import { showConfirmToast } from '../utils/toastDialogs';
 import toast from '../utils/anchoredToast';
+import { readStoredString, removeStoredString, writeStoredString } from '../lib/safeStorage';
 
 interface Props {
+  /** Practice settings (loop, speed, pitch) are remembered per song on this device. */
+  songId: string;
   stemsState: SongStemsState;
   canEdit: boolean;
   /** The song's key, to name the key the stems are transposed to. */
@@ -23,6 +26,63 @@ const SPEED_STEP = 5;
 const DRAG_THRESHOLD_PX = 6;
 /** How close (px) to a loop edge a drag must start to move that edge instead of drawing a new loop. */
 const EDGE_GRAB_PX = 12;
+
+/** A track's mix as saved, tied to the upload it was set for. */
+interface SavedLane {
+  /** The stem's createdAt: re-uploading a stem changes it, which discards the saved mix. */
+  version: string;
+  volume: number;
+  muted: boolean;
+  solo: boolean;
+}
+
+interface PracticeSettings {
+  speed: number;
+  transpose: number;
+  loop: { start: number; end: number; on: boolean } | null;
+  /** Only tracks that differ from their default mix, keyed by stem id. */
+  lanes: Record<string, SavedLane>;
+}
+
+const DEFAULT_SETTINGS: PracticeSettings = { speed: 100, transpose: 0, loop: null, lanes: {} };
+
+function settingsKey(songId: string): string {
+  return `gigboy-stems-settings-${songId}`;
+}
+
+function readSettings(songId: string): PracticeSettings {
+  const raw = readStoredString(settingsKey(songId));
+  if (!raw) return DEFAULT_SETTINGS;
+  try {
+    const parsed = JSON.parse(raw) as Partial<PracticeSettings>;
+    const num = (v: unknown, fallback: number, min: number, max: number) =>
+      typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+    const loop = parsed.loop;
+    const lanes: Record<string, SavedLane> = {};
+    if (parsed.lanes && typeof parsed.lanes === 'object') {
+      for (const [id, lane] of Object.entries(parsed.lanes as Record<string, Partial<SavedLane>>)) {
+        if (!lane || typeof lane.version !== 'string') continue;
+        lanes[id] = { version: lane.version, volume: num(lane.volume, 1, 0, 1.5), muted: lane.muted === true, solo: lane.solo === true };
+      }
+    }
+    return {
+      lanes,
+      speed: num(parsed.speed, 100, MIN_SPEED_PERCENT, MAX_SPEED_PERCENT),
+      transpose: Math.round(num(parsed.transpose, 0, -MAX_TRANSPOSE, MAX_TRANSPOSE)),
+      loop:
+        loop && typeof loop.start === 'number' && typeof loop.end === 'number' && loop.end > loop.start && loop.start >= 0
+          ? { start: loop.start, end: loop.end, on: loop.on !== false }
+          : null,
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function writeSettings(songId: string, settings: PracticeSettings): void {
+  if (settings.speed === 100 && settings.transpose === 0 && !settings.loop && Object.keys(settings.lanes).length === 0) removeStoredString(settingsKey(songId));
+  else writeStoredString(settingsKey(songId), JSON.stringify(settings));
+}
 
 interface LoopDrag {
   pointerId: number;
@@ -51,8 +111,15 @@ function stemLabel(name: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function defaultMix(stem: SongStem): LaneMix {
-  return { id: stem.id, volume: 1, muted: FULL_MIX_STEMS.has(stem.name), solo: false };
+type Lane = LaneMix & { version: string };
+
+function defaultMix(stem: SongStem): Lane {
+  return { id: stem.id, version: stem.createdAt, volume: 1, muted: FULL_MIX_STEMS.has(stem.name), solo: false };
+}
+
+function isDefaultMix(lane: Lane, stem: SongStem): boolean {
+  const d = defaultMix(stem);
+  return lane.volume === d.volume && lane.muted === d.muted && lane.solo === d.solo;
 }
 
 /** One SVG path of mirrored bars — a single element per lane keeps rerenders cheap. */
@@ -74,7 +141,7 @@ function WaveformPath({ bars }: { bars: number[] }) {
   );
 }
 
-export default function SongStems({ stemsState, canEdit, songKey, chartTranspose = 0 }: Props) {
+export default function SongStems({ songId, stemsState, canEdit, songKey, chartTranspose = 0 }: Props) {
   const { stems, loading, progress, error, importStems, deleteStem, deleteAllStems } = stemsState;
   const rootRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
@@ -86,16 +153,21 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
   const [duration, setDuration] = useState(0);
   const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [failedIds, setFailedIds] = useState<string[]>([]);
-  const [mix, setMix] = useState<Record<string, LaneMix>>({});
-  const [markerA, setMarkerA] = useState<number | null>(null);
-  const [markerB, setMarkerB] = useState<number | null>(null);
+  const [mix, setMix] = useState<Record<string, Lane>>({});
+  // Restored once per mount; SongView keys this component by song, so a new song remounts it.
+  const [initialSettings] = useState(() => readSettings(songId));
+  const [markerA, setMarkerA] = useState<number | null>(initialSettings.loop?.start ?? null);
+  const [markerB, setMarkerB] = useState<number | null>(initialSettings.loop?.end ?? null);
   /** The loop being drawn, shown live but only handed to the player on release. */
   const [draftLoop, setDraftLoop] = useState<{ a: number; b: number } | null>(null);
   const dragRef = useRef<LoopDrag | null>(null);
-  const [loopOn, setLoopOn] = useState(false);
-  const [speed, setSpeed] = useState(100);
-  const [transpose, setTranspose] = useState(0);
+  const [loopOn, setLoopOn] = useState(initialSettings.loop?.on ?? false);
+  const [speed, setSpeed] = useState(initialSettings.speed);
+  const [transpose, setTranspose] = useState(initialSettings.transpose);
   const durationRef = useRef(0);
+  // Read when the stems finish loading, to start a restored loop from its top.
+  const loopStateRef = useRef({ markerA, markerB, loopOn });
+  loopStateRef.current = { markerA, markerB, loopOn };
 
   // The playhead moves every frame; write it straight to the DOM instead of re-rendering.
   const showPosition = useCallback((seconds: number) => {
@@ -134,6 +206,9 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
         durationRef.current = player.duration;
         setDuration(player.duration);
         showPosition(0);
+        const { markerA: a, markerB: b, loopOn: on } = loopStateRef.current;
+        const restored = on && a !== null && b !== null ? normalizeLoop(a, b, player.duration) : null;
+        if (restored) player.seek(restored.start);
       })
       .catch((err: unknown) => {
         // e.g. no AudioWorklet support, or the decoder worker failed to start.
@@ -151,11 +226,22 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadKey, showPosition]);
 
-  // Keep mixer state for stems that are still there; new stems get the defaults.
+  // Keep mixer state for stems that are still there, then a mix saved on this device; a new or
+  // re-uploaded stem (new createdAt) starts from the defaults.
+  const savedLanesRef = useRef(initialSettings.lanes);
+  const hadStemsRef = useRef(false);
   useEffect(() => {
+    const savedLanes = savedLanesRef.current;
     setMix((prev) => {
-      const next: Record<string, LaneMix> = {};
-      for (const stem of stems) next[stem.id] = prev[stem.id] ?? defaultMix(stem);
+      const next: Record<string, Lane> = {};
+      for (const stem of stems) {
+        const kept = prev[stem.id];
+        const saved = savedLanes[stem.id];
+        next[stem.id] =
+          kept?.version === stem.createdAt ? kept
+          : saved?.version === stem.createdAt ? { id: stem.id, ...saved }
+          : defaultMix(stem);
+      }
       return next;
     });
   }, [stems]);
@@ -170,6 +256,28 @@ export default function SongStems({ stemsState, canEdit, songKey, chartTranspose
   }, [speed, transpose, duration]);
 
   const loop = markerA !== null && markerB !== null ? normalizeLoop(markerA, markerB, duration) : null;
+  // A loop is only kept once both ends are set; a lone keyboard marker isn't worth remembering.
+  const loopToSave = markerA !== null && markerB !== null && markerA !== markerB
+    ? { start: Math.min(markerA, markerB), end: Math.max(markerA, markerB), on: loopOn }
+    : null;
+  useEffect(() => {
+    // Until the stems have loaded, keep what was saved; once they have, the live mix is the truth
+    // (so removing every stem drops the saved mix too).
+    if (stems.length > 0) hadStemsRef.current = true;
+    // The mix is rebuilt a render after the stems change; wait for it to catch up.
+    const mixInSync = Object.keys(mix).length === stems.length && stems.every((stem) => mix[stem.id]?.version === stem.createdAt);
+    if (hadStemsRef.current && mixInSync) {
+      const lanes: Record<string, SavedLane> = {};
+      for (const stem of stems) {
+        const lane = mix[stem.id];
+        if (!isDefaultMix(lane, stem)) {
+          lanes[stem.id] = { version: lane.version, volume: lane.volume, muted: lane.muted, solo: lane.solo };
+        }
+      }
+      savedLanesRef.current = lanes;
+    }
+    writeSettings(songId, { speed, transpose, loop: loopToSave, lanes: savedLanesRef.current });
+  }, [songId, speed, transpose, loopToSave?.start, loopToSave?.end, loopToSave?.on, mix, stems]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     playerRef.current?.setLoop(loopOn && loop ? loop : null);
   }, [loopOn, loop?.start, loop?.end, duration]); // eslint-disable-line react-hooks/exhaustive-deps

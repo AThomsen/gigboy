@@ -255,6 +255,50 @@ describe('SongView actions', () => {
       expect(screen.getByRole('button', { name: /Remove all/ })).toBeTruthy();
     });
 
+    it('restores and saves speed, pitch and loop per song on this device', () => {
+      mocks.stems = [stem('s1', 'vocals')];
+      localStorage.setItem('gigboy-stems-settings-song-1', JSON.stringify({ speed: 80, transpose: -2, loop: { start: 10, end: 20, on: true } }));
+      render(<SongView song={baseSong} bandId="band-1" />);
+      fireEvent.click(screen.getByRole('button', { name: 'Show stems' }));
+
+      expect(screen.getByRole('button', { name: /Speed 80%/ })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Faster' }));
+
+      expect(JSON.parse(localStorage.getItem('gigboy-stems-settings-song-1') ?? '{}')).toEqual({
+        speed: 85, transpose: -2, loop: { start: 10, end: 20, on: true }, lanes: {},
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /Speed 85%, reset/ }));
+      fireEvent.click(screen.getByRole('button', { name: /, reset/ }));
+      expect(JSON.parse(localStorage.getItem('gigboy-stems-settings-song-1') ?? '{}').loop).toEqual({ start: 10, end: 20, on: true });
+      localStorage.removeItem('gigboy-stems-settings-song-1');
+    });
+
+    it('restores each track\'s mix, but not for a stem that was uploaded again since', () => {
+      const key = 'gigboy-stems-settings-song-1';
+      mocks.stems = [stem('s1', 'vocals'), stem('s2', 'drums')];
+      localStorage.setItem(key, JSON.stringify({
+        lanes: {
+          s1: { version: '2026-11-23T00:00:00Z', volume: 0.5, muted: true, solo: false },
+          s2: { version: '2026-11-01T00:00:00Z', volume: 1, muted: false, solo: true },
+        },
+      }));
+      render(<SongView song={baseSong} bandId="band-1" />);
+      fireEvent.click(screen.getByRole('button', { name: 'Show stems' }));
+
+      expect(screen.getByRole('button', { name: 'Mute Vocals' }).getAttribute('aria-pressed')).toBe('true');
+      expect((screen.getByRole('slider', { name: 'Vocals volume' }) as HTMLInputElement).value).toBe('0.5');
+      // The drums stem's createdAt no longer matches, so its saved solo is dropped.
+      expect(screen.getByRole('button', { name: 'Solo Drums' }).getAttribute('aria-pressed')).toBe('false');
+      expect(JSON.parse(localStorage.getItem(key) ?? '{}').lanes).toEqual({
+        s1: { version: '2026-11-23T00:00:00Z', volume: 0.5, muted: true, solo: false },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Mute Vocals' }));
+      fireEvent.change(screen.getByRole('slider', { name: 'Vocals volume' }), { target: { value: '1' } });
+      expect(localStorage.getItem(key)).toBeNull();
+    });
+
     it('lets viewers play but not import or remove stems', () => {
       mocks.bands = [{ id: 'band-1', memberRoles: { 'user-1': 'viewer' } }];
       mocks.stems = [stem('s1', 'vocals')];
