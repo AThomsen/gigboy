@@ -7,6 +7,13 @@ import type { localStorageAdapter } from '../storage/localStorageAdapter.js';
 export const ATTACHMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024;
 export const ATTACHMENT_ACCEPTED_MIME_TYPE = 'application/pdf';
 
+/**
+ * Attachment types a song can show as its chart (songs.sheet_attachment_id). The database takes
+ * any attachment; this list is what the app can draw. Add a type here once the client can render
+ * it (it picks the renderer from the download's Content-Type, which is the row's mime_type).
+ */
+export const SHEET_MIME_TYPES: readonly string[] = ['application/pdf'];
+
 type AttachmentRow = typeof attachments.$inferSelect;
 
 export interface UploaderIdentitySnapshot {

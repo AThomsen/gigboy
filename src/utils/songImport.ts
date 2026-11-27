@@ -75,6 +75,16 @@ function looksLikeText(raw: string): boolean {
   return replacementChars <= Math.max(2, sample.length / 100);
 }
 
+/** A PDF (a lead sheet or sheet music) imports as a song showing it as the chart. */
+export function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || getFileExtension(file.name) === '.pdf';
+}
+
+/** A song for a PDF: titled after the file, no ChordPro, the PDF to attach and show as the chart. */
+export function pdfSongDraft(file: File): ImportedSongDraft {
+  return { title: fileNameToTitle(file.name), chordpro: '', warnings: [] };
+}
+
 function isZipFile(file: File): boolean {
   const extension = getFileExtension(file.name);
   return extension === '.zip'
@@ -95,8 +105,8 @@ export const SONG_TEXT_IMPORT_ACCEPT = [
   '.onsong',
 ].join(',');
 
-/** Like `SONG_TEXT_IMPORT_ACCEPT`, plus `.zip` archives and Songbook Pro `.sbpbackup` backups. */
-export const SONG_IMPORT_ACCEPT = `${SONG_TEXT_IMPORT_ACCEPT},.zip,application/zip,.sbpbackup`;
+/** Like `SONG_TEXT_IMPORT_ACCEPT`, plus PDFs, `.zip` archives and Songbook Pro `.sbpbackup` backups. */
+export const SONG_IMPORT_ACCEPT = `${SONG_TEXT_IMPORT_ACCEPT},.pdf,application/pdf,.zip,application/zip,.sbpbackup`;
 
 /** Parse a single song's raw text (already read from a file or zip entry) into a draft. */
 export function parseImportedSongText(fileName: string, raw: string): ImportedSongDraft {
@@ -159,7 +169,8 @@ export interface ExpandedSongImport {
   /** Display name for this entry (file name, or `archive.zip › entry.cho`). */
   name: string;
   draft: ImportedSongDraft;
-  /** Files (PDFs) to attach to the song once it's created. */
+  /** Files (PDFs) to attach to the song once it's created. A song with no ChordPro shows the
+   * first of them as its chart. */
   attachments?: File[];
   /** Key that `setlists` entries use to refer to this item. */
   ref?: string;
@@ -249,6 +260,11 @@ export async function expandSongImportSelection(files: File[] | FileList): Promi
   for (const file of Array.from(files)) {
     if (isZipFile(file)) {
       await expandZipArchive(file, result);
+      continue;
+    }
+    if (isPdfFile(file)) {
+      const pdf = file.type === 'application/pdf' ? file : new File([file], file.name, { type: 'application/pdf' });
+      result.items.push({ name: file.name, draft: pdfSongDraft(file), attachments: [pdf] });
       continue;
     }
     try {

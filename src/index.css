@@ -4992,6 +4992,35 @@ input, select, textarea { font: inherit; color: var(--text); }
 .attachment-row-name:hover {
   text-decoration: underline;
 }
+.form-sheet-file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, var(--accent));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent));
+  color: var(--text);
+}
+.form-sheet-file > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.form-sheet-file > svg {
+  color: var(--accent);
+  flex: none;
+}
+.icon-btn--sheet.icon-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.attachment-sheet-badge {
+  color: var(--accent);
+  font-weight: 600;
+}
 
 /* Chord finder tool card */
 .song-toolbar-tool-card--chord-finder {
@@ -14099,5 +14128,62 @@ input.stageplot-legend-number:focus {
 
   .concert-song-surface .chord-display {
     border-radius: 0;
+  }
+}
+
+/* ---- PDF sheet: a song's PDF attachment shown as its chart (PdfSheet.tsx) ---- */
+
+.pdf-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.pdf-sheet-page {
+  flex: none;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.pdf-sheet-page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Paper-white pages glare on a dark stage: show them as light ink on dark. */
+[data-theme="dark"] .pdf-sheet-page,
+[data-theme="stage"] .pdf-sheet-page {
+  background: #000;
+}
+
+[data-theme="dark"] .pdf-sheet-page canvas,
+[data-theme="stage"] .pdf-sheet-page canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.pdf-sheet-message {
+  color: var(--muted);
+  padding: var(--space-lg) 0;
+  text-align: center;
+}
+
+.pdf-sheet-message--error {
+  color: var(--danger);
+}
+
+@media print {
+  .pdf-sheet-page {
+    box-shadow: none;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+  .pdf-sheet-page canvas {
+    filter: none !important;
   }
 }

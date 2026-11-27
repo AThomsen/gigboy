@@ -37,7 +37,7 @@ Your own notes always show on the sheet. To add or change them, open **Notes**, 
 
 ## Attachments
 
-Attach PDFs to a song — scanned sheet music, a lyric sheet, a horn chart. Each file can be up to 20 MB. Open **Attachments** to view or download them.
+Attach PDFs to a song — scanned sheet music, a lyric sheet, a horn chart. Each file can be up to 20 MB. Open **Attachments** to view or download them. Editors can show one of them as the song's chart with the music-sheet button next to it (see [PDF sheets](/help/songs#pdf-sheets)).
 
 ## Chord finder
 

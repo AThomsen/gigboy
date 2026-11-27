@@ -39,6 +39,7 @@ export default function BandDetailPage() {
     refreshBandSetlists,
     refreshBandInputLists,
     addSongToBandLibrary,
+    saveBandSongSheet,
     removeSongFromBandLibrary,
     renameBandSongList,
     updateBandSongListIcon,
@@ -282,12 +283,19 @@ export default function BandDetailPage() {
         }
         if (ref) songIdByRef.set(ref, song.id);
 
+        let sheetId: string | null = null;
         for (const attachment of attachments ?? []) {
           try {
-            await dataClient.bandAttachments.upload(band.id, song.id, attachment);
+            const uploaded = await dataClient.bandAttachments.upload(band.id, song.id, attachment);
+            if (!sheetId && uploaded.mimeType === 'application/pdf') sheetId = uploaded.id;
           } catch {
             failedAttachments += 1;
           }
+        }
+        // A song that is only a PDF (a lead sheet, sheet music) shows it as its chart.
+        if (sheetId && !song.chordpro.trim()) {
+          const sheetError = await saveBandSongSheet(band.id, song.id, sheetId);
+          if (sheetError) failedAttachments += 1;
         }
       })
     );
@@ -767,7 +775,7 @@ export default function BandDetailPage() {
                 type="button"
                 className="btn btn--secondary"
                 onClick={() => importInputRef.current?.click()}
-                title={isImportingSongs ? 'Importing songs…' : 'Import song files, a .zip backup (ChordPro, OnSong, Ultimate Guitar, Songbook Pro…)'}
+                title={isImportingSongs ? 'Importing songs…' : 'Import song files, PDFs, a .zip backup (ChordPro, OnSong, Ultimate Guitar, Songbook Pro…)'}
                 aria-label={isImportingSongs ? 'Importing songs' : 'Import song files or a zip backup'}
                 disabled={isImportingSongs}
               >

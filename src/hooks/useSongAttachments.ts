@@ -32,6 +32,7 @@ export function useSongAttachments({ bandId, songId }: Params) {
       try {
         const attachment = await dataClient.bandAttachments.upload(bandId, songId, file);
         setAttachments((prev) => [attachment, ...prev]);
+        return attachment;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to save attachment';
         console.error('Failed to upload attachment', err);

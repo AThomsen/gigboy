@@ -24,7 +24,7 @@ The **Library** is every song your band owns. Click a song to open it. The list/
 You have four ways to get a song in:
 
 - **Write it** — press the round **+** button in the Library and fill in the form (see [Writing a song](#writing-a-song)).
-- **Import files** — use the upload button at the top of the Library ("Import song files or a zip backup"). Drop in ChordPro or OnSong files, or a whole `.zip` backup or SongbookPro backup (`.sbpbackup`), and Gigboy converts them.
+- **Import files** — use the upload button at the top of the Library ("Import song files or a zip backup"). Drop in ChordPro or OnSong files, or a whole `.zip` backup or SongbookPro backup (`.sbpbackup`), and Gigboy converts them. PDFs become songs too, named after the file, with the PDF as the chart (see [PDF sheets](#pdf-sheets)).
 - **Paste a chart** — paste a chord sheet from Ultimate Guitar, Chordify or CifraClub into the lyrics box and Gigboy converts it to ChordPro. Chords written in solfège (Do Re Mi) are recognised too.
 - **From Ultimate Guitar** — see [below](#from-ultimate-guitar).
 
@@ -79,6 +79,15 @@ The lyrics box uses ChordPro: put chords in square brackets right where they fal
 - **Preview** shows how the song will look, and undo/redo are always there.
 
 Your work is **autosaved** as you type.
+
+## PDF sheets
+
+A lead sheet or sheet music you got as a PDF can be the song's chart: its pages show in place of the ChordPro chart, on the song page, in [concert mode](/help/concert-mode) and when printing a setlist.
+
+- **A new song from a PDF** — import the PDF from the Library (above), or press **Import file** on the song form and pick it. Type in the title, key and so on as usual; the ChordPro lyrics are optional.
+- **An existing song** — open **Attachments**, add the PDF and press the music-sheet button next to it. Press it again to go back to the ChordPro chart. A song with no ChordPro shows the first PDF you add straight away.
+
+The chart is the same for the whole band, and only editors can change it. Deleting the PDF puts the ChordPro chart back. In dark mode the pages are shown as light on dark, so a white page doesn't glare on stage. Your typed notes can go on a PDF sheet too.
 
 ## Edit history
 

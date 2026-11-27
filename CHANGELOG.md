@@ -9,6 +9,15 @@ pre-1.0: minor bumps for features, patch bumps for fixes.
 ## [Unreleased]
 
 ### Added
+- **PDF sheets.** A lead sheet or sheet music received as a PDF can be a song's chart: its
+  pages show in place of the ChordPro chart in the song view, concert mode (one whole page per
+  screen with pages, full width when scrolling) and the setlist print. Importing a PDF from the
+  Library, or with **Import file** on the song form, makes a song of it; for an existing song,
+  editors press the music-sheet button next to a PDF in Attachments. Shown light-on-dark in the
+  dark and stage themes. Rendered in the browser with pdf.js, loaded only when a sheet is shown.
+  Adds a database migration (`songs.sheet_attachment_id`, applied automatically by the Docker
+  image).
+
 - **Stems.** A song can carry stems — separate vocals, drums, bass and so on, e.g. exported
   from StemDeck or another source separator. Editors choose **Import stems…** in the song's new
   Stems tool and pick a stem ZIP or MP3/WAV files; the stem names come from the file names.

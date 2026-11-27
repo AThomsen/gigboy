@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeforeUnload, useLocation, useNavigate, useBlocker } from 'react-router-dom';
 import { flushSync } from 'react-dom';
-import { ChevronDown, FileUp, Guitar, Minus, Plus, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
+import { ChevronDown, FileMusic, FileUp, Guitar, Minus, Plus, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
 import toast from '../utils/anchoredToast';
 import { generateId } from '../lib/uuid';
 import type { Song } from '../types';
@@ -19,7 +19,7 @@ import StrumEditorModal from './StrumEditorModal';
 import StrumDisplay from './StrumDisplay';
 import { extractStrumBlocks, replaceNthStrumBlock, serializeStrumBar, uniqueChords, type StrumBlock } from '../utils/strumParser';
 import { parseSongMedia } from '../utils/songMedia';
-import { parseImportedSongFile, parseImportedSongText } from '../utils/songImport';
+import { isPdfFile, parseImportedSongFile, parseImportedSongText, pdfSongDraft } from '../utils/songImport';
 import UltimateGuitarImportModal from './UltimateGuitarImportModal';
 import { useUltimateGuitarSearch } from '../hooks/useUltimateGuitarSearch';
 import type { UltimateGuitarTab } from '../lib/dataClient/types';
@@ -41,6 +41,9 @@ interface Props {
   };
   /** Open the Ultimate Guitar import dialog right away (from the Library's import menu). */
   openUltimateGuitarOnMount?: boolean;
+  /** Adding a song: attaches a PDF picked with "Import file" once the song is saved, and shows
+   * it as the chart. Without it, PDFs can't be picked here. Returns an error message. */
+  onSaveSheet?: (songId: string, file: File) => Promise<string | null>;
 }
 
 const UG_SHARE_FILE_TITLE_HINT =
@@ -91,6 +94,7 @@ export default function AddSongForm({
   onSongListChange,
   songPageState,
   openUltimateGuitarOnMount = false,
+  onSaveSheet,
 }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -123,6 +127,9 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [songListId, setSongListId] = useState(initialSongListId ?? '');
   const [isImportingFile, setIsImportingFile] = useState(false);
+  // A PDF lead sheet / sheet music to attach and show as the chart once the song is saved.
+  const [sheetFile, setSheetFile] = useState<File | null>(null);
+  const acceptsSheet = mode === 'add' && Boolean(onSaveSheet);
   const [metadataOpen, setMetadataOpen] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -283,15 +290,17 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     blocker.reset();
   }, [blocker, mode]);
 
-  function validate(values: SongFormValues) {
+  // A song showing a PDF sheet as its chart needs no ChordPro.
+  const hasSheet = Boolean(sheetFile || initialSong?.sheetAttachmentId);
+  const validate = useCallback((values: SongFormValues) => {
     const errs: string[] = [];
     if (!values.title.trim()) errs.push('Title is required.');
-    if (!values.chordpro.trim()) errs.push('Song content (ChordPro) is required.');
+    if (!values.chordpro.trim() && !hasSheet) errs.push('Song content (ChordPro or a PDF sheet) is required.');
     if (values.playbackUrl.trim() && !parseSongMedia(values.playbackUrl)) {
       errs.push('Playback link must be a valid YouTube or Spotify URL.');
     }
     return errs;
-  }
+  }, [hasSheet]);
 
   const buildSong = useCallback((values: SongFormValues): Song => {
     return {
@@ -335,6 +344,21 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
   async function handleSongFileImport(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
+
+    if (isPdfFile(file)) {
+      if (importInputRef.current) importInputRef.current.value = '';
+      if (!acceptsSheet) {
+        const message = "Add PDFs from the song's Attachments, where one can be shown as the chart.";
+        setErrors([message]);
+        toast.error(message);
+        return;
+      }
+      setSheetFile(file.type === 'application/pdf' ? file : new File([file], file.name, { type: 'application/pdf' }));
+      if (!title.trim()) setTitle(pdfSongDraft(file).title);
+      setParseStatus(null);
+      setErrors([]);
+      return;
+    }
 
     setIsImportingFile(true);
     try {
@@ -515,6 +539,12 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
       return;
     }
 
+    if (sheetFile && onSaveSheet) {
+      const sheetError = await onSaveSheet(song.id, sheetFile);
+      // The song is saved: say so, and go on to it (its Attachments can take the PDF again).
+      if (sheetError) toast.error(`The song was saved, but its PDF sheet wasn't: ${sheetError}`);
+    }
+
     if (songListId !== initialValues.songListId) {
       onSongListChange?.(songListId, initialValues.songListId, song.id);
     }
@@ -639,7 +669,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [mode, isDirty, navigate, initialSong?.id, songPageState, editingTabIdx, editingStrumIdx, formValues, lastSavedValues, performSave]);
+  }, [mode, isDirty, navigate, initialSong?.id, songPageState, editingTabIdx, editingStrumIdx, formValues, lastSavedValues, performSave, validate]);
 
   useEffect(() => {
     if (mode !== 'edit') return;
@@ -671,7 +701,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
         autosaveTimerRef.current = null;
       }
     };
-  }, [mode, isDirty, formValues, lastSavedValues, performSave]);
+  }, [mode, isDirty, formValues, lastSavedValues, performSave, validate]);
 
   return (
     <>
@@ -851,7 +881,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
 
         <div className="form-field form-field--full">
           <div className="chordpro-label-row">
-            <label>ChordPro Lyrics *</label>
+            <label>{hasSheet ? 'ChordPro Lyrics (optional)' : 'ChordPro Lyrics *'}</label>
             <div className="chordpro-label-actions">
               <button
                 type="button"
@@ -1006,6 +1036,23 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
               {parseWarnings.map((warning) => (
                 <p key={warning}>{warning}</p>
               ))}
+            </div>
+          )}
+          {sheetFile && (
+            <div className="form-sheet-file" role="status">
+              <FileMusic size={16} aria-hidden="true" />
+              <span>
+                <strong>{sheetFile.name}</strong> will be attached and shown as the song's chart.
+              </span>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setSheetFile(null)}
+                aria-label={`Don't add ${sheetFile.name}`}
+                title="Remove"
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
           {parseStatus && (

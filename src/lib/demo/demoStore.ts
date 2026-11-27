@@ -848,9 +848,13 @@ export const songsCrud = {
     return created;
   },
   update(bandId: string, item: Song): Song {
-    // Like the server, a song save leaves the scroll time alone (see setSongScrollSeconds).
+    // Like the server, a song save leaves the scroll time and sheet alone (see setSongScrollSeconds, setSongSheet).
     const existing = state.songs.find((s) => s.id === item.id);
-    const updated = rawSongsCrud.update(bandId, { ...item, scrollSeconds: existing?.scrollSeconds });
+    const updated = rawSongsCrud.update(bandId, {
+      ...item,
+      scrollSeconds: existing?.scrollSeconds,
+      sheetAttachmentId: existing?.sheetAttachmentId,
+    });
     recordDemoSongRevision(updated);
     return updated;
   },
@@ -911,6 +915,9 @@ export function removeAttachment(bandId: string, songId: string, attachmentId: s
   const idx = list.findIndex((a) => a.id === attachmentId);
   if (idx === -1) return;
   const [removed] = list.splice(idx, 1);
+  // Like the server's ON DELETE SET NULL.
+  const song = state.songs.find((s) => s.id === songId);
+  if (song?.sheetAttachmentId === attachmentId) song.sheetAttachmentId = undefined;
   state.trash.push({
     trashId: genId('trash'),
     itemType: 'attachment',
@@ -1373,6 +1380,20 @@ export function setSongScrollSeconds(bandId: string, songId: string, scrollSecon
   song.scrollSeconds = scrollSeconds;
   persist();
   return scrollSeconds;
+}
+
+// ---- Song sheet (PDF shown as the chart) ----
+
+export function setSongSheet(bandId: string, songId: string, attachmentId: string | null): string | null {
+  assertBand(bandId);
+  const song = state.songs.find((s) => s.id === songId);
+  if (!song) throw new Error('Song not found.');
+  if (attachmentId !== null && !(state.attachments[songId] ?? []).some((a) => a.id === attachmentId)) {
+    throw new Error('Attachment not found.');
+  }
+  song.sheetAttachmentId = attachmentId ?? undefined;
+  persist();
+  return attachmentId;
 }
 
 // ---- Band chord voicings ----

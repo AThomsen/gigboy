@@ -4,6 +4,8 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { useBands } from '../context/BandsContext';
 import type { Song } from '../types';
 import ChordDisplay from '../components/ChordDisplay';
+import PdfSheet from '../components/PdfSheet';
+import { songSheetUrl } from '../lib/songSheet';
 import LanguageBadge from '../components/LanguageBadge';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { formatDuration } from '../utils/duration';
@@ -154,12 +156,16 @@ export default function BandSetlistPrintPage() {
                     <p className="setlist-print-chart-note">{setlist.songNotes[song.id]}</p>
                   )}
                 </header>
-                <ChordDisplay
-                  chordpro={song.chordpro}
-                  transpose={song.preferredTranspose ?? 0}
-                  showChords
-                  hideMetaDirectives
-                />
+                {bandId && song.sheetAttachmentId && songSheetUrl(bandId, song.id, song.sheetAttachmentId) ? (
+                  <PdfSheet url={songSheetUrl(bandId, song.id, song.sheetAttachmentId)!} />
+                ) : (
+                  <ChordDisplay
+                    chordpro={song.chordpro}
+                    transpose={song.preferredTranspose ?? 0}
+                    showChords
+                    hideMetaDirectives
+                  />
+                )}
               </article>
             ))}
           </div>

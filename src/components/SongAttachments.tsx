@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { FileText, Trash2, Pencil, Check, X, Upload, ExternalLink } from 'lucide-react';
+import { FileText, FileMusic, Trash2, Pencil, Check, X, Upload, ExternalLink } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useSongAttachments } from '../hooks/useSongAttachments';
 import { useBands } from '../context/BandsContext';
 import { useStorageUsage } from '../hooks/useStorageUsage';
@@ -14,6 +15,8 @@ interface Props {
   user: User;
   /** All songs are band-owned — attachments are stored under this band */
   bandId: string;
+  /** Band editors pick which PDF (if any) is shown as the song's chart. */
+  canEdit: boolean;
 }
 
 function formatFileSize(bytes: number): string {
@@ -26,10 +29,14 @@ interface AttachmentRowProps {
   currentUserId: string;
   onDelete: (a: SongAttachment) => void;
   onRename: (a: SongAttachment, newName: string) => void;
+  /** Whether this PDF is shown as the song's chart. */
+  isSheet: boolean;
+  /** Absent when the viewer may not change which PDF is the chart. */
+  onToggleSheet?: (a: SongAttachment) => void;
 }
 
 
-function AttachmentRow({ attachment, currentUserId, onDelete, onRename }: AttachmentRowProps) {
+function AttachmentRow({ attachment, currentUserId, onDelete, onRename, isSheet, onToggleSheet }: AttachmentRowProps) {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -101,9 +108,22 @@ function AttachmentRow({ attachment, currentUserId, onDelete, onRename }: Attach
             </a>
           )}
           <span className="player-date">
+            {isSheet && <span className="attachment-sheet-badge">Shown as chart · </span>}
             {new Date(attachment.createdAt).toLocaleString()} · {formatFileSize(attachment.sizeBytes)}
           </span>
         </div>
+
+        {onToggleSheet && attachment.mimeType === ATTACHMENT_ACCEPTED_MIME_TYPE && (
+          <button
+            className={`icon-btn icon-btn--sheet${isSheet ? ' icon-btn--active' : ''}`}
+            onClick={() => onToggleSheet(attachment)}
+            aria-pressed={isSheet}
+            aria-label={isSheet ? `Stop showing ${attachment.name} as the chart` : `Show ${attachment.name} as the chart`}
+            title={isSheet ? 'Shown as the chart — click to show the ChordPro chart instead' : 'Show as the chart'}
+          >
+            <FileMusic size={14} />
+          </button>
+        )}
 
         <a
           className="icon-btn icon-btn--open"
@@ -153,12 +173,12 @@ function AttachmentRow({ attachment, currentUserId, onDelete, onRename }: Attach
   );
 }
 
-export default function SongAttachments({ song, user, bandId }: Props) {
+export default function SongAttachments({ song, user, bandId, canEdit }: Props) {
   const { attachments, loading, uploading, uploadError, uploadAttachment, deleteAttachment, renameAttachment } = useSongAttachments({
     bandId,
     songId: song.id,
   });
-  const { refreshBandTrash } = useBands();
+  const { refreshBandTrash, refreshBandSongs, saveBandSongSheet } = useBands();
   const storageQuotaBytes = user.storageQuotaBytes;
   const { usedBytes } = useStorageUsage(user.id);
 
@@ -179,13 +199,23 @@ export default function SongAttachments({ song, user, bandId }: Props) {
     }
 
     try {
-      await uploadAttachment(file);
+      const attachment = await uploadAttachment(file);
+      // A song that is only a PDF (no ChordPro yet) shows it as its chart straight away.
+      if (canEdit && !song.sheetAttachmentId && !song.chordpro.trim()) {
+        await toggleSheet(attachment);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save attachment';
       setError(message);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  async function toggleSheet(attachment: SongAttachment) {
+    const next = song.sheetAttachmentId === attachment.id ? null : attachment.id;
+    const saveError = await saveBandSongSheet(bandId, song.id, next);
+    if (saveError) toast.error(saveError);
   }
 
   return (
@@ -207,7 +237,10 @@ export default function SongAttachments({ song, user, bandId }: Props) {
         />
 
         {(error || uploadError) && <p className="recorder-error">{error ?? uploadError}</p>}
-        <p className="attachments-hint">PDF only, up to {Math.round(ATTACHMENT_MAX_SIZE_BYTES / (1024 * 1024))} MB</p>
+        <p className="attachments-hint">
+          PDF only, up to {Math.round(ATTACHMENT_MAX_SIZE_BYTES / (1024 * 1024))} MB.
+          {canEdit && <> Use <FileMusic size={12} aria-label="Show as the chart" /> to show a lead sheet or sheet music as the song's chart.</>}
+        </p>
       </div>
 
       <div className="recordings-section attachments-section">
@@ -228,9 +261,13 @@ export default function SongAttachments({ song, user, bandId }: Props) {
                 onDelete={(a) => {
                   void deleteAttachment(a).then(() => {
                     void refreshBandTrash(bandId);
+                    // Deleting the sheet's PDF puts the ChordPro chart back (server-side).
+                    if (a.id === song.sheetAttachmentId) void refreshBandSongs(bandId);
                   });
                 }}
                 onRename={renameAttachment}
+                isSheet={attachment.id === song.sheetAttachmentId}
+                onToggleSheet={canEdit ? (a) => { void toggleSheet(a); } : undefined}
               />
             ))}
           </ul>

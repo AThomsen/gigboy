@@ -150,6 +150,12 @@ export const songs = pgTable(
     /** How long autoscroll takes to scroll through the whole chart, pauses included. Shared by
      * the band and saved from Concert Mode, not the song form (so not part of song revisions). */
     scrollSeconds: integer('scroll_seconds'),
+    /** An attachment shown as the song's chart in place of the ChordPro text (a lead sheet or
+     * sheet music received as a file). Any format: the attachment's own mime_type says what it
+     * is, and server/lib/attachments.ts's SHEET_MIME_TYPES which ones the app can show (PDF for
+     * now). Set from the song's Attachments card, not the song form (so not part of song
+     * revisions). Cleared when that attachment is deleted. */
+    sheetAttachmentId: text('sheet_attachment_id').references((): AnyPgColumn => attachments.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

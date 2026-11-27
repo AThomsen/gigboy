@@ -2,6 +2,7 @@ import { useLocation, Navigate } from 'react-router-dom';
 import { useBands } from '../context/BandsContext';
 import AddSongForm from '../components/AddSongForm';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { dataClient } from '../lib/dataClient';
 import type { Song } from '../types';
 
 type AddSongScopeState = {
@@ -22,6 +23,7 @@ export default function AddSongPage() {
     bandSongListsByBandId,
     addSongToBandLibrary,
     addSongToBandSongList,
+    saveBandSongSheet,
   } = useBands();
 
   const pageState = location.state as AddSongScopeState | null;
@@ -53,6 +55,15 @@ export default function AddSongPage() {
     return addSongToBandLibrary(bandId, song);
   }
 
+  async function handleSaveSheet(songId: string, file: File): Promise<string | null> {
+    try {
+      const attachment = await dataClient.bandAttachments.upload(bandId, songId, file);
+      return await saveBandSongSheet(bandId, songId, attachment.id);
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Failed to save the PDF.';
+    }
+  }
+
   function handleSongListChange(songListId: string, _previousSongListId: string, songId: string) {
     void addSongToBandSongList(bandId, songListId, songId);
   }
@@ -65,6 +76,7 @@ export default function AddSongPage() {
       onSongListChange={handleSongListChange}
       songPageState={songPageState}
       openUltimateGuitarOnMount={pageState?.openUltimateGuitar === true}
+      onSaveSheet={handleSaveSheet}
     />
   );
 }

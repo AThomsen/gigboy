@@ -169,6 +169,13 @@
       "when": 1795549790621,
       "tag": "0023_band_invite_signup",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795730491266,
+      "tag": "0024_song_sheet_attachment",
+      "breakpoints": true
     }
   ]
 }

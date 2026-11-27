@@ -1,0 +1,2 @@
+ALTER TABLE "songs" ADD COLUMN "sheet_attachment_id" text;--> statement-breakpoint
+ALTER TABLE "songs" ADD CONSTRAINT "songs_sheet_attachment_id_attachments_id_fk" FOREIGN KEY ("sheet_attachment_id") REFERENCES "public"."attachments"("id") ON DELETE set null ON UPDATE no action;

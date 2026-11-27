@@ -215,6 +215,9 @@ export interface Song {
   /** How long autoscroll takes to scroll through the whole chart (pauses included), in
    * seconds. Shared by the band, saved from Concert Mode. */
   scrollSeconds?: number;
+  /** An attachment shown as the chart in place of the ChordPro text (a lead sheet or sheet music
+   * received as a file; PDF for now). Shared by the band, set from the Attachments card. */
+  sheetAttachmentId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -187,3 +187,15 @@ describe('Songbook Pro backups', () => {
     expect(friday.songs[1].note).toBeUndefined();
   });
 });
+
+describe('importing PDFs', () => {
+  it('makes a song of each PDF, titled after the file, with the PDF to show as its chart', async () => {
+    const pdf = { name: 'Autumn_Leaves-lead sheet.pdf', type: 'application/pdf' } as unknown as File;
+    const result = await expandSongImportSelection([pdf]);
+    expect(result.errors).toEqual([]);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].draft.title).toBe('Autumn Leaves lead sheet');
+    expect(result.items[0].draft.chordpro).toBe('');
+    expect(result.items[0].attachments).toEqual([pdf]);
+  });
+});

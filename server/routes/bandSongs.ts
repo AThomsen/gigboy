@@ -26,13 +26,14 @@ export function toApi(row: SongRow) {
     date: row.date,
     durationSeconds: row.durationSeconds,
     scrollSeconds: row.scrollSeconds,
+    sheetAttachmentId: row.sheetAttachmentId,
     createdAt: row.createdAt?.toISOString(),
     updatedAt: row.updatedAt?.toISOString(),
   });
 }
 
-// scrollSeconds is deliberately absent: it's saved through songScroll.ts, so a song-form save
-// (a full replace) leaves it alone.
+// scrollSeconds and sheetAttachmentId are deliberately absent: they're saved through songScroll.ts
+// and songSheet.ts, so a song-form save (a full replace) leaves them alone.
 function fromBody(body: Record<string, unknown>, id: string, bandId: string) {
   return {
     id,

@@ -23,6 +23,9 @@ import { useAuth } from '../context/AuthContext';
 import { useBands } from '../context/BandsContext';
 import type { LyricNoteDocument, Song } from '../types';
 import ChordDisplay from './ChordDisplay';
+import PdfSheet from './PdfSheet';
+import { preloadPdfSheet } from '../lib/pdfSheet';
+import { songSheetUrl } from '../lib/songSheet';
 import ChordDiagram, { type DiagramInstrument } from './ChordDiagram';
 import { useBandChordVoicings } from '../hooks/useBandChordVoicings';
 import type { useSetlistSession } from '../hooks/useSetlistSession';
@@ -89,6 +92,14 @@ function computePageOffsets(contentEl: HTMLElement, viewportHeight: number): num
       processAtom(child);
     }
   };
+
+  // A PDF sheet: its pages are fitted to the screen, so each starts a page of its own (or two
+  // short ones share one).
+  const sheet = contentEl.querySelector('.pdf-sheet');
+  if (sheet) {
+    for (const page of Array.from(sheet.children)) processAtom(page);
+    return offsets;
+  }
 
   const chordDisplay = contentEl.querySelector('.chord-display');
   if (!chordDisplay) return offsets;
@@ -322,6 +333,8 @@ export default function ConcertModeView({
   });
   const [currentPageInSong, setCurrentPageInSong] = useState(0);
   const [pageOffsets, setPageOffsets] = useState<number[]>([0]);
+  // How tall a PDF sheet's page may be to fit the screen whole (the screen less what's above it).
+  const [sheetPageHeight, setSheetPageHeight] = useState(0);
   const currentPageCount = pageOffsets.length;
   // For effects that run on the leader's updates, not on this screen's layout.
   const currentIndexRef = useRef(currentIndex);
@@ -412,6 +425,18 @@ export default function ConcertModeView({
 
   const isMultiSong = songs.length > 1;
   const activeSong = songs[currentIndex] ?? null;
+
+  // A song can show one of its PDF attachments (a lead sheet, sheet music) instead of its chart.
+  const sheetUrlFor = useCallback((song: Song) => (
+    bandId && song.sheetAttachmentId ? songSheetUrl(bandId, song.id, song.sheetAttachmentId) : null
+  ), [bandId]);
+  // Have the neighbouring songs' sheets ready for the page turn.
+  useEffect(() => {
+    for (const song of [songs[currentIndex + 1], songs[currentIndex - 1]]) {
+      const url = song ? sheetUrlFor(song) : null;
+      if (url) preloadPdfSheet(url);
+    }
+  }, [songs, currentIndex, sheetUrlFor]);
 
   // Autoscroll speed. A song stores how long it takes to play through the chart (pauses
   // included); the play position moves down the chart at chart height ÷ (that time − pauses),
@@ -620,6 +645,11 @@ export default function ConcertModeView({
       content.style.transform = 'translateY(0px)';
       content.style.clipPath = '';
 
+      const sheet = content.querySelector('.pdf-sheet');
+      if (sheet) {
+        const sheetTop = sheet.getBoundingClientRect().top - content.getBoundingClientRect().top;
+        setSheetPageHeight(Math.max(120, Math.floor(vh - sheetTop - 2)));
+      }
       const offsets = computePageOffsets(content, vh);
       const geometry = measureScrollGeometry(viewport, content);
       setScrollGeometry((prev) => (sameGeometry(prev, geometry) ? prev : geometry));
@@ -1589,6 +1619,7 @@ export default function ConcertModeView({
   }
 
   const currentSong = songs[currentIndex] ?? songs[0];
+  const currentSheetUrl = currentSong ? sheetUrlFor(currentSong) : null;
   if (!currentSong) {
     return (
       <div className="not-found">
@@ -1878,27 +1909,31 @@ export default function ConcertModeView({
                 style={continuous ? undefined : pageStyle(currentPageInSong)}
               >
                 <div className="song-notes-stage">
-                  <ChordDisplay
-                    chordpro={currentSong.chordpro}
-                    transpose={transpose}
-                    showChords={showChords}
-                    showLyrics={showLyrics}
-                    notation={chordNotation}
-                    bpm={currentSong.tempo}
-                    timeSignature={currentSong.timeSignature}
-                    instrument={chordInstrument}
-                    hideMetaDirectives
-                    onChordClick={showChords
-                      ? (chord, rect) => {
-                        setActiveChord((previous) =>
-                          previous?.chord === chord && previous.rect.top === rect.top
-                            ? null
-                            : { chord, rect }
-                        );
-                      }
-                      : undefined}
-                    pinnedLineIds={pinnedLineIds}
-                  />
+                  {currentSheetUrl ? (
+                    <PdfSheet url={currentSheetUrl} maxPageHeight={continuous ? undefined : sheetPageHeight || undefined} />
+                  ) : (
+                    <ChordDisplay
+                      chordpro={currentSong.chordpro}
+                      transpose={transpose}
+                      showChords={showChords}
+                      showLyrics={showLyrics}
+                      notation={chordNotation}
+                      bpm={currentSong.tempo}
+                      timeSignature={currentSong.timeSignature}
+                      instrument={chordInstrument}
+                      hideMetaDirectives
+                      onChordClick={showChords
+                        ? (chord, rect) => {
+                          setActiveChord((previous) =>
+                            previous?.chord === chord && previous.rect.top === rect.top
+                              ? null
+                              : { chord, rect }
+                          );
+                        }
+                        : undefined}
+                      pinnedLineIds={pinnedLineIds}
+                    />
+                  )}
                   <LyricHandNotesOverlay
                     visible
                     drawEnabled={false}
@@ -1955,17 +1990,21 @@ export default function ConcertModeView({
             return (
               <div className="concert-page-viewport">
                 <div className="concert-page-content song-notes-stage">
-                  <ChordDisplay
-                    chordpro={song.chordpro}
-                    transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
-                    showChords={showChords}
-                    showLyrics={showLyrics}
-                    notation={chordNotation}
-                    bpm={song.tempo}
-                    timeSignature={song.timeSignature}
-                    instrument={chordInstrument}
-                    hideMetaDirectives
-                  />
+                  {sheetUrlFor(song) ? (
+                    <PdfSheet url={sheetUrlFor(song)!} maxPageHeight={continuous ? undefined : sheetPageHeight || undefined} />
+                  ) : (
+                    <ChordDisplay
+                      chordpro={song.chordpro}
+                      transpose={transposeBySongId?.[song.id] ?? song.preferredTranspose ?? 0}
+                      showChords={showChords}
+                      showLyrics={showLyrics}
+                      notation={chordNotation}
+                      bpm={song.tempo}
+                      timeSignature={song.timeSignature}
+                      instrument={chordInstrument}
+                      hideMetaDirectives
+                    />
+                  )}
                   {user && myNotes.length > 0 && (
                     <SongTextNotesOverlay
                       visible

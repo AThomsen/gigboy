@@ -50,6 +50,7 @@ import { storageUsageRouter } from './routes/storageUsage.js';
 import { songBadgesRouter } from './routes/songBadges.js';
 import { bandSongTransposeRouter, bandSongPrefsRouter } from './routes/songMemberPrefs.js';
 import { bandSongScrollRouter } from './routes/songScroll.js';
+import { bandSongSheetRouter } from './routes/songSheet.js';
 import { bandChordVoicingsRouter } from './routes/bandChordVoicings.js';
 import { bandSongRevisionsRouter } from './routes/songRevisions.js';
 import { recordingCommentsRouter } from './routes/recordingComments.js';
@@ -135,6 +136,7 @@ app.use('/api/bands/:bandId/songs/:songId/recordings', bandSongRecordingsRouter)
 app.use('/api/bands/:bandId/songs/:songId/stems', bandSongStemsRouter);
 app.use('/api/bands/:bandId/songs/:songId/transpose', bandSongTransposeRouter);
 app.use('/api/bands/:bandId/songs/:songId/scroll', bandSongScrollRouter);
+app.use('/api/bands/:bandId/songs/:songId/sheet', bandSongSheetRouter);
 app.use('/api/bands/:bandId/songs/:songId/revisions', bandSongRevisionsRouter);
 app.use('/api/bands/:bandId/song-prefs', bandSongPrefsRouter);
 app.use('/api/bands/:bandId/songs', bandSongsRouter);

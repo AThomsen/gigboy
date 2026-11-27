@@ -43,6 +43,7 @@
     "mpg123-decoder": "^1.0.3",
     "multer": "^2.2.0",
     "nodemailer": "^10.6.0",
+    "pdfjs-dist": "^6.5.438",
     "pg": "^8.13.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",

@@ -30,6 +30,7 @@ import { selectBandLogo, uploadBandLogoAsset } from '../lib/bandLogos';
 import { toUploadableImage } from '../utils/imageThumbnail';
 import { compareBands } from '../lib/bandUtils';
 import { saveSongScrollSeconds } from '../lib/songScroll';
+import { saveSongSheet } from '../lib/songSheet';
 
 /** Strip keys with undefined values so the API doesn't choke on them. */
 function stripUndefinedFields<T extends object>(obj: T): T {
@@ -133,6 +134,8 @@ interface BandsContextValue {
   updateBandSong: (bandId: string, song: Song) => Promise<string | null>;
   /** Saves a song's autoscroll time for the band (editors only). Not a song edit: no revision. */
   saveBandSongScrollSeconds: (bandId: string, songId: string, scrollSeconds: number) => Promise<string | null>;
+  /** Shows one of a song's PDF attachments as its chart, or null for the ChordPro chart (editors only). Not a song edit: no revision. */
+  saveBandSongSheet: (bandId: string, songId: string, attachmentId: string | null) => Promise<string | null>;
   removeSongFromBandLibrary: (bandId: string, songId: string) => Promise<string | null>;
   moveBandSong: (bandId: string, songId: string, beforeSongId: string | null) => Promise<string | null>;
   addBandSongList: (
@@ -879,8 +882,9 @@ export function BandsProvider({ children }: { children: ReactNode }) {
 
     const nextSong: Song = {
       ...song,
-      // Saved separately (saveBandSongScrollSeconds); the song form never touches it.
+      // Saved separately (saveBandSongScrollSeconds, saveBandSongSheet); the song form never touches them.
       scrollSeconds: existingSong.scrollSeconds,
+      sheetAttachmentId: existingSong.sheetAttachmentId,
       sortOrder: song.sortOrder ?? existingSong.sortOrder,
       createdAt: existingSong.createdAt ?? song.createdAt,
       updatedAt: new Date().toISOString(),
@@ -914,6 +918,21 @@ export function BandsProvider({ children }: { children: ReactNode }) {
       return null;
     } catch (error) {
       return error instanceof Error ? error.message : 'Failed to save the scroll speed.';
+    }
+  }, []);
+
+  const saveBandSongSheet = useCallback(async (bandId: string, songId: string, attachmentId: string | null) => {
+    try {
+      const saved = await saveSongSheet(bandId, songId, attachmentId);
+      setBandSongsByBandId((prev) => ({
+        ...prev,
+        [bandId]: (prev[bandId] ?? []).map((entry) => (
+          entry.id === songId ? { ...entry, sheetAttachmentId: saved ?? undefined } : entry
+        )),
+      }));
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Failed to show the PDF as the chart.';
     }
   }, []);
 
@@ -2195,6 +2214,7 @@ export function BandsProvider({ children }: { children: ReactNode }) {
     addSongToBandLibrary,
     updateBandSong,
     saveBandSongScrollSeconds,
+    saveBandSongSheet,
     removeSongFromBandLibrary,
     updateBandLibraryAppearance,
     updateBandLogo,
@@ -2239,6 +2259,7 @@ export function BandsProvider({ children }: { children: ReactNode }) {
     addSongToBandLibrary,
     updateBandSong,
     saveBandSongScrollSeconds,
+    saveBandSongSheet,
     bandSetlistsByBandId,
     bandSongListsByBandId,
     bandSongsByBandId,

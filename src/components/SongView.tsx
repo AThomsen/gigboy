@@ -55,6 +55,8 @@ import SongMediaPlayer from './SongMediaPlayer';
 import SongRecorder from './SongRecorder';
 import SongStems from './SongStems';
 import SongAttachments from './SongAttachments';
+import PdfSheet from './PdfSheet';
+import { songSheetUrl } from '../lib/songSheet';
 import ChordFinder from './ChordFinder';
 import { parseSongMedia } from '../utils/songMedia';
 import { parseImportedSongFile, SONG_TEXT_IMPORT_ACCEPT } from '../utils/songImport';
@@ -193,6 +195,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
   const hasRecordings = recordings.length > 0;
   const hasStems = stemsState.stems.length > 0;
   const hasAttachments = attachments.length > 0;
+  const sheetUrl = song.sheetAttachmentId ? songSheetUrl(bandId, song.id, song.sheetAttachmentId) : null;
 
   const badgeCounts = useMemo(() => ({
     notes: handNotes.notes.filter((note) => note.strokes.length > 0 || (note.textNotes?.length ?? 0) > 0).length,
@@ -886,7 +889,7 @@ export default function SongView({ song, accentColor, bandId }: Props) {
                       <span className="song-toolbar-tool-card-title">Attachments</span>
                       <button className="floating-tool-close" onClick={() => setShowAttachments(false)} aria-label="Close attachments"><X size={14} /></button>
                     </div>
-                    <SongAttachments song={song} user={user} bandId={bandId} />
+                    <SongAttachments song={song} user={user} bandId={bandId} canEdit={canEditBand} />
                   </div>
                 )}
 
@@ -1020,15 +1023,19 @@ export default function SongView({ song, accentColor, bandId }: Props) {
 
       <div className="song-view-body">
         <div className="song-notes-stage">
-          <ChordDisplay
-            chordpro={song.chordpro}
-            transpose={transpose}
-            notation={chordNotation}
-            timeSignature={song.timeSignature}
-            instrument={chordInstrument}
-            onChordClick={!showNotes ? handleChordClick : undefined}
-            pinnedLineIds={pinnedLineIds}
-          />
+          {sheetUrl ? (
+            <PdfSheet url={sheetUrl} />
+          ) : (
+            <ChordDisplay
+              chordpro={song.chordpro}
+              transpose={transpose}
+              notation={chordNotation}
+              timeSignature={song.timeSignature}
+              instrument={chordInstrument}
+              onChordClick={!showNotes ? handleChordClick : undefined}
+              pinnedLineIds={pinnedLineIds}
+            />
+          )}
           <LyricHandNotesOverlay
             visible
             drawEnabled={false}
