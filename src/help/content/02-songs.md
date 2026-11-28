@@ -74,8 +74,8 @@ The lyrics box uses ChordPro: put chords in square brackets right where they fal
 
 - **Chord** marks the selected text as a chord.
 - **Intro, Verse, Chorus, Bridge…** insert section markers.
-- **Insert Tab** and **Insert Strum** add a guitar tab or a strumming pattern that can be played back.
-- `{hold: 16 bars, Guitar solo}` on a line of its own marks a spot where concert mode's autoscroll holds still, for a number of bars (timed by the BPM), seconds (`{hold: 20s}`), or until tapped (`{hold}`). See [Autoscroll](/help/concert-mode#autoscroll).
+- **Tab** and **Strum** add a guitar tab or a strumming pattern that can be played back.
+- **Hold** adds `{hold: 8 bars}` on a line of its own above the cursor's line, with the 8 selected so you can type the number of bars. A hold like `{hold: 16 bars, Guitar solo}` marks a spot where concert mode's autoscroll holds still, for a number of bars (timed by the BPM), seconds (`{hold: 20s}`), or until tapped (`{hold}`). See [Autoscroll](/help/concert-mode#autoscroll).
 - **Preview** shows how the song will look, and undo/redo are always there.
 
 Your work is **autosaved** as you type.

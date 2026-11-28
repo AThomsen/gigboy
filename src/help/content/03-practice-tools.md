@@ -47,4 +47,4 @@ Look up a chord shape for guitar, ukulele or piano. If your band plays a chord d
 
 ## Tabs and strumming patterns
 
-Songs can contain **tabs** and **strumming patterns**. Press **Play** under one to hear it and the **loop** button to repeat it; the same button becomes **Stop** while it plays. Add them from the song editor with **Insert Tab** and **Insert Strum**.
+Songs can contain **tabs** and **strumming patterns**. Press **Play** under one to hear it and the **loop** button to repeat it; the same button becomes **Stop** while it plays. Add them from the song editor with the **Tab** and **Strum** buttons.

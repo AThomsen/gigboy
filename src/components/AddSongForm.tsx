@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeforeUnload, useLocation, useNavigate, useBlocker } from 'react-router-dom';
 import { flushSync } from 'react-dom';
-import { ChevronDown, FileMusic, FileUp, Guitar, Minus, Plus, Redo2, Save, Undo2, Wand2, X } from 'lucide-react';
+import { ChevronDown, Cloud, CloudAlert, CloudCheck, CloudUpload, Eye, FileMusic, FileUp, Minus, Pencil, Plus, Redo2, Save, Search, Undo2, Wand2, X } from 'lucide-react';
 import toast from '../utils/anchoredToast';
 import { generateId } from '../lib/uuid';
 import type { Song } from '../types';
@@ -125,6 +125,12 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
   const [preview, setPreview] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveStatusLabel = {
+    idle: 'Autosave on',
+    saving: 'Saving…',
+    saved: 'Saved',
+    error: 'Could not autosave',
+  }[saveState];
   const [songListId, setSongListId] = useState(initialSongListId ?? '');
   const [isImportingFile, setIsImportingFile] = useState(false);
   // A PDF lead sheet / sheet music to attach and show as the chart once the song is saved.
@@ -889,27 +895,27 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
                 onClick={() => importInputRef.current?.click()}
                 disabled={isImportingFile}
               >
-                <FileUp size={14} /> {isImportingFile ? 'Importing…' : mode === 'edit' ? 'Update from file' : 'Import file'}
+                <FileUp size={16} /> {isImportingFile ? 'Importing…' : mode === 'edit' ? 'Update from file' : 'Import file'}
               </button>
               {ultimateGuitarSearch && (
                 <button type="button" className="preview-toggle" onClick={() => setShowUltimateGuitar(true)}>
-                  <Guitar size={14} /> Ultimate Guitar
+                  <Search size={16} /> Ultimate Guitar
                 </button>
               )}
               {mode === 'add' && (
                 <button type="button" className="preview-toggle" onClick={handleParsePasted}>
-                  <Wand2 size={14} /> Parse
+                  <Wand2 size={16} /> Parse
                 </button>
               )}
               <button type="button" className="preview-toggle" onClick={() => setPreview((v) => !v)}>
-                {preview ? 'Edit' : 'Preview'}
+                {preview ? <><Pencil size={16} /> Edit</> : <><Eye size={16} /> Preview</>}
               </button>
               {mode === 'add' && (
                 <>
-                  <Button type="button" className="form-submit-inline" icon={<X size={14} />} onClick={handleCancel}>
+                  <Button type="button" className="form-submit-inline" icon={<X size={16} />} onClick={handleCancel}>
                     Cancel
                   </Button>
-                  <Button type="submit" variant="primary" className="form-submit-inline" icon={<Save size={14} />}>
+                  <Button type="submit" variant="primary" className="form-submit-inline" icon={<Save size={16} />}>
                     Save Song
                   </Button>
                 </>
@@ -924,7 +930,7 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
                     title="Undo"
                     aria-label="Undo"
                   >
-                    <Undo2 size={14} />
+                    <Undo2 size={16} />
                   </button>
                   <button
                     type="button"
@@ -934,26 +940,25 @@ const [tempo, setTempo] = useState(initialSong?.tempo !== undefined ? String(ini
                     title="Redo"
                     aria-label="Redo"
                   >
-                    <Redo2 size={14} />
+                    <Redo2 size={16} />
                   </button>
+                  {/* An icon of fixed size rather than text, so a change of state doesn't move
+                      the buttons beside it; the full text is in the tooltip and for screen readers. */}
                   <span
-                    className={`notes-save-status ${
-                      saveState === 'saving'
-                        ? 'notes-save-status--saving'
-                        : saveState === 'saved'
-                          ? 'notes-save-status--saved'
-                          : saveState === 'error'
-                            ? 'notes-save-status--error'
-                            : ''
-                    }`}
+                    className={`notes-save-status form-save-status notes-save-status--${saveState}`}
+                    role="status"
+                    aria-label={saveStatusLabel}
+                    title={saveStatusLabel}
                   >
-                    {saveState === 'saving'
-                      ? 'Saving…'
-                      : saveState === 'saved'
-                        ? 'Saved'
-                        : saveState === 'error'
-                          ? 'Could not autosave'
-                          : 'Autosave on'}
+                    {saveState === 'saving' ? (
+                      <CloudUpload size={18} />
+                    ) : saveState === 'saved' ? (
+                      <CloudCheck size={18} />
+                    ) : saveState === 'error' ? (
+                      <CloudAlert size={18} />
+                    ) : (
+                      <Cloud size={18} />
+                    )}
                   </span>
                 </>
               )}

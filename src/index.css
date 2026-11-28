@@ -3995,6 +3995,17 @@ input, select, textarea { font: inherit; color: var(--text); }
 .notes-save-status--saved { color: #27ae60; }
 .notes-save-status--error { color: var(--danger); }
 
+.form-save-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.form-save-status.notes-save-status--idle { color: var(--muted); }
+
 .song-text-notes-overlay {
   position: absolute;
   inset: 0;
@@ -5504,6 +5515,10 @@ input, select, textarea { font: inherit; color: var(--text); }
   justify-content: flex-end;
 }
 .preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
   font-size: var(--text-xs);
   color: var(--accent);
   font-weight: 600;
@@ -5574,14 +5589,6 @@ input, select, textarea { font: inherit; color: var(--text); }
   align-items: center;
   gap: var(--space-xs);
   flex-wrap: wrap;
-}
-
-.toolbar-label {
-  font-size: var(--text-2xs);
-  font-weight: var(--fw-label);
-  letter-spacing: .01em;
-  color: var(--muted);
-  margin-right: var(--space-3xs);
 }
 
 .toolbar-divider { width: 1px; height: 20px; background: var(--border); margin: 0 var(--space-2xs); }
@@ -14203,5 +14210,70 @@ input.stageplot-legend-number:focus {
   .add-song-form {
     padding-top: 0;
     padding-bottom: 0;
+  }
+
+  /* The metadata section drops its frame and keeps only its tinted toggle bar. */
+  .form-metadata-section {
+    border: none;
+    border-radius: 0;
+  }
+
+  .form-metadata-toggle {
+    border-radius: var(--radius);
+  }
+
+  .form-metadata-body {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* ChordPro label on its own line, its actions in a row below it. */
+  .chordpro-label-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+  }
+
+  .chordpro-label-actions {
+    justify-content: flex-start;
+    align-items: center;
+  }
+
+  .chordpro-label-actions .notes-save-status {
+    margin-left: auto;
+  }
+
+  /* The editor toolbar is one row you swipe sideways instead of four wrapped lines, joined
+     to the text box below it. */
+  .chordpro-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: var(--surface);
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .chordpro-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chordpro-toolbar .toolbar-group {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+
+  .chordpro-toolbar .toolbar-divider {
+    flex: none;
+  }
+
+  /* A scrolling row would clip the chord search dropdown. While it's open (Chord is the
+     first button, so the row is at its start) the row stops scrolling, and the field
+     clips sideways instead so the rest of the row can't widen the page. */
+  .chordpro-toolbar:has(.toolbar-chord-popover-anchor) {
+    overflow-x: visible;
+  }
+
+  .form-field:has(> .chordpro-toolbar) {
+    overflow-x: clip;
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Music2, Repeat2, GitBranch, ArrowRight, Guitar, ArrowDownUp } from 'lucide-react';
+import { Music2, Repeat2, GitBranch, ArrowRight, Guitar, ArrowDownUp, Pause } from 'lucide-react';
 import TabSequencerModal from './TabSequencerModal';
 import StrumEditorModal from './StrumEditorModal';
 import { serializeStrumBlock, uniqueChords, type StrumBlock } from '../utils/strumParser';
@@ -22,14 +22,14 @@ interface Props {
 type Section = { label: string; name: string; icon: React.ReactNode; color: string };
 
 const SECTIONS: Section[] = [
-  { label: 'Intro',      name: 'intro',      icon: <Music2 size={13} />,   color: 'section-intro' },
-  { label: 'Verse',      name: 'verse',      icon: <Music2 size={13} />,   color: 'section-verse' },
-  { label: 'Chorus',     name: 'chorus',     icon: <Repeat2 size={13} />,  color: 'section-chorus' },
-  { label: 'Bridge',     name: 'bridge',     icon: <GitBranch size={13} />,color: 'section-bridge' },
-  { label: 'Pre-chorus', name: 'pre_chorus', icon: <ArrowRight size={13} />,color: 'section-prechorus' },
-  { label: 'Interlude',  name: 'interlude',  icon: <Music2 size={13} />,   color: 'section-interlude' },
-  { label: 'Solo',       name: 'solo',       icon: <Guitar size={13} />,   color: 'section-solo' },
-  { label: 'Outro',      name: 'outro',      icon: <Repeat2 size={13} />,  color: 'section-outro' },
+  { label: 'Intro',      name: 'intro',      icon: <Music2 size={15} />,   color: 'section-intro' },
+  { label: 'Verse',      name: 'verse',      icon: <Music2 size={15} />,   color: 'section-verse' },
+  { label: 'Chorus',     name: 'chorus',     icon: <Repeat2 size={15} />,  color: 'section-chorus' },
+  { label: 'Bridge',     name: 'bridge',     icon: <GitBranch size={15} />,color: 'section-bridge' },
+  { label: 'Pre-chorus', name: 'pre_chorus', icon: <ArrowRight size={15} />,color: 'section-prechorus' },
+  { label: 'Interlude',  name: 'interlude',  icon: <Music2 size={15} />,   color: 'section-interlude' },
+  { label: 'Solo',       name: 'solo',       icon: <Guitar size={15} />,   color: 'section-solo' },
+  { label: 'Outro',      name: 'outro',      icon: <Repeat2 size={15} />,  color: 'section-outro' },
 ];
 
 function insertAtCursor(
@@ -144,6 +144,19 @@ export default function ChordProToolbar({ textareaRef, value, onChange, tempo, t
     replaceTextareaRange(textarea, start, start, block, value, onChange);
   }
 
+  // An autoscroll hold on a line of its own, above the line the cursor is on (so it never
+  // splits a lyric line), with the bar count selected to type over.
+  function handleInsertHold() {
+    if (!textareaRef.current) return;
+    const textarea = textareaRef.current;
+    const at = value.lastIndexOf('\n', textarea.selectionStart - 1) + 1;
+    const head = '{hold: ';
+    const count = '8';
+    const block = `${head}${count} bars}\n`;
+    const countStart = at + head.length;
+    replaceTextareaRange(textarea, at, at, block, value, onChange, countStart, countStart + count.length);
+  }
+
   function handleChordInsert(chordName: string) {
     if (!textareaRef.current) return;
     insertChordAtSelection(textareaRef.current, chordName, value, onChange);
@@ -184,7 +197,7 @@ export default function ChordProToolbar({ textareaRef, value, onChange, tempo, t
             onClick={() => setShowChordPopover((v) => !v)}
             title="Insert a chord"
           >
-            <Music2 size={13} />
+            <Music2 size={15} />
             Chord
           </button>
           {showChordPopover && (
@@ -205,7 +218,6 @@ export default function ChordProToolbar({ textareaRef, value, onChange, tempo, t
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        <span className="toolbar-label">Section</span>
         {SECTIONS.map((s) => (
           <button
             key={s.name}
@@ -223,30 +235,32 @@ export default function ChordProToolbar({ textareaRef, value, onChange, tempo, t
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        <span className="toolbar-label">Tab</span>
         <button
           type="button"
           className="toolbar-btn toolbar-btn--section section-tab"
           onClick={handleInsertTab}
           title="Insert guitar tab block"
         >
-          <Guitar size={13} />
-          Insert Tab
+          <Guitar size={15} />
+          Tab
         </button>
-      </div>
-
-      <div className="toolbar-divider" />
-
-      <div className="toolbar-group">
-        <span className="toolbar-label">Strum</span>
         <button
           type="button"
           className="toolbar-btn toolbar-btn--section section-tab"
           onClick={handleInsertStrum}
           title="Insert strumming pattern"
         >
-          <ArrowDownUp size={13} />
-          Insert Strum
+          <ArrowDownUp size={15} />
+          Strum
+        </button>
+        <button
+          type="button"
+          className="toolbar-btn toolbar-btn--section section-tab"
+          onClick={handleInsertHold}
+          title="Insert a hold: autoscroll stands still here for a number of bars"
+        >
+          <Pause size={15} />
+          Hold
         </button>
       </div>
     </div>
