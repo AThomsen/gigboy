@@ -7,7 +7,7 @@ import ChordFinderModal from './ChordFinderModal';
 import ChordSearchPanel from './ChordSearchPanel';
 import { extractRecentChords } from '../utils/chordNames';
 import { diatonicChords } from '../utils/musicTheory';
-import { insertChordAtSelection } from '../utils/chordInsertion';
+import { insertChordAtSelection, replaceTextareaRange } from '../utils/chordInsertion';
 
 interface Props {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -41,14 +41,8 @@ function insertAtCursor(
 ) {
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
-  const before = value.slice(0, start);
-  const after = value.slice(end);
-  onChange(before + text + after);
   const pos = newCursorOffset !== undefined ? start + newCursorOffset : start + text.length;
-  requestAnimationFrame(() => {
-    textarea.focus({ preventScroll: true });
-    textarea.setSelectionRange(pos, pos);
-  });
+  replaceTextareaRange(textarea, start, end, text, value, onChange, pos);
 }
 
 function insertSection(
@@ -63,16 +57,10 @@ function insertSection(
 
   if (selectedText) {
     const before = value.slice(0, start);
-    const after = value.slice(end);
     const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
     const body = selectedText.endsWith('\n') ? selectedText : `${selectedText}\n`;
     const block = `${prefix}{start_of_${sectionName}}\n${body}{end_of_${sectionName}}\n`;
-    onChange(before + block + after);
-    const newPos = start + block.length;
-    requestAnimationFrame(() => {
-      textarea.focus({ preventScroll: true });
-      textarea.setSelectionRange(newPos, newPos);
-    });
+    replaceTextareaRange(textarea, start, end, block, value, onChange);
   } else {
     const before = value.slice(0, start);
     const needsNewline = before.length > 0 && !before.endsWith('\n');
@@ -133,16 +121,10 @@ export default function ChordProToolbar({ textareaRef, value, onChange, tempo, t
     const textarea = textareaRef.current;
     const start = pendingCursorRef.current;
     const before = value.slice(0, start);
-    const after = value.slice(start);
     const needsNewline = before.length > 0 && !before.endsWith('\n');
     const prefix = needsNewline ? '\n' : '';
     const block = `${prefix}{start_of_tab}\n${tabLines.join('\n')}\n{end_of_tab}\n`;
-    onChange(before + block + after);
-    const newPos = start + block.length;
-    requestAnimationFrame(() => {
-      textarea.focus({ preventScroll: true });
-      textarea.setSelectionRange(newPos, newPos);
-    });
+    replaceTextareaRange(textarea, start, start, block, value, onChange);
   }
 
   function handleInsertStrum() {
@@ -157,15 +139,9 @@ export default function ChordProToolbar({ textareaRef, value, onChange, tempo, t
     const textarea = textareaRef.current;
     const start = pendingCursorRef.current;
     const before = value.slice(0, start);
-    const after = value.slice(start);
     const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
     const block = `${prefix}${serializeStrumBlock(strum)}\n`;
-    onChange(before + block + after);
-    const newPos = start + block.length;
-    requestAnimationFrame(() => {
-      textarea.focus({ preventScroll: true });
-      textarea.setSelectionRange(newPos, newPos);
-    });
+    replaceTextareaRange(textarea, start, start, block, value, onChange);
   }
 
   function handleChordInsert(chordName: string) {
