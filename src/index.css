@@ -14187,3 +14187,21 @@ input.stageplot-legend-number:focus {
     filter: none !important;
   }
 }
+
+/* On a phone the song page and the song form drop their card frame too: the page's own
+   padding is margin enough, and a second inset on top of it squeezes the chart. */
+@media (max-width: 600px) {
+  .song-view-body .chord-display,
+  .add-song-form {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .add-song-form {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
